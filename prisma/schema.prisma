@@ -1,0 +1,250 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  IMAM
+  TEACHER
+  STAFF
+  MEMBER
+}
+
+enum MembershipType {
+  INDIVIDUAL
+  FAMILY
+  STUDENT
+  SENIOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  PENDING
+}
+
+enum DonationType {
+  ZAKAT
+  SADAQA
+  ZAKAT_AL_FITR
+  PROJECT
+  MEMBERSHIP
+}
+
+enum ServiceType {
+  MARRIAGE
+  FUNERAL
+  SHAHADA
+  AQIQA
+}
+
+enum ServiceStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  password      String
+  firstName     String
+  lastName      String
+  phone         String?
+  address       String?
+  role          UserRole  @default(MEMBER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  children           Child[]
+  memberships        Membership[]
+  donations          Donation[]
+  eventRegistrations EventRegistration[]
+  contactMessages    ContactMessage[]
+  serviceRequests    ServiceRequest[]
+  enrollments        Enrollment[]
+
+  @@map("users")
+}
+
+model Child {
+  id          String   @id @default(uuid()) @db.Uuid
+  firstName   String
+  lastName    String
+  birthDate   DateTime
+  parentId    String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent      User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+
+  @@map("children")
+}
+
+model Membership {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  type        MembershipType
+  status      MembershipStatus @default(PENDING)
+  amount      Float
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+model Enrollment {
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String?          @db.Uuid
+  childId       String?          @db.Uuid
+  activityId    String           // Référence à Sanity
+  activityTitle String
+  status        EnrollmentStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  user          User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child         Child?           @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("enrollments")
+}
+
+model Donation {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String?      @db.Uuid
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  amount      Float
+  type        DonationType
+  projectId   String?      // Référence à Sanity si PROJECT
+  projectName String?
+  message     String?
+  anonymous   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("donations")
+}
+
+model EventRegistration {
+  id          String             @id @default(uuid()) @db.Uuid
+  userId      String?            @db.Uuid
+  eventId     String             // Référence à Sanity
+  eventTitle  String
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  attendees   Int                @default(1)
+  status      RegistrationStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("event_registrations")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("contact_messages")
+}
+
+model ServiceRequest {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String?       @db.Uuid
+  serviceType ServiceType
+  status      ServiceStatus @default(PENDING)
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  details     String
+  requestDate DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("service_requests")
+}
+
+// NextAuth tables
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
