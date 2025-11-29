@@ -1,13 +1,23 @@
 import { Clock, Calendar } from 'lucide-react'
 import { getMonthlyPrayerTimes, getPrayerTimes, getNextPrayer } from '@/lib/prayer-times'
+import { getMawaqitJumuahTimes } from '@/lib/mawaqit'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HorairesPage() {
-  const monthlyPrayers = await getMonthlyPrayerTimes('Paris', 'France')
-  const todayPrayers = await getPrayerTimes('Paris', 'France')
+  const monthlyPrayers = await getMonthlyPrayerTimes()
+  const todayPrayers = await getPrayerTimes()
   const nextPrayer = getNextPrayer(todayPrayers.timings)
+
+  // Récupérer horaires Joumou'a depuis Mawaqit
+  let jumuahTimes: string[] = []
+  try {
+    jumuahTimes = await getMawaqitJumuahTimes()
+  } catch (error) {
+    console.error('Erreur lors du chargement des horaires Joumou\'a:', error)
+    jumuahTimes = [] // Fallback vide si erreur
+  }
 
   const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']
 
@@ -18,7 +28,7 @@ export default async function HorairesPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Horaires des Prières</h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
-            Consultez les horaires mensuels des prières pour Paris
+            Consultez les horaires mensuels des prières de la Mosquée Madretsch (Bienne, Suisse)
           </p>
         </div>
 
@@ -28,22 +38,27 @@ export default async function HorairesPage() {
         </div>
 
         {/* Joumou'a Info */}
-        <div className="bg-accent/10 border border-accent rounded-xl p-6 mb-8">
-          <div className="flex items-start gap-4">
-            <Calendar className="h-8 w-8 text-accent flex-shrink-0" />
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Prière du Vendredi (Joumou'a)</h2>
-              <div className="space-y-2 text-gray-700 dark:text-gray-300">
-                <p><strong>Premier prêche :</strong> 13h00</p>
-                <p><strong>Deuxième prêche :</strong> 14h00</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
-                  Nous vous recommandons d'arriver 15 minutes avant le début du prêche.
-                  Les places sont limitées, merci de libérer votre place après la prière.
-                </p>
+        {jumuahTimes.length > 0 && (
+          <div className="bg-accent/10 border border-accent rounded-xl p-6 mb-8">
+            <div className="flex items-start gap-4">
+              <Calendar className="h-8 w-8 text-accent flex-shrink-0" />
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Prière du Vendredi (Joumou'a)</h2>
+                <div className="space-y-2 text-gray-700 dark:text-gray-300">
+                  {jumuahTimes.map((time, index) => (
+                    <p key={index}>
+                      <strong>{index === 0 ? 'Premier' : index === 1 ? 'Deuxième' : `${index + 1}ème`} prêche :</strong> {time}
+                    </p>
+                  ))}
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
+                    Nous vous recommandons d'arriver 15 minutes avant le début du prêche.
+                    Les places sont limitées, merci de libérer votre place après la prière.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Monthly Prayer Times Table */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-primary/10">
@@ -114,11 +129,11 @@ export default async function HorairesPage() {
           <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Les horaires sont calculés pour Paris selon la méthode de l'UOIF (Union des Organisations Islamiques de France)</span>
+              <span>Les horaires officiels de la Mosquée Madretsch (Bienne, Suisse)</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>L'iqama (appel pour commencer la prière) est effectuée 10-15 minutes après l'adhan</span>
+              <span>Les horaires d'iqama sont affichés à côté de chaque prière</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>

@@ -2,61 +2,48 @@ import Link from 'next/link'
 import { ArrowRight, Calendar, Book, Heart, Users } from 'lucide-react'
 import { PrayerTimesCard } from '@/components/PrayerTimesCard'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
-import { getPrayerTimes, getNextPrayer, formatHijriDate } from '@/lib/prayer-times'
-import { client } from '@/sanity/lib/client'
+import { SpecialPrayersSection } from '@/components/SpecialPrayersSection'
+import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
+import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  const prayerData = await getPrayerTimes('Paris', 'France')
+  const prayerData = await getPrayerTimes()
   const nextPrayer = getNextPrayer(prayerData.timings)
   const hijriDate = formatHijriDate(prayerData.date.hijri)
 
-  // Fetch featured events from Sanity
-  let featuredEvents = []
+  // Fetch detailed prayer times with iqama details
+  const prayerDetailsData = await getMawaqitPrayerTimesWithDetails()
+
+  // Fetch special prayer info (Joumou'a, Aïd, Imsak)
+  const specialInfo = await getSpecialPrayerInfo()
+
+  // Get current day (0=Sunday, 5=Friday)
+  const currentDay = new Date().getDay()
+
+  // Check if we're in Ramadan
+  const isRamadanMonth = isRamadan(prayerData.date.hijri)
+
+  // Fetch announcements from Mawaqit
+  let announcements = []
   try {
-    featuredEvents = await client.fetch(`
-      *[_type == "event" && published == true && featured == true] | order(date asc) [0...3] {
-        _id,
-        title,
-        description,
-        date,
-        startTime
-      }
-    `)
+    announcements = await getMawaqitAnnouncements()
   } catch (error) {
-    console.error('Erreur lors du chargement des événements:', error)
-    // Événements de démonstration
-    featuredEvents = [
-      {
-        _id: '1',
-        title: 'Préparation au Ramadan',
-        description: 'Conférence sur la préparation spirituelle et pratique pour le mois béni de Ramadan.',
-        date: '2024-12-15',
-        startTime: '20h00',
-      },
-      {
-        _id: '2',
-        title: 'Journée Portes Ouvertes',
-        description: 'Découvrez notre mosquée et rencontrez la communauté.',
-        date: '2024-12-22',
-        startTime: '14h00',
-      },
-      {
-        _id: '3',
-        title: 'Cours de Tafsir',
-        description: 'Étude approfondie de Sourate Al-Kahf avec Cheikh Mohammed.',
-        date: '2024-12-28',
-        startTime: '19h30',
-      },
-    ]
+    console.error('Erreur lors du chargement des annonces Mawaqit:', error)
+    announcements = []
   }
 
   return (
     <div className="islamic-pattern">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary via-primary-dark to-primary text-white">
+      <section className="relative bg-gradient-to-br from-primary via-primary-dark to-primary text-white overflow-hidden">
         <div className="absolute inset-0 bg-black/20"></div>
+        {/* Mosquée en arrière-plan */}
+        <div
+          className="absolute inset-0 bg-center bg-cover bg-no-repeat opacity-15"
+          style={{ backgroundImage: 'url(/mosque-silhouette.jpg)' }}
+        ></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
           <div className="text-center space-y-6">
             <h1 className="text-4xl md:text-6xl font-bold">
@@ -75,6 +62,35 @@ export default async function Home() {
                 <p className="text-sm text-white/70">Date Grégorienne</p>
                 <p className="text-lg font-semibold">{prayerData.date.gregorian.date}</p>
               </div>
+              {/* Joumou'a - Affiché le vendredi */}
+              {currentDay === 5 && specialInfo.jumua && specialInfo.jumua.length > 0 && (
+                <>
+                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
+                  <div className="text-center">
+                    <p className="text-sm text-white/70">Joumou&apos;a</p>
+                    <p className="text-lg font-semibold">{specialInfo.jumua.join(' • ')}</p>
+                  </div>
+                </>
+              )}
+              {/* Imsak et Iftar (Ramadan) - Affiché seulement pendant Ramadan */}
+              {isRamadanMonth && specialInfo.imsak && (
+                <>
+                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
+                  <div className="text-center">
+                    <p className="text-sm text-white/70">Imsak</p>
+                    <p className="text-lg font-semibold">{specialInfo.imsak}</p>
+                  </div>
+                </>
+              )}
+              {isRamadanMonth && specialInfo.iftar && (
+                <>
+                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
+                  <div className="text-center">
+                    <p className="text-sm text-white/70">Iftar (Maghrib)</p>
+                    <p className="text-lg font-semibold">{specialInfo.iftar}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -82,14 +98,26 @@ export default async function Home() {
 
       {/* Prayer Times Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid gap-6 md:grid-cols-3 mb-6">
-          <div className="md:col-span-2">
-            <PrayerTimesCard timings={prayerData.timings} nextPrayer={nextPrayer} />
-          </div>
-          <div>
-            <PrayerCountdown nextPrayer={nextPrayer} />
-          </div>
+        {/* Compteur centré en haut */}
+        <div className="flex justify-center mb-6">
+          <PrayerCountdown nextPrayer={nextPrayer} />
         </div>
+
+        {/* Card horaires prend toute la largeur */}
+        <div className="mb-6">
+          <PrayerTimesCard
+            timings={prayerData.timings}
+            iqama={prayerData.iqama}
+            iqamaDetailed={prayerDetailsData.iqamaDetailed}
+            nextPrayer={nextPrayer}
+            jumuaTimes={specialInfo.jumua}
+            jumuaMessage={specialInfo.jumuaMessage}
+            currentDay={currentDay}
+          />
+        </div>
+
+        {/* Section prières spéciales (Joumou'a, Aïd, etc.) */}
+        <SpecialPrayersSection specialInfo={specialInfo} currentDay={currentDay} isRamadanMonth={isRamadanMonth} />
       </section>
 
       {/* Quick Links */}
@@ -154,36 +182,40 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Upcoming Events Preview */}
+      {/* Annonces Mawaqit */}
       <section className="bg-gray-50 dark:bg-gray-900 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold">Événements à venir</h2>
-            <Link href="/evenements" className="text-primary hover:text-primary-dark flex items-center gap-1">
-              Voir tout
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <h2 className="text-3xl font-bold">Annonces</h2>
           </div>
-          {featuredEvents && featuredEvents.length > 0 ? (
+          {announcements && announcements.length > 0 ? (
             <div className="grid md:grid-cols-3 gap-6">
-              {featuredEvents.map((event: any) => {
-                const eventDate = new Date(event.date)
-                const day = eventDate.getDate()
-                const month = eventDate.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
+              {announcements.slice(0, 3).map((announcement) => {
+                const startDate = announcement.startDate ? new Date(announcement.startDate) : new Date()
+                const day = startDate.getDate()
+                const month = startDate.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
 
                 return (
-                  <div key={event._id} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10">
+                  <div key={announcement.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10">
                     <div className="flex items-start gap-4">
                       <div className="bg-primary text-white rounded-lg p-3 text-center min-w-16">
                         <div className="text-2xl font-bold">{day}</div>
                         <div className="text-xs">{month}</div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-lg mb-1">{event.title}</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                          {event.description}
-                        </p>
-                        <p className="text-sm text-primary mt-2">{event.startTime}</p>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg mb-1">{announcement.title}</h3>
+                        {announcement.content && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                            {announcement.content}
+                          </p>
+                        )}
+                        {announcement.image && (
+                          <img
+                            src={announcement.image}
+                            alt={announcement.title}
+                            className="mt-3 rounded-lg w-full h-32 object-cover"
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -192,8 +224,7 @@ export default async function Home() {
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <p>Aucun événement à venir pour le moment.</p>
-              <p className="text-sm mt-2">Les événements seront bientôt disponibles.</p>
+              <p>Aucune annonce pour le moment.</p>
             </div>
           )}
         </div>

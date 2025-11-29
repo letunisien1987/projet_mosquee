@@ -40,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
     { name: 'Demandes Services', href: '/admin/services', icon: FileText },
     { name: 'Horaires', href: '/admin/horaires', icon: Clock },
+    { name: 'Paramètres', href: '/admin/parametres', icon: Settings },
     { name: 'Sanity Studio', href: '/admin/studio', icon: Settings },
   ]
 
