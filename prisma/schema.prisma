@@ -248,3 +248,14 @@ model VerificationToken {
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
+
+model MosqueSettings {
+  id            String   @id @default(uuid()) @db.Uuid
+  key           String   @unique
+  value         String?
+  description   String?
+  updatedAt     DateTime @updatedAt
+  updatedBy     String?  // Email de l'admin qui a modifié
+
+  @@map("mosque_settings")
+}
