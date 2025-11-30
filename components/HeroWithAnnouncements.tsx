@@ -10,6 +10,8 @@ interface Announcement {
   content: string
   date?: string
   image?: string
+  isJumua?: boolean
+  jumuaTimes?: string[]
 }
 
 interface HeroWithAnnouncementsProps {
@@ -223,6 +225,26 @@ export default function HeroWithAnnouncements({
                         {currentSlide.content}
                       </p>
                     </div>
+
+                    {/* Horaires Joumou'a si disponible */}
+                    {currentSlide.isJumua && currentSlide.jumuaTimes && currentSlide.jumuaTimes.length > 0 && (
+                      <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 mt-6">
+                        <h3 className="text-lg font-bold mb-4">Horaires des Prêches</h3>
+                        <div className="flex flex-wrap gap-3">
+                          {currentSlide.jumuaTimes.map((time: string, index: number) => (
+                            <div
+                              key={index}
+                              className="bg-white/20 backdrop-blur-sm rounded-xl px-5 py-3 flex items-center gap-3"
+                            >
+                              <div className="w-8 h-8 bg-white/30 rounded-full flex items-center justify-center font-bold text-sm">
+                                {index + 1}
+                              </div>
+                              <span className="text-2xl font-bold">{time}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Right side - Image */}

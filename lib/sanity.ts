@@ -8,7 +8,7 @@ export const client = createClient({
   dataset,
   projectId,
   useCdn: false,
-  token,
+  // token, // Temporarily disable token to test if public read access works
 })
 
 export const writeClient = createClient({
@@ -79,4 +79,29 @@ export async function getPrayerOverrides(date?: string) {
     )
   }
   return client.fetch(`*[_type == "prayerOverride" && active == true]`)
+}
+
+export async function getJumuaMessages() {
+  const today = new Date().toISOString().split('T')[0]
+  return client.fetch(
+    `*[_type == "jumuaMessage" && isActive == true && (
+      !defined(validFrom) || validFrom <= $today
+    ) && (
+      !defined(validUntil) || validUntil >= $today
+    )] | order(order asc) {
+      _id,
+      title,
+      message,
+      image {
+        asset-> {
+          _id,
+          url
+        },
+        alt
+      },
+      times,
+      order
+    }`,
+    { today }
+  )
 }

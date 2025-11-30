@@ -65,6 +65,22 @@ enum RegistrationStatus {
   CANCELLED
 }
 
+enum ActivityStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ActivityCategory {
+  QURAN
+  ARABIC
+  SUNDAY_SCHOOL
+  HALAQAT
+  WOMEN
+  SUPPORT
+  OTHER
+}
+
 model User {
   id            String    @id @default(uuid()) @db.Uuid
   email         String    @unique
@@ -119,11 +135,52 @@ model Membership {
   @@map("memberships")
 }
 
+model Activity {
+  id          String           @id @default(uuid()) @db.Uuid
+  title       String
+  description String
+  category    ActivityCategory
+  icon        String?          // Nom de l'icône Lucide
+  color       String?          // primary, accent, etc.
+  status      ActivityStatus   @default(ACTIVE)
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  levels      ActivityLevel[]
+  enrollments Enrollment[]
+
+  @@map("activities")
+}
+
+model ActivityLevel {
+  id           String   @id @default(uuid()) @db.Uuid
+  activityId   String   @db.Uuid
+  name         String
+  schedule     String
+  instructor   String
+  participants String   // Ex: "15-20 étudiants"
+  details      String
+  minAge       Int?
+  maxAge       Int?
+  price        Float?   // Prix mensuel
+  maxCapacity  Int?     // Capacité maximale
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@map("activity_levels")
+}
+
 model Enrollment {
   id            String           @id @default(uuid()) @db.Uuid
   userId        String?          @db.Uuid
   childId       String?          @db.Uuid
-  activityId    String           // Référence à Sanity
+  activityId    String?          @db.Uuid
+  activityIdOld String?          // Old Sanity reference
+  levelId       String?          @db.Uuid
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
   notes         String?
@@ -132,6 +189,7 @@ model Enrollment {
 
   user          User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   child         Child?           @relation(fields: [childId], references: [id], onDelete: Cascade)
+  activity      Activity?        @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@map("enrollments")
 }

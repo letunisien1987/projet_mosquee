@@ -7,6 +7,7 @@ import teamMember from './teamMember'
 import project from './project'
 import mosqueSettings from './mosqueSettings'
 import gallery from './gallery'
+import jumuaMessage from './jumuaMessage'
 
 export const schemaTypes = [
   prayerSettings,
@@ -18,4 +19,5 @@ export const schemaTypes = [
   project,
   mosqueSettings,
   gallery,
+  jumuaMessage,
 ]

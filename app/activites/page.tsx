@@ -1,123 +1,93 @@
-import { BookOpen, GraduationCap, Users, Clock, Calendar, MapPin, Phone } from 'lucide-react'
+import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart } from 'lucide-react'
+import { prisma } from '@/lib/prisma'
+import * as LucideIcons from 'lucide-react'
+import Link from 'next/link'
 
-export default function ActivitesPage() {
-  const activities = [
-    {
-      title: 'Cours de Coran',
-      icon: BookOpen,
-      description: 'Apprentissage de la lecture du Coran avec tajweed pour tous les niveaux',
-      levels: [
-        {
-          name: 'Débutants',
-          schedule: 'Samedi 10h00 - 12h00',
-          instructor: 'Cheikh Abdallah',
-          participants: '15-20 étudiants',
-          details: 'Apprentissage des bases : alphabet arabe, prononciation, et premières sourates',
-        },
-        {
-          name: 'Intermédiaire',
-          schedule: 'Samedi 14h00 - 16h00',
-          instructor: 'Hafidh Ibrahim',
-          participants: '12-15 étudiants',
-          details: 'Perfectionnement du tajweed et mémorisation de Juz Amma',
-        },
-        {
-          name: 'Avancé (Hifz)',
-          schedule: 'Samedi & Dimanche 9h00 - 11h00',
-          instructor: 'Hafidh Youssef',
-          participants: '8-10 étudiants',
-          details: 'Programme de mémorisation complète du Coran',
-        },
-      ],
-      color: 'primary',
-    },
-    {
-      title: 'Cours d\'Arabe',
-      icon: GraduationCap,
-      description: 'Apprentissage de la langue arabe littéraire pour enfants et adultes',
-      levels: [
-        {
-          name: 'Enfants (6-10 ans)',
-          schedule: 'Mercredi 14h00 - 15h30',
-          instructor: 'Mme Fatima',
-          participants: '15-18 enfants',
-          details: 'Apprentissage ludique : alphabet, vocabulaire de base, et phrases simples',
-        },
-        {
-          name: 'Adolescents (11-17 ans)',
-          schedule: 'Mercredi 16h00 - 17h30',
-          instructor: 'M. Youssef',
-          participants: '12-15 étudiants',
-          details: 'Grammaire, conjugaison, lecture et conversation',
-        },
-        {
-          name: 'Adultes Débutants',
-          schedule: 'Jeudi 19h00 - 20h30',
-          instructor: 'M. Ahmed',
-          participants: '10-12 étudiants',
-          details: 'Base de la langue arabe : lecture, écriture et grammaire élémentaire',
-        },
-        {
-          name: 'Adultes Avancés',
-          schedule: 'Mardi 19h00 - 20h30',
-          instructor: 'Dr. Karim',
-          participants: '8-10 étudiants',
-          details: 'Étude de textes classiques, littérature arabe et conversation avancée',
-        },
-      ],
-      color: 'accent',
-    },
-    {
-      title: 'École du Dimanche',
-      icon: Users,
-      description: 'Éducation islamique complète pour les enfants de 5 à 15 ans',
-      levels: [
-        {
-          name: 'Petit Groupe (5-7 ans)',
-          schedule: 'Dimanche 10h00 - 11h30',
-          instructor: 'Mme Aïcha & Mme Khadija',
-          participants: '20-25 enfants',
-          details: 'Histoires des Prophètes, bonnes manières islamiques, prières de base',
-        },
-        {
-          name: 'Moyen Groupe (8-11 ans)',
-          schedule: 'Dimanche 10h00 - 12h00',
-          instructor: 'M. Omar & Mme Hafsa',
-          participants: '25-30 enfants',
-          details: 'Aqida, Fiqh, histoire islamique, et valeurs morales',
-        },
-        {
-          name: 'Grand Groupe (12-15 ans)',
-          schedule: 'Dimanche 14h00 - 16h00',
-          instructor: 'Cheikh Mohammed & M. Hassan',
-          participants: '15-20 jeunes',
-          details: 'Islam contemporain, débats, questions-réponses, et projets communautaires',
-        },
-      ],
-      color: 'primary',
-    },
-  ]
+export const dynamic = 'force-dynamic'
 
-  const additionalActivities = [
-    {
-      title: 'Cercles d\'Étude (Halaqat)',
-      schedule: 'Tous les vendredis après Asr',
-      description: 'Discussion et apprentissage sur des sujets islamiques variés',
-      icon: Users,
+// Mapping des catégories vers les icônes par défaut
+const categoryIcons: Record<string, any> = {
+  QURAN: BookOpen,
+  ARABIC: GraduationCap,
+  SUNDAY_SCHOOL: Users,
+  HALAQAT: Users,
+  WOMEN: BookOpen,
+  SUPPORT: GraduationCap,
+  OTHER: BookOpen,
+}
+
+export default async function ActivitesPage() {
+  // Récupérer les activités principales depuis la base de données
+  const mainActivities = await prisma.activity.findMany({
+    where: {
+      status: 'ACTIVE',
+      category: {
+        in: ['QURAN', 'ARABIC', 'SUNDAY_SCHOOL'],
+      },
     },
-    {
-      title: 'Cours pour Femmes',
-      schedule: 'Samedis 15h00 - 16h30',
-      description: 'Enseignements islamiques et discussions dans un cadre réservé aux sœurs',
-      icon: BookOpen,
+    include: {
+      levels: {
+        orderBy: { order: 'asc' },
+      },
     },
-    {
-      title: 'Soutien Scolaire',
-      schedule: 'Mercredis & Samedis 17h00 - 18h30',
-      description: 'Aide aux devoirs pour les élèves du primaire et collège',
-      icon: GraduationCap,
+    orderBy: { order: 'asc' },
+  })
+
+  // Récupérer les autres activités
+  const otherActivities = await prisma.activity.findMany({
+    where: {
+      status: 'ACTIVE',
+      category: {
+        notIn: ['QURAN', 'ARABIC', 'SUNDAY_SCHOOL'],
+      },
     },
-  ]
+    include: {
+      levels: {
+        orderBy: { order: 'asc' },
+      },
+    },
+    orderBy: { order: 'asc' },
+  })
+
+  // Transformer les données pour le rendu
+  const activities = mainActivities.map(activity => {
+    // Déterminer l'icône à utiliser
+    let IconComponent = categoryIcons[activity.category]
+    if (activity.icon && activity.icon in LucideIcons) {
+      IconComponent = (LucideIcons as any)[activity.icon]
+    }
+
+    return {
+      title: activity.title,
+      icon: IconComponent,
+      description: activity.description,
+      color: activity.color || 'primary',
+      levels: activity.levels.map(level => ({
+        name: level.name,
+        schedule: level.schedule,
+        instructor: level.instructor,
+        participants: level.participants || '',
+        details: level.details,
+      })),
+    }
+  })
+
+  const additionalActivities = otherActivities.map(activity => {
+    let IconComponent = categoryIcons[activity.category]
+    if (activity.icon && activity.icon in LucideIcons) {
+      IconComponent = (LucideIcons as any)[activity.icon]
+    }
+
+    // Prendre le premier niveau pour les infos
+    const firstLevel = activity.levels[0]
+
+    return {
+      title: activity.title,
+      schedule: firstLevel?.schedule || '',
+      description: activity.description,
+      icon: IconComponent,
+    }
+  })
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -171,13 +141,15 @@ export default function ActivitesPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-start gap-2">
-                          <Users className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-semibold">Participants</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{level.participants}</p>
+                        {level.participants && (
+                          <div className="flex items-start gap-2">
+                            <Users className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-semibold">Participants</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">{level.participants}</p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       <p className="text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -193,35 +165,50 @@ export default function ActivitesPage() {
       </section>
 
       {/* Additional Activities */}
-      <section className="bg-gray-50 dark:bg-gray-900 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-12">Autres Activités</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {additionalActivities.map((activity, index) => {
-              const Icon = activity.icon
-              return (
-                <div
-                  key={index}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10"
-                >
-                  <Icon className="h-12 w-12 text-primary mb-4" />
-                  <h3 className="text-xl font-bold mb-2">{activity.title}</h3>
-                  <div className="flex items-center gap-2 text-sm text-primary mb-3">
-                    <Clock className="h-4 w-4" />
-                    <span>{activity.schedule}</span>
+      {additionalActivities.length > 0 && (
+        <section className="bg-gray-50 dark:bg-gray-900 py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-center mb-12">Autres Activités</h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              {additionalActivities.map((activity, index) => {
+                const Icon = activity.icon
+                return (
+                  <div
+                    key={index}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10"
+                  >
+                    <Icon className="h-12 w-12 text-primary mb-4" />
+                    <h3 className="text-xl font-bold mb-2">{activity.title}</h3>
+                    {activity.schedule && (
+                      <div className="flex items-center gap-2 text-sm text-primary mb-3">
+                        <Clock className="h-4 w-4" />
+                        <span>{activity.schedule}</span>
+                      </div>
+                    )}
+                    <p className="text-gray-600 dark:text-gray-300">{activity.description}</p>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-300">{activity.description}</p>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Inscription Info */}
+      {/* Inscription Info avec lien vers formulaire */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-primary text-white rounded-xl p-8 shadow-xl">
           <h2 className="text-2xl font-bold mb-4 text-center">Comment s'inscrire ?</h2>
+
+          {/* Bouton d'inscription en ligne */}
+          <div className="mb-6 text-center">
+            <Link href="/activites/inscription">
+              <button className="bg-white text-primary px-8 py-3 rounded-lg font-bold hover:bg-white/90 transition-all inline-flex items-center gap-2">
+                <Heart className="h-5 w-5" />
+                S'inscrire en ligne
+              </button>
+            </Link>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6 mb-6">
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">

@@ -1,11 +1,11 @@
 import Link from 'next/link'
 import { ArrowRight, Calendar, Book, Heart, Users } from 'lucide-react'
-import { PrayerTimesCard } from '@/components/PrayerTimesCard'
+import { UnifiedPrayerCard } from '@/components/UnifiedPrayerCard'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
-import { SpecialPrayersSection } from '@/components/SpecialPrayersSection'
 import HeroWithAnnouncements from '@/components/HeroWithAnnouncements'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
+import { getJumuaMessages } from '@/lib/sanity'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,8 +35,28 @@ export default async function Home() {
     rawAnnouncements = []
   }
 
-  // Transform announcements for the carousel
-  const announcements = rawAnnouncements.map((announcement) => ({
+  // Fetch Jumua messages from Sanity
+  let jumuaMessages: any[] = []
+  try {
+    jumuaMessages = await getJumuaMessages()
+  } catch (error) {
+    console.error('Erreur lors du chargement des messages Joumou\'a:', error)
+    jumuaMessages = []
+  }
+
+  // Transform Jumua messages for the carousel
+  const jumuaAnnouncements = jumuaMessages.map((msg) => ({
+    id: msg._id,
+    title: msg.title,
+    content: msg.message,
+    image: msg.image?.asset?.url,
+    priority: 'high',
+    isJumua: true,
+    jumuaTimes: specialInfo.jumua || []
+  }))
+
+  // Transform Mawaqit announcements for the carousel
+  const mawaqitAnnouncements = rawAnnouncements.map((announcement) => ({
     id: announcement.id || Math.random().toString(),
     title: announcement.title || 'Annonce',
     content: announcement.content || announcement.description || announcement.text || '',
@@ -48,8 +68,14 @@ export default async function Home() {
         })
       : undefined,
     priority: announcement.priority || 'low',
-    image: announcement.image || announcement.imageUrl || announcement.photo || undefined
+    image: announcement.image || announcement.imageUrl || announcement.photo || undefined,
+    isJumua: false
   }))
+
+  // Combine all announcements (Jumua messages first if it's Friday or close to Friday)
+  const announcements = currentDay === 5 || currentDay === 4 || currentDay === 6
+    ? [...jumuaAnnouncements, ...mawaqitAnnouncements]
+    : [...mawaqitAnnouncements, ...jumuaAnnouncements]
 
   return (
     <div>
@@ -73,21 +99,18 @@ export default async function Home() {
             <PrayerCountdown nextPrayer={nextPrayer} />
           </div>
 
-          {/* Card horaires prend toute la largeur */}
+          {/* Carte unifiée : toutes les prières + horaires spéciaux */}
           <div className="mb-6">
-            <PrayerTimesCard
+            <UnifiedPrayerCard
               timings={prayerData.timings}
               iqama={prayerData.iqama}
               iqamaDetailed={prayerDetailsData.iqamaDetailed}
               nextPrayer={nextPrayer}
-              jumuaTimes={specialInfo.jumua}
-              jumuaMessage={specialInfo.jumuaMessage}
+              specialInfo={specialInfo}
               currentDay={currentDay}
+              isRamadan={isRamadanMonth}
             />
           </div>
-
-          {/* Section prières spéciales (Joumou'a, Aïd, etc.) */}
-          <SpecialPrayersSection specialInfo={specialInfo} currentDay={currentDay} isRamadanMonth={isRamadanMonth} />
         </div>
       </section>
 
