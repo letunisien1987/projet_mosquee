@@ -236,8 +236,12 @@ export async function getMonthlyPrayerTimes(
           timestamp: dayDate.getTime().toString(),
           hijri,
           gregorian: {
-            ...day.date.gregorian,
+            date: `${day.date.gregorian.day.padStart(2, '0')}-${day.date.gregorian.month.number.toString().padStart(2, '0')}-${day.date.gregorian.year}`,
             format: 'DD-MM-YYYY',
+            day: day.date.gregorian.day,
+            weekday: day.date.gregorian.weekday,
+            month: day.date.gregorian.month,
+            year: day.date.gregorian.year,
             designation: {
               abbreviated: 'CE',
               expanded: 'Common Era'

@@ -1,0 +1,173 @@
+'use client'
+
+import { useState } from 'react'
+import { FileText } from 'lucide-react'
+
+export default function ServiceRequestForm() {
+    const [loading, setLoading] = useState(false)
+    const [success, setSuccess] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [formData, setFormData] = useState({
+        serviceType: 'MARRIAGE',
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        requestDate: '',
+        details: '',
+    })
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        setError(null)
+
+        try {
+            const response = await fetch('/api/service-requests', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.error || 'Erreur lors de l\'envoi')
+            }
+
+            setSuccess(true)
+            setFormData({
+                serviceType: 'MARRIAGE',
+                firstName: '',
+                lastName: '',
+                email: '',
+                phone: '',
+                requestDate: '',
+                details: '',
+            })
+
+            setTimeout(() => setSuccess(false), 5000)
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue. Veuillez réessayer.'
+            setError(errorMessage)
+            console.error('Error:', errorMessage)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10">
+            <div className="flex items-center gap-2 mb-6">
+                <FileText className="h-6 w-6 text-primary" />
+                <h2 className="text-2xl font-bold">Demande de Service</h2>
+            </div>
+
+            {success && (
+                <div className="mb-6 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-4 rounded-lg">
+                    Votre demande a été envoyée ! Nous vous contacterons dans les plus brefs délais.
+                </div>
+            )}
+
+            {error && (
+                <div className="mb-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg">
+                    {error}
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium mb-2">Type de Service *</label>
+                    <select
+                        required
+                        value={formData.serviceType}
+                        onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                    >
+                        <option value="MARRIAGE">Mariage</option>
+                        <option value="FUNERAL">Funérailles</option>
+                        <option value="SHAHADA">Shahada (Attestation de foi)</option>
+                        <option value="AQIQA">Aqiqa (Sacrifice de naissance)</option>
+                    </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Prénom *</label>
+                        <input
+                            type="text"
+                            required
+                            value={formData.firstName}
+                            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Nom *</label>
+                        <input
+                            type="text"
+                            required
+                            value={formData.lastName}
+                            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium mb-2">Email *</label>
+                    <input
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium mb-2">Téléphone *</label>
+                    <input
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium mb-2">Date souhaitée (optionnel)</label>
+                    <input
+                        type="date"
+                        value={formData.requestDate}
+                        onChange={(e) => setFormData({ ...formData, requestDate: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium mb-2">Détails *</label>
+                    <textarea
+                        required
+                        minLength={10}
+                        rows={5}
+                        value={formData.details}
+                        onChange={(e) => setFormData({ ...formData, details: e.target.value })}
+                        placeholder="Veuillez fournir tous les détails pertinents concernant votre demande..."
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700"
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
+                >
+                    {loading ? 'Envoi en cours...' : 'Envoyer la demande'}
+                </button>
+            </form>
+        </div>
+    )
+}

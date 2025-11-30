@@ -9,7 +9,7 @@ const registrationSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
-  phone: z.string().optional(),
+  phone: z.string(),
   attendees: z.number().min(1).default(1),
   notes: z.string().optional(),
 })
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(registration, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

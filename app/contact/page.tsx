@@ -1,45 +1,33 @@
 import { MapPin, Phone, Mail, Clock } from 'lucide-react'
 import ContactForm from '@/components/ContactForm'
-import { getMosqueSettings } from '@/lib/sanity'
 
-export default async function ContactPage() {
-  const settings = await getMosqueSettings()
-
+export default function ContactPage() {
   const contactInfo = [
     {
       icon: MapPin,
       title: 'Adresse',
-      content: settings?.address
-        ? `${settings.address.street}, ${settings.address.postalCode} ${settings.address.city}`
-        : '123 Rue de la Mosquée, 75000 Paris',
-      link: settings?.address
-        ? `https://maps.google.com/?q=${settings.address.street}+${settings.address.city}`
-        : 'https://maps.google.com/?q=123+Rue+de+la+Mosquée+Paris',
+      content: 'Rue de Madretsch 131, 2503 Bienne',
+      link: 'https://maps.google.com/?q=Rue+de+Madretsch+131+2503+Bienne',
     },
     {
       icon: Phone,
       title: 'Téléphone',
-      content: settings?.contact?.phone || '01 23 45 67 89',
-      link: `tel:${settings?.contact?.phone || '0123456789'}`,
+      content: '+41 32 123 45 67',
+      link: 'tel:+41321234567',
     },
     {
       icon: Mail,
       title: 'Email',
-      content: settings?.contact?.email || 'contact@mosquee-alnour.fr',
-      link: `mailto:${settings?.contact?.email || 'contact@mosquee-alnour.fr'}`,
+      content: 'contact@mosquee-madretsch.ch',
+      link: 'mailto:contact@mosquee-madretsch.ch',
     },
   ]
 
-  const openingHours = settings?.openingHours
-    ? settings.openingHours.split('\n').map((line: string) => {
-        const [day, hours] = line.split(':')
-        return { day: day?.trim() || '', hours: hours?.trim() || '' }
-      })
-    : [
-        { day: 'Lundi - Jeudi', hours: '09:00 - 20:00' },
-        { day: 'Vendredi', hours: '09:00 - 22:00' },
-        { day: 'Samedi - Dimanche', hours: '08:00 - 21:00' },
-      ]
+  const openingHours = [
+    { day: 'Lundi - Jeudi', hours: '09:00 - 20:00' },
+    { day: 'Vendredi', hours: '09:00 - 22:00' },
+    { day: 'Samedi - Dimanche', hours: '08:00 - 21:00' },
+  ]
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -94,14 +82,14 @@ export default async function ContactPage() {
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-primary/10">
                 <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-700">
                   <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2624.9916256937586!2d2.292292615674247!3d48.85837007928746!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66fec70fb1d8d%3A0x40b82c3688c9460!2sEiffel%20Tower!5e0!3m2!1sen!2sfr!4v1234567890123!5m2!1sen!2sfr"
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2701.8976543210987!2d7.245678!3d47.14449!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDfCsDA4JzQwLjIiTiA3wrAxNCc0NC40IkU!5e0!3m2!1sfr!2sch!4v1234567890123!5m2!1sfr!2sch"
                     width="100%"
                     height="100%"
                     style={{ border: 0 }}
                     allowFullScreen
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    title="Mosquée Al-Nour Map"
+                    title="Mosquée Madretsch Map"
                   ></iframe>
                 </div>
                 <div className="p-4">
@@ -129,7 +117,7 @@ export default async function ContactPage() {
                   <h3 className="font-bold text-lg">Bureau d'accueil</h3>
                 </div>
                 <div className="space-y-3">
-                  {openingHours.map((schedule: any, index: number) => (
+                  {openingHours.map((schedule, index) => (
                     <div
                       key={index}
                       className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-0"
@@ -159,20 +147,20 @@ export default async function ContactPage() {
             <div className="grid md:grid-cols-3 gap-6 text-center">
               <div>
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full mb-3">
-                  <span className="font-bold text-blue-600 dark:text-blue-400">M</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">B</span>
                 </div>
-                <h3 className="font-semibold mb-1">Métro</h3>
+                <h3 className="font-semibold mb-1">Bus</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Lignes 6, 9 - Station Trocadéro
+                  Lignes 1, 4, 5 - Arrêt Madretsch
                 </p>
               </div>
               <div>
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full mb-3">
-                  <span className="font-bold text-green-600 dark:text-green-400">B</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">T</span>
                 </div>
-                <h3 className="font-semibold mb-1">Bus</h3>
+                <h3 className="font-semibold mb-1">Tram</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Lignes 22, 30, 32, 63, 82
+                  Ligne 2 - Arrêt Madretsch
                 </p>
               </div>
               <div>
@@ -181,7 +169,7 @@ export default async function ContactPage() {
                 </div>
                 <h3 className="font-semibold mb-1">Parking</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Parking souterrain à 2 min
+                  Places de stationnement disponibles
                 </p>
               </div>
             </div>

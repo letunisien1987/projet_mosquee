@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, Book, Heart, Users } from 'lucide-react'
 import { PrayerTimesCard } from '@/components/PrayerTimesCard'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
 import { SpecialPrayersSection } from '@/components/SpecialPrayersSection'
+import HeroWithAnnouncements from '@/components/HeroWithAnnouncements'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
 
@@ -26,102 +27,73 @@ export default async function Home() {
   const isRamadanMonth = isRamadan(prayerData.date.hijri)
 
   // Fetch announcements from Mawaqit
-  let announcements = []
+  let rawAnnouncements: any[] = []
   try {
-    announcements = await getMawaqitAnnouncements()
+    rawAnnouncements = await getMawaqitAnnouncements()
   } catch (error) {
     console.error('Erreur lors du chargement des annonces Mawaqit:', error)
-    announcements = []
+    rawAnnouncements = []
   }
 
+  // Transform announcements for the carousel
+  const announcements = rawAnnouncements.map((announcement) => ({
+    id: announcement.id || Math.random().toString(),
+    title: announcement.title || 'Annonce',
+    content: announcement.content || announcement.description || announcement.text || '',
+    date: announcement.startDate
+      ? new Date(announcement.startDate).toLocaleDateString('fr-FR', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        })
+      : undefined,
+    priority: announcement.priority || 'low',
+    image: announcement.image || announcement.imageUrl || announcement.photo || undefined
+  }))
+
   return (
-    <div className="islamic-pattern">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary via-primary-dark to-primary text-white overflow-hidden">
-        <div className="absolute inset-0 bg-black/20"></div>
-        {/* Mosquée en arrière-plan */}
-        <div
-          className="absolute inset-0 bg-center bg-cover bg-no-repeat opacity-15"
-          style={{ backgroundImage: 'url(/mosque-silhouette.jpg)' }}
-        ></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-          <div className="text-center space-y-6">
-            <h1 className="text-4xl md:text-6xl font-bold">
-              Bienvenue à la Mosquée Madretsch
-            </h1>
-            <p className="text-xl md:text-2xl text-white/90 max-w-3xl mx-auto">
-              La Mosquée Madretsch n'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <div className="text-center">
-                <p className="text-sm text-white/70">Date Hijri</p>
-                <p className="text-lg font-semibold arabic-text">{hijriDate}</p>
-              </div>
-              <div className="hidden sm:block w-px h-12 bg-white/30"></div>
-              <div className="text-center">
-                <p className="text-sm text-white/70">Date Grégorienne</p>
-                <p className="text-lg font-semibold">{prayerData.date.gregorian.date}</p>
-              </div>
-              {/* Joumou'a - Affiché le vendredi */}
-              {currentDay === 5 && specialInfo.jumua && specialInfo.jumua.length > 0 && (
-                <>
-                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
-                  <div className="text-center">
-                    <p className="text-sm text-white/70">Joumou&apos;a</p>
-                    <p className="text-lg font-semibold">{specialInfo.jumua.join(' • ')}</p>
-                  </div>
-                </>
-              )}
-              {/* Imsak et Iftar (Ramadan) - Affiché seulement pendant Ramadan */}
-              {isRamadanMonth && specialInfo.imsak && (
-                <>
-                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
-                  <div className="text-center">
-                    <p className="text-sm text-white/70">Imsak</p>
-                    <p className="text-lg font-semibold">{specialInfo.imsak}</p>
-                  </div>
-                </>
-              )}
-              {isRamadanMonth && specialInfo.iftar && (
-                <>
-                  <div className="hidden sm:block w-px h-12 bg-white/30"></div>
-                  <div className="text-center">
-                    <p className="text-sm text-white/70">Iftar (Maghrib)</p>
-                    <p className="text-lg font-semibold">{specialInfo.iftar}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+    <div>
+      {/* Hero Section with Announcements Carousel */}
+      <HeroWithAnnouncements
+        announcements={announcements}
+        hijriDate={hijriDate}
+        gregorianDate={prayerData.date.gregorian.date}
+        jumuaTime={specialInfo.jumua}
+        currentDay={currentDay}
+        imsak={specialInfo.imsak}
+        iftar={specialInfo.iftar}
+        isRamadan={isRamadanMonth}
+      />
 
       {/* Prayer Times Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Compteur centré en haut */}
-        <div className="flex justify-center mb-6">
-          <PrayerCountdown nextPrayer={nextPrayer} />
-        </div>
+      <section className="relative z-10 bg-background islamic-pattern w-full py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Compteur centré en haut */}
+          <div className="flex justify-center mb-6">
+            <PrayerCountdown nextPrayer={nextPrayer} />
+          </div>
 
-        {/* Card horaires prend toute la largeur */}
-        <div className="mb-6">
-          <PrayerTimesCard
-            timings={prayerData.timings}
-            iqama={prayerData.iqama}
-            iqamaDetailed={prayerDetailsData.iqamaDetailed}
-            nextPrayer={nextPrayer}
-            jumuaTimes={specialInfo.jumua}
-            jumuaMessage={specialInfo.jumuaMessage}
-            currentDay={currentDay}
-          />
-        </div>
+          {/* Card horaires prend toute la largeur */}
+          <div className="mb-6">
+            <PrayerTimesCard
+              timings={prayerData.timings}
+              iqama={prayerData.iqama}
+              iqamaDetailed={prayerDetailsData.iqamaDetailed}
+              nextPrayer={nextPrayer}
+              jumuaTimes={specialInfo.jumua}
+              jumuaMessage={specialInfo.jumuaMessage}
+              currentDay={currentDay}
+            />
+          </div>
 
-        {/* Section prières spéciales (Joumou'a, Aïd, etc.) */}
-        <SpecialPrayersSection specialInfo={specialInfo} currentDay={currentDay} isRamadanMonth={isRamadanMonth} />
+          {/* Section prières spéciales (Joumou'a, Aïd, etc.) */}
+          <SpecialPrayersSection specialInfo={specialInfo} currentDay={currentDay} isRamadanMonth={isRamadanMonth} />
+        </div>
       </section>
 
       {/* Quick Links */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <section className="relative z-10 bg-background w-full py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-3xl font-bold text-center mb-12">Découvrez nos services</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Link href="/horaires" className="group">
@@ -180,55 +152,9 @@ export default async function Home() {
             </div>
           </Link>
         </div>
-      </section>
-
-      {/* Annonces Mawaqit */}
-      <section className="bg-gray-50 dark:bg-gray-900 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold">Annonces</h2>
-          </div>
-          {announcements && announcements.length > 0 ? (
-            <div className="grid md:grid-cols-3 gap-6">
-              {announcements.slice(0, 3).map((announcement) => {
-                const startDate = announcement.startDate ? new Date(announcement.startDate) : new Date()
-                const day = startDate.getDate()
-                const month = startDate.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
-
-                return (
-                  <div key={announcement.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10">
-                    <div className="flex items-start gap-4">
-                      <div className="bg-primary text-white rounded-lg p-3 text-center min-w-16">
-                        <div className="text-2xl font-bold">{day}</div>
-                        <div className="text-xs">{month}</div>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg mb-1">{announcement.title}</h3>
-                        {announcement.content && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                            {announcement.content}
-                          </p>
-                        )}
-                        {announcement.image && (
-                          <img
-                            src={announcement.image}
-                            alt={announcement.title}
-                            className="mt-3 rounded-lg w-full h-32 object-cover"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <p>Aucune annonce pour le moment.</p>
-            </div>
-          )}
         </div>
       </section>
+
     </div>
   )
 }
