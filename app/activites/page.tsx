@@ -1,93 +1,98 @@
 import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart } from 'lucide-react'
-import { prisma } from '@/lib/prisma'
-import * as LucideIcons from 'lucide-react'
+import { getActivities } from '@/lib/sanity'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 // Mapping des catégories vers les icônes par défaut
 const categoryIcons: Record<string, any> = {
-  QURAN: BookOpen,
-  ARABIC: GraduationCap,
-  SUNDAY_SCHOOL: Users,
-  HALAQAT: Users,
-  WOMEN: BookOpen,
-  SUPPORT: GraduationCap,
-  OTHER: BookOpen,
+  coran: BookOpen,
+  arabe: GraduationCap,
+  ecole: Users,
+  tajweed: BookOpen,
+  hifz: BookOpen,
+  halaqat: Users,
+  autre: BookOpen,
+}
+
+// Catégories principales à afficher en premier
+const mainCategories = ['coran', 'arabe', 'ecole']
+
+// Titres des catégories
+function getCategoryTitle(category: string): string {
+  const titles: Record<string, string> = {
+    coran: 'Cours de Coran',
+    arabe: 'Cours d\'Arabe',
+    ecole: 'École du Dimanche',
+    tajweed: 'Tajweed',
+    hifz: 'Hifz',
+    halaqat: 'Halaqat',
+    autre: 'Autres Activités',
+  }
+  return titles[category] || category
+}
+
+// Descriptions des catégories
+function getCategoryDescription(category: string): string {
+  const descriptions: Record<string, string> = {
+    coran: 'Apprentissage de la lecture et de la récitation du Coran',
+    arabe: 'Cours de langue arabe pour tous les niveaux',
+    ecole: 'Programmes éducatifs pour enfants le dimanche',
+    tajweed: 'Perfectionnement de la récitation coranique',
+    hifz: 'Mémorisation du Coran',
+    halaqat: 'Cercles d\'étude et de science islamique',
+    autre: 'Autres programmes et activités',
+  }
+  return descriptions[category] || ''
 }
 
 export default async function ActivitesPage() {
-  // Récupérer les activités principales depuis la base de données
-  const mainActivities = await prisma.activity.findMany({
-    where: {
-      status: 'ACTIVE',
-      category: {
-        in: ['QURAN', 'ARABIC', 'SUNDAY_SCHOOL'],
-      },
-    },
-    include: {
-      levels: {
-        orderBy: { order: 'asc' },
-      },
-    },
-    orderBy: { order: 'asc' },
-  })
+  // Récupérer toutes les activités actives depuis Sanity
+  const allActivities = await getActivities(true)
 
-  // Récupérer les autres activités
-  const otherActivities = await prisma.activity.findMany({
-    where: {
-      status: 'ACTIVE',
-      category: {
-        notIn: ['QURAN', 'ARABIC', 'SUNDAY_SCHOOL'],
-      },
-    },
-    include: {
-      levels: {
-        orderBy: { order: 'asc' },
-      },
-    },
-    orderBy: { order: 'asc' },
-  })
+  // Séparer les activités principales des autres
+  const mainActivities = allActivities.filter((activity: any) =>
+    mainCategories.includes(activity.category)
+  )
 
-  // Transformer les données pour le rendu
-  const activities = mainActivities.map(activity => {
-    // Déterminer l'icône à utiliser
-    let IconComponent = categoryIcons[activity.category]
-    if (activity.icon && activity.icon in LucideIcons) {
-      IconComponent = (LucideIcons as any)[activity.icon]
-    }
+  const otherActivities = allActivities.filter((activity: any) =>
+    !mainCategories.includes(activity.category)
+  )
+
+  // Grouper les activités principales par catégorie
+  const groupedActivities = mainCategories.map(category => {
+    const categoryActivities = mainActivities.filter((a: any) => a.category === category)
+    if (categoryActivities.length === 0) return null
+
+    const IconComponent = categoryIcons[category] || BookOpen
 
     return {
-      title: activity.title,
+      title: getCategoryTitle(category),
       icon: IconComponent,
-      description: activity.description,
-      color: activity.color || 'primary',
-      levels: activity.levels.map(level => ({
-        name: level.name,
-        schedule: level.schedule,
-        instructor: level.instructor,
-        participants: level.participants || '',
-        details: level.details,
+      description: getCategoryDescription(category),
+      color: 'primary',
+      levels: categoryActivities.map((activity: any) => ({
+        name: activity.title,
+        schedule: activity.schedule || '',
+        instructor: activity.instructor?.name || 'À confirmer',
+        participants: activity.ageGroup || '',
+        details: activity.description || '',
       })),
     }
-  })
+  }).filter(Boolean)
 
-  const additionalActivities = otherActivities.map(activity => {
-    let IconComponent = categoryIcons[activity.category]
-    if (activity.icon && activity.icon in LucideIcons) {
-      IconComponent = (LucideIcons as any)[activity.icon]
-    }
-
-    // Prendre le premier niveau pour les infos
-    const firstLevel = activity.levels[0]
+  const additionalActivities = otherActivities.map((activity: any) => {
+    const IconComponent = categoryIcons[activity.category] || BookOpen
 
     return {
       title: activity.title,
-      schedule: firstLevel?.schedule || '',
-      description: activity.description,
+      schedule: activity.schedule || '',
+      description: activity.description || '',
       icon: IconComponent,
     }
   })
+
+  const activities = groupedActivities as any[]
 
   return (
     <div className="islamic-pattern min-h-screen">

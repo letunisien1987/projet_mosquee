@@ -35,7 +35,26 @@ export async function getEvents(published = true) {
 
 export async function getActivities(active = true) {
   return client.fetch(
-    `*[_type == "activity" ${active ? '&& active == true' : ''}] | order(category asc)`
+    `*[_type == "activity" ${active ? '&& active == true' : ''}] {
+      _id,
+      title,
+      slug,
+      category,
+      description,
+      content,
+      level,
+      ageGroup,
+      schedule,
+      instructor-> {
+        name,
+        role
+      },
+      maxParticipants,
+      requiresApproval,
+      price,
+      active,
+      enrollmentOpen
+    } | order(category asc)`
   )
 }
 

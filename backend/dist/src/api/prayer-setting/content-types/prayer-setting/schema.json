@@ -1,0 +1,110 @@
+{
+    "kind": "singleType",
+    "collectionName": "prayer_settings",
+    "info": {
+        "singularName": "prayer-setting",
+        "pluralName": "prayer-settings",
+        "displayName": "Prayer Settings"
+    },
+    "options": {
+        "draftAndPublish": false
+    },
+    "attributes": {
+        "prayerMethod": {
+            "type": "enumeration",
+            "enum": [
+                "MuslimWorldLeague",
+                "Egyptian",
+                "Karachi",
+                "UmmAlQura",
+                "Dubai",
+                "MoonsightingCommittee",
+                "NorthAmerica",
+                "Kuwait",
+                "Qatar",
+                "Singapore",
+                "Tehran",
+                "Turkey",
+                "Other"
+            ],
+            "default": "MuslimWorldLeague",
+            "required": true
+        },
+        "madhab": {
+            "type": "enumeration",
+            "enum": ["shafi", "hanafi"],
+            "default": "shafi",
+            "required": true
+        },
+        "highLatitudeRule": {
+            "type": "enumeration",
+            "enum": ["middleOfTheNight", "seventhOfTheNight", "twilightAngle"],
+            "default": "middleOfTheNight",
+            "required": true
+        },
+        "lat": {
+            "type": "decimal",
+            "required": true
+        },
+        "lng": {
+            "type": "decimal",
+            "required": true
+        },
+        "timezone": {
+            "type": "string",
+            "required": true
+        },
+        "showFajr": {
+            "type": "boolean",
+            "default": true
+        },
+        "fajrIqama": {
+            "type": "integer",
+            "default": 20
+        },
+        "showSunrise": {
+            "type": "boolean",
+            "default": true
+        },
+        "showDhuhr": {
+            "type": "boolean",
+            "default": true
+        },
+        "dhuhrIqama": {
+            "type": "integer",
+            "default": 15
+        },
+        "showAsr": {
+            "type": "boolean",
+            "default": true
+        },
+        "asrIqama": {
+            "type": "integer",
+            "default": 15
+        },
+        "showMaghrib": {
+            "type": "boolean",
+            "default": true
+        },
+        "maghribIqama": {
+            "type": "integer",
+            "default": 5
+        },
+        "showIsha": {
+            "type": "boolean",
+            "default": true
+        },
+        "ishaIqama": {
+            "type": "integer",
+            "default": 10
+        },
+        "showJumua": {
+            "type": "boolean",
+            "default": true
+        },
+        "jumuaIqama": {
+            "type": "integer",
+            "default": 20
+        }
+    }
+}

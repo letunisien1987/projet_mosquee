@@ -1,0 +1,22 @@
+{
+    "collectionName": "components_shared_addresses",
+    "info": {
+        "displayName": "Address",
+        "icon": "pin"
+    },
+    "options": {},
+    "attributes": {
+        "street": {
+            "type": "string"
+        },
+        "city": {
+            "type": "string"
+        },
+        "postalCode": {
+            "type": "string"
+        },
+        "country": {
+            "type": "string"
+        }
+    }
+}

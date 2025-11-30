@@ -1,0 +1,89 @@
+{
+    "kind": "collectionType",
+    "collectionName": "events",
+    "info": {
+        "singularName": "event",
+        "pluralName": "events",
+        "displayName": "Event",
+        "description": ""
+    },
+    "options": {
+        "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "title": {
+            "type": "string",
+            "required": true
+        },
+        "slug": {
+            "type": "uid",
+            "targetField": "title",
+            "required": true
+        },
+        "description": {
+            "type": "text"
+        },
+        "content": {
+            "type": "richtext"
+        },
+        "category": {
+            "type": "enumeration",
+            "enum": [
+                "religieux",
+                "communaute",
+                "education",
+                "charite"
+            ],
+            "required": true
+        },
+        "startTime": {
+            "type": "string",
+            "required": true
+        },
+        "endTime": {
+            "type": "string",
+            "required": true
+        },
+        "date": {
+            "type": "date",
+            "required": true
+        },
+        "location": {
+            "type": "string"
+        },
+        "image": {
+            "type": "media",
+            "multiple": false,
+            "required": false,
+            "allowedTypes": [
+                "images"
+            ]
+        },
+        "attendees": {
+            "type": "string"
+        },
+        "registrationRequired": {
+            "type": "boolean",
+            "default": false
+        },
+        "maxCapacity": {
+            "type": "integer"
+        },
+        "requiresApproval": {
+            "type": "boolean",
+            "default": false
+        },
+        "registrationDeadline": {
+            "type": "datetime"
+        },
+        "featured": {
+            "type": "boolean",
+            "default": false
+        },
+        "published": {
+            "type": "boolean",
+            "default": true
+        }
+    }
+}

@@ -1,0 +1,38 @@
+{
+    "kind": "collectionType",
+    "collectionName": "galleries",
+    "info": {
+        "singularName": "gallery",
+        "pluralName": "galleries",
+        "displayName": "Gallery"
+    },
+    "options": {
+        "draftAndPublish": true
+    },
+    "attributes": {
+        "title": {
+            "type": "string",
+            "required": true
+        },
+        "description": {
+            "type": "text"
+        },
+        "images": {
+            "type": "media",
+            "multiple": true,
+            "required": false,
+            "allowedTypes": ["images"]
+        },
+        "category": {
+            "type": "enumeration",
+            "enum": ["events", "mosque", "activities", "community"]
+        },
+        "date": {
+            "type": "date"
+        },
+        "published": {
+            "type": "boolean",
+            "default": true
+        }
+    }
+}
