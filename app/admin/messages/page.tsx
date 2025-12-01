@@ -28,6 +28,10 @@ export default function MessagesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [readFilter, setReadFilter] = useState<'ALL' | 'READ' | 'UNREAD'>('ALL')
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null)
+  const [replyMessage, setReplyMessage] = useState<ContactMessage | null>(null)
+  const [replySubject, setReplySubject] = useState('')
+  const [replyBody, setReplyBody] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
     read: 0,
@@ -74,24 +78,55 @@ export default function MessagesPage() {
   }
 
   const handleReply = (message: ContactMessage) => {
-    // Créer le sujet de la réponse
-    const subject = `Re: ${message.subject}`
+    setReplyMessage(message)
+    setReplySubject(`Re: ${message.subject}`)
+    setReplyBody('') // Laisser vide pour que l'admin écrive sa réponse
+  }
 
-    // Créer le corps du message avec citation
-    const body = `
+  const sendReply = async () => {
+    if (!replyMessage || !replyBody.trim()) {
+      alert('Veuillez écrire un message')
+      return
+    }
 
+    setSendingReply(true)
 
----
-Message original de ${message.firstName} ${message.lastName} (${format(new Date(message.createdAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}) :
+    try {
+      const response = await fetch('/api/admin/reply-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: replyMessage.email,
+          toName: replyMessage.firstName,
+          subject: replySubject,
+          message: replyBody,
+          originalMessage: replyMessage.message
+        })
+      })
 
-${message.message}
-`
+      const data = await response.json()
 
-    // Créer le lien mailto
-    const mailtoLink = `mailto:${message.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+      if (response.ok) {
+        alert('✅ Email envoyé avec succès !')
+        setReplyMessage(null)
+        setReplySubject('')
+        setReplyBody('')
 
-    // Ouvrir le client email
-    window.location.href = mailtoLink
+        // Marquer le message comme lu si ce n'est pas déjà fait
+        if (!replyMessage.read) {
+          await markAsRead(replyMessage.id)
+        }
+      } else {
+        alert('❌ Erreur : ' + (data.error || 'Impossible d\'envoyer l\'email'))
+      }
+    } catch (error) {
+      console.error('Erreur:', error)
+      alert('❌ Erreur lors de l\'envoi de l\'email')
+    } finally {
+      setSendingReply(false)
+    }
   }
 
   const filteredMessages = messages.filter((message) => {
@@ -187,7 +222,7 @@ ${message.message}
       {/* Liste des messages */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 relative">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -205,7 +240,7 @@ ${message.message}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky right-0 bg-gray-50 dark:bg-gray-900">
                   Actions
                 </th>
               </tr>
@@ -221,7 +256,8 @@ ${message.message}
                 filteredMessages.map((message) => (
                   <tr
                     key={message.id}
-                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${!message.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                    onClick={() => setSelectedMessage(message)}
+                    className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${!message.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       {message.read ? (
@@ -260,14 +296,9 @@ ${message.message}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(message.createdAt), 'dd MMM yyyy HH:mm', { locale: fr })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm sticky right-0 bg-white dark:bg-gray-800"
+                        onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setSelectedMessage(message)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          Voir
-                        </button>
                         <button
                           onClick={() => handleReply(message)}
                           className="text-primary hover:text-primary-dark dark:text-primary dark:hover:text-primary-dark flex items-center gap-1"
@@ -374,6 +405,103 @@ ${message.message}
               >
                 Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de réponse par email */}
+      {replyMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setReplyMessage(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold">Répondre par email</h3>
+                <button
+                  onClick={() => setReplyMessage(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Destinataire */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">À :</p>
+                  <p className="font-semibold">
+                    {replyMessage.firstName} {replyMessage.lastName}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{replyMessage.email}</p>
+                </div>
+
+                {/* Sujet */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Sujet</label>
+                  <input
+                    type="text"
+                    value={replySubject}
+                    onChange={(e) => setReplySubject(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Sujet du message"
+                  />
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Votre message</label>
+                  <textarea
+                    value={replyBody}
+                    onChange={(e) => setReplyBody(e.target.value)}
+                    rows={8}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                    placeholder="Écrivez votre réponse ici..."
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Le message sera envoyé avec un template professionnel de la mosquée
+                  </p>
+                </div>
+
+                {/* Message original */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border-l-4 border-primary">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message original :</p>
+                  <p className="text-sm font-semibold mb-1">{replyMessage.subject}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                    {replyMessage.message}
+                  </p>
+                </div>
+
+                {/* Boutons */}
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={sendReply}
+                    disabled={sendingReply || !replyBody.trim()}
+                    className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    {sendingReply ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        Envoi en cours...
+                      </span>
+                    ) : (
+                      'Envoyer la réponse'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setReplyMessage(null)}
+                    disabled={sendingReply}
+                    className="px-6 py-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

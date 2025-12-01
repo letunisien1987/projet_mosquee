@@ -68,6 +68,29 @@ enum RegistrationStatus {
   CANCELLED
 }
 
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum NotificationType {
+  EVENT_CONFIRMATION
+  EVENT_REMINDER
+  EVENT_CANCELLED
+  EVENT_WAITLIST_SPOT_AVAILABLE
+  ENROLLMENT_CONFIRMATION
+  ENROLLMENT_APPROVED
+  ENROLLMENT_REJECTED
+  PAYMENT_PENDING
+  PAYMENT_CONFIRMED
+  PAYMENT_FAILED
+  SYSTEM
+  REMINDER
+}
+
 enum ActivityStatus {
   ACTIVE
   INACTIVE
@@ -105,21 +128,28 @@ model User {
   enrollments        Enrollment[]
   profile            UserProfile?
   notifications      Notification[]
+  payments           Payment[]
+  waitingLists       WaitingList[]
 
   @@map("users")
 }
 
 model Child {
-  id          String   @id @default(uuid()) @db.Uuid
-  firstName   String
-  lastName    String
-  birthDate   DateTime
-  parentId    String   @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  firstName         String
+  lastName          String
+  nickName          String?  // Surnom optionnel
+  birthDate         DateTime
+  gender            String?  // "MALE", "FEMALE" - nullable pour données existantes
+  notes             String?  // Allergies, informations médicales, etc.
+  avatarUrl         String?  // Photo de profil optionnelle
+  parentId          String   @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  parent      User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  enrollments Enrollment[]
+  parent            User               @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  enrollments       Enrollment[]
+  eventRegistrations EventRegistration[]
 
   @@map("children")
 }
@@ -140,52 +170,16 @@ model Membership {
   @@map("memberships")
 }
 
-model Activity {
-  id          String           @id @default(uuid()) @db.Uuid
-  title       String
-  description String
-  category    ActivityCategory
-  icon        String?          // Nom de l'icône Lucide
-  color       String?          // primary, accent, etc.
-  status      ActivityStatus   @default(ACTIVE)
-  order       Int              @default(0)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-
-  levels      ActivityLevel[]
-  enrollments Enrollment[]
-
-  @@map("activities")
-}
-
-model ActivityLevel {
-  id           String   @id @default(uuid()) @db.Uuid
-  activityId   String   @db.Uuid
-  name         String
-  schedule     String
-  instructor   String
-  participants String   // Ex: "15-20 étudiants"
-  details      String
-  minAge       Int?
-  maxAge       Int?
-  price        Float?   // Prix mensuel
-  maxCapacity  Int?     // Capacité maximale
-  order        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-
-  @@map("activity_levels")
-}
+// NOTE: Activity and ActivityLevel are managed by Directus, not Prisma
+// Enrollments reference Directus activities via activityIdOld string field
 
 model Enrollment {
   id            String           @id @default(uuid()) @db.Uuid
   userId        String?          @db.Uuid
   childId       String?          @db.Uuid
-  activityId    String?          @db.Uuid
-  activityIdOld String?          // Directus/Sanity reference
-  levelId       String?          @db.Uuid
+  activityId    String?          // Directus activity reference (String ID)
+  activityIdOld String?          // Legacy Directus/Sanity reference
+  levelId       String?          // Directus level reference (String ID)
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
   notes         String?          // Notes publiques (du parent)
@@ -194,7 +188,6 @@ model Enrollment {
 
   user          User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   child         Child?           @relation(fields: [childId], references: [id], onDelete: Cascade)
-  activity      Activity?        @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@map("enrollments")
 }
@@ -220,21 +213,46 @@ model Donation {
 }
 
 model EventRegistration {
-  id          String             @id @default(uuid()) @db.Uuid
-  userId      String?            @db.Uuid
-  eventId     String             // Référence à Sanity
-  eventTitle  String
-  firstName   String
-  lastName    String
-  email       String
-  phone       String
-  attendees   Int                @default(1)
-  status      RegistrationStatus @default(PENDING)
-  notes       String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                String             @id @default(uuid()) @db.Uuid
+  userId            String?            @db.Uuid
+  childId           String?            @db.Uuid // Pour inscriptions d'enfants
+  eventId           String             // Référence à Directus
+  eventTitle        String
 
-  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Type d'inscription
+  participationType String             @default("INDIVIDUAL") // INDIVIDUAL, FAMILY, CHILD
+
+  // Contact principal (parent si enfant)
+  firstName         String
+  lastName          String
+  email             String
+  phone             String
+
+  // Pour inscriptions FAMILY
+  numberOfAdults    Int                @default(1)
+  numberOfChildren  Int                @default(0)
+  participants      Json?              // { adults: [{firstName, lastName}], children: [{firstName, lastName, age}] }
+
+  // Pour inscriptions INDIVIDUAL ou CHILD
+  participantAge    Int?               // Âge du participant (si restriction d'âge)
+  participantGender String?            // MALE, FEMALE, CHILD
+
+  // Paiement
+  requiresPayment   Boolean            @default(false)
+  paymentAmount     Float?
+  paymentId         String?            @db.Uuid // Lien vers Payment
+
+  // Anciens champs (compatibilité)
+  attendees         Int                @default(1)
+
+  status            RegistrationStatus @default(PENDING)
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  child             Child?             @relation(fields: [childId], references: [id], onDelete: Cascade)
+  payment           Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@map("event_registrations")
 }
@@ -347,17 +365,72 @@ model UserProfile {
 
 // Système de notifications pour l'espace membre
 model Notification {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  type      String   // "EVENT", "COURSE", "DONATION", "SYSTEM", "REMINDER"
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType // Type de notification
   title     String
   message   String
-  link      String?  // URL relative pour le lien
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  link      String?          // URL relative pour le lien
+  read      Boolean          @default(false)
+  emailSent Boolean          @default(false) // Email envoyé ou non
+  createdAt DateTime         @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
   @@index([userId, read])
+}
+
+// Paiements Stripe
+model Payment {
+  id                  String        @id @default(uuid()) @db.Uuid
+  userId              String?       @db.Uuid
+  eventId             String?       // Référence à Directus event
+  enrollmentId        String?       @db.Uuid
+  amount              Float
+  currency            String        @default("CHF")
+  status              PaymentStatus @default(PENDING)
+  stripePaymentId     String?       @unique // payment_intent_id de Stripe
+  stripeCheckoutId    String?       // checkout_session_id de Stripe
+  metadata            Json?         // Données additionnelles
+  paidAt              DateTime?
+  failedAt            DateTime?
+  failureReason       String?
+  refundedAt          DateTime?
+  refundAmount        Float?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  user                User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventRegistrations  EventRegistration[]
+
+  @@map("payments")
+  @@index([userId])
+  @@index([stripePaymentId])
+}
+
+// Liste d'attente pour événements/activités
+model WaitingList {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String?  @db.Uuid
+  childId         String?  @db.Uuid
+  eventId         String?  // Référence à Directus event
+  activityId      String?  // Référence à Directus activity
+  eventTitle      String?
+  activityTitle   String?
+  contactEmail    String
+  contactPhone    String?
+  contactName     String
+  notified        Boolean  @default(false) // Notifié d'une place disponible
+  notifiedAt      DateTime?
+  convertedToRegistration Boolean @default(false) // Converti en inscription
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("waiting_lists")
+  @@index([eventId, notified])
+  @@index([activityId, notified])
+  @@index([userId])
 }

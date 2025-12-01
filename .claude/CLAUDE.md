@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a full-featured mosque and Islamic association management platform built with Next.js 16, TypeScript, Prisma, and Sanity CMS. The application serves both public users (mosque members and visitors) and administrators managing the mosque operations.
+This is a full-featured mosque and Islamic association management platform built with Next.js 16, TypeScript, Prisma, and Directus CMS. The application serves both public users (mosque members and visitors) and administrators managing the mosque operations.
+
+**Note**: The project is currently migrating from Sanity CMS to Directus CMS. Some documentation may still reference Sanity, but Directus is the target CMS platform.
 
 ## Development Commands
 
@@ -37,7 +39,7 @@ npm run lint            # Run ESLint
 
 The application uses **two separate data storage systems** working together:
 
-1. **Sanity CMS** (`/studio` route) - For content managed by admins:
+1. **Directus CMS** (migrating from Sanity) - For content managed by admins:
    - Events (with registration capacity management)
    - Activities (courses, classes)
    - Articles and news
@@ -52,14 +54,36 @@ The application uses **two separate data storage systems** working together:
    - User accounts and authentication (NextAuth)
    - User roles (ADMIN, IMAM, TEACHER, STAFF, MEMBER)
    - Memberships and subscriptions
-   - Donations (linked to Sanity projects by ID reference)
-   - Event registrations (linked to Sanity events by ID)
+   - Donations (linked to CMS projects by ID reference)
+   - Event registrations (linked to CMS events by ID)
    - Contact messages
    - Service requests
-   - Children (for activity enrollments)
-   - Enrollments (linked to Sanity activities)
+   - **Children profiles** (managed by parents for multi-child families)
+   - Enrollments (linked to CMS activities)
+   - Payments (Stripe integration for event/activity fees)
+   - Waiting lists (automatic management for full events/activities)
+   - Notifications (email confirmations, reminders, status updates)
 
-**Important**: Content like events and activities are created in Sanity, but registrations/enrollments are stored in PostgreSQL with foreign key references using string IDs.
+**Important**: Content like events and activities are created in CMS (Directus/Sanity), but registrations/enrollments are stored in PostgreSQL with foreign key references using string IDs.
+
+### Directus Integration
+
+**Connection**: Directus client in `lib/directus.ts` using `@directus/sdk`
+**Endpoint**: Default `http://localhost:8055` (configurable via env)
+**Authentication**: Uses admin token for server-side operations
+
+**Key Collections**:
+- `events` - Event listings with capacity, dates, categories
+- `activities` - Courses and classes with instructor, schedule
+- `team_members` - Staff profiles
+- `projects` - Donation projects
+- `articles` - News and announcements
+
+**Data Flow**:
+1. Content created/managed in Directus admin UI (port 8055)
+2. Next.js fetches via Directus SDK REST API
+3. User interactions (registrations) stored in PostgreSQL
+4. References maintained via string IDs between systems
 
 ### Authentication & Authorization
 
@@ -104,10 +128,20 @@ Public APIs (no auth required):
 - `/api/contact` - Submit contact messages
 - `/api/service-requests` - Submit service requests
 
-Admin APIs (require authentication):
+Member APIs (require authentication):
+- `/api/account/children` - GET list, POST create new child
+- `/api/account/children/[id]` - GET details, PATCH update, DELETE child
+- `/api/membre/profil` - GET/PATCH user profile
+- `/api/membre/notifications` - GET user notifications
+- `/api/membre/dons/export` - POST generate donation receipt PDF
+
+Admin APIs (require authentication + admin role):
 - `/api/admin/*` - All administrative endpoints
 - `/api/admin/stats` - Dashboard statistics
 - `/api/admin/import-prayer-times` - Import prayer times from Mawaqit
+- `/api/admin/users` - User management
+- `/api/admin/event-registrations` - Event registration management
+- `/api/admin/enrollments/[id]` - Enrollment approval/rejection
 
 Setup:
 - `/api/setup/create-admin` - Initial admin creation endpoint
@@ -116,7 +150,8 @@ Setup:
 
 **`lib/auth.ts`**: NextAuth configuration with Prisma adapter and JWT callbacks
 **`lib/prisma.ts`**: Singleton Prisma client instance
-**`lib/sanity.ts`**: Sanity client configuration and helper functions for fetching content
+**`lib/directus.ts`**: Directus client configuration and helper functions for CMS operations
+**`lib/sanity.ts`**: Legacy Sanity client (being phased out in favor of Directus)
 **`lib/mawaqit.ts`**: Mawaqit API integration for prayer times with iqama calculation logic
 **`lib/prayer-times.ts`**: Prayer time utilities and formatting
 **`lib/utils.ts`**: General utility functions (cn for className merging)
@@ -127,9 +162,12 @@ Setup:
 - Form components: `ContactForm`, `DonationForm`, `EnrollmentForm`, `EventRegistrationModal`, `ServiceRequestForm`
 - Display components: `PrayerTimesCard`, `PrayerCountdown`, `SpecialPrayersSection`
 - Layout: `Navbar`, `Footer`
+- Member components: `AddEditChildModal`, `MemberNav`
 - UI primitives in `/components/ui` (shadcn-style components)
 
 **Admin Components**: Located within respective `/app/admin/*` page files (not in shared components directory)
+
+**Member Components**: `AddEditChildModal` is a reusable modal for adding/editing child profiles with full form validation
 
 ### Page Structure
 
@@ -142,6 +180,17 @@ Public pages:
 - `/dons` - Donation information and form
 - `/contact` - Contact form and map
 - `/services` - Service request forms
+
+Member pages (all under `/app/membre/`):
+- `/membre/dashboard` - Member dashboard with personal overview
+- `/membre/dashboard/enfants` - **Children management** (add, edit, delete child profiles)
+- `/membre/profil` - Edit personal profile
+- `/membre/inscriptions` - View activity enrollments
+- `/membre/evenements` - View event registrations
+- `/membre/dons` - Donation history
+- `/membre/cotisation` - Membership subscription status
+- `/membre/documents` - Personal documents
+- `/membre/parametres` - Account settings
 
 Admin pages (all under `/app/admin/`):
 - `/admin` - Dashboard with statistics
@@ -211,6 +260,38 @@ Located in `/sanity/schemas/`:
 - Animations with Framer Motion
 - Icons from Lucide React
 
+### Children Management System
+
+The application includes a complete multi-child management system for families:
+
+**Database Model** (`prisma/schema.prisma`):
+- `Child` model with fields: firstName, lastName, nickName, birthDate, gender, notes, avatarUrl
+- Parent-child relationship via `parentId` foreign key with cascade deletion
+- Children can be linked to event registrations and activity enrollments
+
+**API Endpoints**:
+- `GET /api/account/children` - List all children for authenticated user with enrollment/registration counts
+- `POST /api/account/children` - Create new child (requires auth, validates with Zod)
+- `GET /api/account/children/[id]` - Get single child details (owner verification)
+- `PATCH /api/account/children/[id]` - Update child (owner verification)
+- `DELETE /api/account/children/[id]` - Delete child (prevents deletion if has active registrations)
+
+**Frontend** (`/app/membre/dashboard/enfants`):
+- Children list page with statistics cards (total children, activities, events)
+- Automatic age calculation from birthDate
+- Visual indicators for gender, nicknames, notes/allergies
+- Modal-based add/edit workflow using `AddEditChildModal` component
+- Delete protection warning when child has active enrollments/registrations
+
+**Key Features**:
+- Full CRUD operations with authentication
+- Validation on both client and server (Zod schemas)
+- Security: Users can only manage their own children
+- Data integrity: Prevents orphaned registrations through deletion protection
+- French UI with proper date formatting and age calculations
+
+**Common Issue**: If child operations fail with foreign key errors, regenerate Prisma client with `npx prisma generate` and restart dev server.
+
 ## Common Development Patterns
 
 ### Creating a New Admin API Route
@@ -255,9 +336,55 @@ if (!session || !['ADMIN', 'IMAM', 'STAFF'].includes(session.user.role)) {
 
 1. Modify schema in `prisma/schema.prisma`
 2. Generate migration: `npx prisma migrate dev --name description`
-3. Prisma client auto-updates
+3. Prisma client auto-updates with `npx prisma generate`
 4. Update TypeScript types if needed
 5. Restart dev server to pick up changes
+
+**Important**: After schema changes or when encountering `PrismaClientValidationError`:
+```bash
+npx prisma generate  # Regenerate client
+rm -rf .next         # Clear Next.js cache
+npm run dev          # Restart server
+```
+
+## Troubleshooting
+
+### Foreign Key Constraint Errors on Child Operations
+
+**Symptom**: Creating/updating children fails with "Foreign key constraint violated on children_parentId_fkey"
+
+**Cause**: User session has stale user ID that doesn't match database
+
+**Solution**:
+1. User must completely log out
+2. Close all browser windows
+3. Clear browser cookies
+4. Log back in with correct credentials
+5. Session will now have correct user ID
+
+### Session Authentication Issues
+
+**Symptom**: API returns 401 Unauthorized or operations fail silently
+
+**Debugging**:
+```javascript
+// In browser console:
+fetch('/api/auth/session').then(r => r.json()).then(console.log)
+```
+
+If session is empty `{}`, user needs to re-authenticate.
+
+### Prisma Client Out of Sync
+
+**Symptom**: `PrismaClientValidationError` when accessing database
+
+**Solution**:
+```bash
+npx prisma generate
+pkill -f "next dev"
+rm -rf .next
+npm run dev
+```
 
 ## Deployment Notes
 

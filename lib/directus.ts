@@ -24,6 +24,13 @@ export interface DirectusEvent {
   registration_deadline?: string
   featured: boolean
   published: boolean
+  restrictions?: {
+    enabled: boolean
+    participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
+    allowed_gender?: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
+    min_age?: number | null
+    max_age?: number | null
+  }
   date_created?: string
   date_updated?: string
 }
@@ -44,6 +51,13 @@ export interface DirectusActivity {
   price?: number
   active: boolean
   enrollment_open: boolean
+  restrictions?: {
+    enabled: boolean
+    participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
+    allowed_gender?: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
+    min_age?: number | null
+    max_age?: number | null
+  }
   date_created?: string
   date_updated?: string
 }

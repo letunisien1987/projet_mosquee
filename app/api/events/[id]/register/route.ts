@@ -3,14 +3,31 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getEventById } from '@/lib/directus'
 import { sendEventRegistrationEmail } from '@/lib/email'
+import { validateRestrictions, type EventRegistrationFormData } from '@/types/restrictions'
 
 const registerSchema = z.object({
-  firstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
-  lastName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
-  email: z.string().email('Email invalide'),
-  phone: z.string().min(10, 'Numéro de téléphone invalide'),
-  attendees: z.number().min(1).default(1),
+  // Type de participation
+  participationType: z.enum(['INDIVIDUAL', 'FAMILY']).default('INDIVIDUAL'),
+  // Contact
+  contactFirstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
+  contactLastName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
+  contactEmail: z.string().email('Email invalide'),
+  contactPhone: z.string().min(10, 'Numéro de téléphone invalide'),
   notes: z.string().optional(),
+  // Pour INDIVIDUAL
+  participantGender: z.enum(['MALE', 'FEMALE', 'CHILD']).optional(),
+  participantBirthDate: z.string().optional(),
+  // Pour CHILD - Parent/Tuteur
+  parentRelation: z.enum(['PERE', 'MERE', 'TUTEUR', 'AUTRE']).optional(),
+  // Pour FAMILY
+  numberOfAdults: z.number().min(1).optional(),
+  numberOfChildren: z.number().min(0).optional(),
+  // Ancienne API (rétrocompatibilité)
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  attendees: z.number().optional(),
 })
 
 export async function POST(
@@ -21,6 +38,30 @@ export async function POST(
     const { id: eventId } = await params
     const body = await request.json()
     const validatedData = registerSchema.parse(body)
+
+    // Support ancien format (rétrocompatibilité)
+    const formData: EventRegistrationFormData = {
+      participationType: validatedData.participationType,
+      contactFirstName: validatedData.contactFirstName || validatedData.firstName || '',
+      contactLastName: validatedData.contactLastName || validatedData.lastName || '',
+      contactEmail: validatedData.contactEmail || validatedData.email || '',
+      contactPhone: validatedData.contactPhone || validatedData.phone || '',
+      notes: validatedData.notes,
+      participantGender: validatedData.participantGender,
+      participantBirthDate: validatedData.participantBirthDate,
+      numberOfAdults: validatedData.numberOfAdults,
+      numberOfChildren: validatedData.numberOfChildren,
+    }
+
+    // VALIDATION: Pour les enfants, la relation parent est OBLIGATOIRE
+    if (formData.participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD') {
+      if (!validatedData.parentRelation) {
+        return NextResponse.json(
+          { error: 'Pour les inscriptions d\'enfants, la relation avec le parent/tuteur est obligatoire' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Récupérer les infos de l'événement depuis Directus
     const event = await getEventById(eventId)
@@ -37,6 +78,17 @@ export async function POST(
         { error: 'Cet événement ne nécessite pas d\'inscription' },
         { status: 400 }
       )
+    }
+
+    // VALIDATION DES RESTRICTIONS
+    if (event.restrictions?.enabled) {
+      const validationResult = validateRestrictions(event.restrictions, formData)
+      if (!validationResult.valid) {
+        return NextResponse.json(
+          { error: validationResult.error, code: validationResult.errorCode },
+          { status: 400 }
+        )
+      }
     }
 
     // Vérifier si l'événement est passé
@@ -63,7 +115,7 @@ export async function POST(
     const existingRegistration = await prisma.eventRegistration.findFirst({
       where: {
         eventId,
-        email: validatedData.email,
+        email: formData.contactEmail,
         status: { not: 'CANCELLED' },
       },
     })
@@ -74,6 +126,11 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    // Calculer le nombre total de participants
+    const totalAttendees = formData.participationType === 'FAMILY'
+      ? (formData.numberOfAdults || 1) + (formData.numberOfChildren || 0)
+      : 1
 
     // Vérifier les places disponibles
     if (event.max_capacity) {
@@ -90,7 +147,7 @@ export async function POST(
       const currentAttendees = totalRegistered._sum.attendees || 0
       const availableSpots = event.max_capacity - currentAttendees
 
-      if (availableSpots < validatedData.attendees) {
+      if (availableSpots < totalAttendees) {
         return NextResponse.json(
           {
             error: `Places insuffisantes. Il reste ${availableSpots} place(s) disponible(s)`,
@@ -103,16 +160,29 @@ export async function POST(
     // Créer l'inscription
     const status = event.requires_approval ? 'PENDING' : 'CONFIRMED'
 
+    // Ajouter la relation parent aux notes si c'est un enfant
+    let notesWithParentInfo = formData.notes || ''
+    if (formData.participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD' && validatedData.parentRelation) {
+      const relationLabels: Record<string, string> = {
+        PERE: 'Père',
+        MERE: 'Mère',
+        TUTEUR: 'Tuteur légal',
+        AUTRE: 'Autre'
+      }
+      const relationLabel = relationLabels[validatedData.parentRelation] || validatedData.parentRelation
+      notesWithParentInfo = `[Relation parent: ${relationLabel}]${notesWithParentInfo ? '\n' + notesWithParentInfo : ''}`
+    }
+
     const registration = await prisma.eventRegistration.create({
       data: {
         eventId,
         eventTitle: event.title,
-        firstName: validatedData.firstName,
-        lastName: validatedData.lastName,
-        email: validatedData.email,
-        phone: validatedData.phone,
-        attendees: validatedData.attendees,
-        notes: validatedData.notes,
+        firstName: formData.contactFirstName,
+        lastName: formData.contactLastName,
+        email: formData.contactEmail,
+        phone: formData.contactPhone,
+        attendees: totalAttendees,
+        notes: notesWithParentInfo,
         status,
       },
     })
@@ -129,8 +199,8 @@ export async function POST(
       })
 
       await sendEventRegistrationEmail(
-        validatedData.email,
-        validatedData.firstName,
+        formData.contactEmail,
+        formData.contactFirstName,
         event.title,
         eventDate
       )

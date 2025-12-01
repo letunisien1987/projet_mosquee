@@ -5,7 +5,7 @@ import { markNotificationAsRead } from '@/lib/directus'
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,7 +14,8 @@ export async function POST(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    const success = await markNotificationAsRead(params.id)
+    const { id } = await params
+    const success = await markNotificationAsRead(id)
 
     if (!success) {
       return NextResponse.json(

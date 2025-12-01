@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, MapPin, Clock, Users, Filter, CheckCircle } from 'lucide-react'
 // import { client } from '@/sanity/lib/client' // Remplacé par Directus
-import { EventRegistrationModal } from '@/components/EventRegistrationModal'
+import { SmartEventRegistrationModal } from '@/components/SmartEventRegistrationModal'
 
 type EventCategory = 'Tous' | 'Religieux' | 'Éducation' | 'Communauté' | 'Charité'
 
@@ -277,7 +277,7 @@ export default function EvenementsPage() {
 
       {/* Modal d'inscription */}
       {selectedEvent && (
-        <EventRegistrationModal
+        <SmartEventRegistrationModal
           event={selectedEvent}
           isOpen={!!selectedEvent}
           onClose={() => setSelectedEvent(null)}

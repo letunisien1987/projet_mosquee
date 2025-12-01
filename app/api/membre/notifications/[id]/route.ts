@@ -5,7 +5,7 @@ import { deleteNotification } from '@/lib/directus'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,7 +14,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    const success = await deleteNotification(params.id)
+    const { id } = await params
+    const success = await deleteNotification(id)
 
     if (!success) {
       return NextResponse.json(

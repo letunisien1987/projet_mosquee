@@ -18,6 +18,7 @@ import {
   Bell,
   Menu,
   X,
+  Users,
 } from 'lucide-react'
 
 interface MemberNavProps {
@@ -32,6 +33,7 @@ interface MemberNavProps {
 const navigation = [
   { name: 'Tableau de bord', href: '/membre/dashboard', icon: Home },
   { name: 'Mon Profil', href: '/membre/profil', icon: User },
+  { name: 'Mes Enfants', href: '/membre/dashboard/enfants', icon: Users },
   { name: 'Mes Inscriptions', href: '/membre/inscriptions', icon: BookOpen },
   { name: 'Mes Dons', href: '/membre/dons', icon: Heart },
   { name: 'Événements', href: '/membre/evenements', icon: Calendar },

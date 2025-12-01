@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { EventRestrictions, getRestrictionsMessage } from '@/types/restrictions'
 
 interface Event {
   id: string
@@ -10,6 +11,7 @@ interface Event {
   location?: string
   start_time: string
   end_time: string
+  restrictions?: EventRestrictions
 }
 
 interface EventRegistrationModalProps {
@@ -25,6 +27,12 @@ export function EventRegistrationModal({
   onClose,
   onSuccess,
 }: EventRegistrationModalProps) {
+  const restrictions = event.restrictions
+  const isFamily = restrictions?.enabled && (restrictions.participation_type === 'FAMILY' || restrictions.participation_type === 'MIXED')
+  const requiresGender = restrictions?.enabled && restrictions.allowed_gender !== 'ALL'
+  const requiresAge = restrictions?.enabled && (restrictions.min_age !== null || restrictions.max_age !== null)
+
+  const [participationType, setParticipationType] = useState<'INDIVIDUAL' | 'FAMILY'>('INDIVIDUAL')
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -32,10 +40,27 @@ export function EventRegistrationModal({
     phone: '',
     attendees: 1,
     notes: '',
+    // Pour INDIVIDUAL
+    participantGender: '',
+    participantBirthDate: '',
+    // Pour FAMILY
+    numberOfAdults: 1,
+    numberOfChildren: 0,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  // Adapter le type de participation selon les restrictions
+  useEffect(() => {
+    if (restrictions?.enabled) {
+      if (restrictions.participation_type === 'FAMILY') {
+        setParticipationType('FAMILY')
+      } else if (restrictions.participation_type === 'INDIVIDUAL') {
+        setParticipationType('INDIVIDUAL')
+      }
+    }
+  }, [restrictions])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
