@@ -325,6 +325,220 @@ export async function sendDonationConfirmationEmail(
 }
 
 /**
+ * Email d'annulation d'inscription à un événement
+ */
+export async function sendEventCancellationEmail(
+  to: string,
+  firstName: string,
+  eventTitle: string
+) {
+  const content = `
+    <h2 style="color: #dc2626; margin: 0 0 20px 0;">Inscription annulée</h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${firstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Votre inscription à l'événement <strong>"${eventTitle}"</strong> a été annulée avec succès.
+    </p>
+
+    <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+      <p style="color: #991b1b; margin: 0; font-size: 14px;">
+        ❌ Votre place a été libérée. Vous ne recevrez plus de notifications concernant cet événement.
+      </p>
+    </div>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Vous pouvez toujours consulter les autres événements disponibles et vous inscrire de nouveau si vous changez d'avis.
+    </p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/evenements"
+         style="background-color: #059669; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir les événements
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to,
+    subject: `Annulation d'inscription - ${eventTitle}`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
+ * Email de remerciement pour un don
+ */
+export async function sendDonationThankYouEmail(
+  to: string,
+  firstName: string,
+  amount: number,
+  donationType: string
+) {
+  const typeLabels: Record<string, string> = {
+    ZAKAT: 'Zakat',
+    SADAQA: 'Sadaqa',
+    ZAKAT_AL_FITR: 'Zakat Al-Fitr',
+    PROJECT: 'Projet',
+    MEMBERSHIP: 'Cotisation'
+  }
+
+  const content = `
+    <h2 style="color: #059669; margin: 0 0 20px 0;">Qu'Allah accepte votre don</h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${firstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Nous vous remercions chaleureusement pour votre don de <strong>${amount.toFixed(2)} CHF</strong> (${typeLabels[donationType] || donationType}).
+    </p>
+
+    <div style="background-color: #f3f4f6; border-radius: 6px; padding: 20px; margin: 20px 0; text-align: center;">
+      <p style="color: #6b7280; margin: 0 0 10px 0; font-size: 14px;">Montant du don</p>
+      <p style="color: #059669; margin: 0; font-size: 32px; font-weight: 700;">${amount.toFixed(2)} CHF</p>
+      <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">${typeLabels[donationType] || donationType}</p>
+    </div>
+
+    <div style="background-color: #ecfdf5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+      <p style="color: #065f46; margin: 0; font-size: 14px; line-height: 1.6;">
+        💚 Qu'Allah vous récompense pour votre générosité et accepte votre don.<br><br>
+        <em>"L'exemple de ceux qui dépensent leurs biens dans le sentier d'Allah est semblable à une graine d'où naissent sept épis, à cent grains l'épi. Car Allah multiplie la récompense à qui Il veut." (Sourate Al-Baqara, 2:261)</em>
+      </p>
+    </div>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Votre générosité contribue directement au développement et à la pérennité de notre mosquée et de ses activités.
+    </p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/membre/dons"
+         style="background-color: #059669; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir mes dons
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to,
+    subject: `Merci pour votre don - ${MOSQUE_NAME}`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
+ * Email de confirmation de demande de service
+ */
+export async function sendServiceRequestConfirmationEmail(
+  to: string,
+  firstName: string,
+  serviceType: string
+) {
+  const serviceLabels: Record<string, string> = {
+    MARRIAGE: 'Mariage',
+    FUNERAL: 'Funérailles',
+    SHAHADA: 'Shahada',
+    AQIQA: 'Aqiqa'
+  }
+
+  const content = `
+    <h2 style="color: #059669; margin: 0 0 20px 0;">Demande de service reçue</h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${firstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Nous avons bien reçu votre demande de service : <strong>${serviceLabels[serviceType] || serviceType}</strong>.
+    </p>
+
+    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+      <p style="color: #92400e; margin: 0; font-size: 14px;">
+        ⏳ Votre demande est en cours de traitement. Un responsable de la mosquée vous contactera dans les plus brefs délais pour discuter des détails et organiser le service.
+      </p>
+    </div>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Si vous avez des questions urgentes, n'hésitez pas à nous contacter directement par téléphone.
+    </p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/membre/dashboard"
+         style="background-color: #059669; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir mon espace membre
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to,
+    subject: `Demande de service reçue - ${serviceLabels[serviceType] || serviceType}`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
+ * Email de confirmation de message de contact
+ */
+export async function sendContactMessageConfirmationEmail(
+  to: string,
+  firstName: string
+) {
+  const content = `
+    <h2 style="color: #059669; margin: 0 0 20px 0;">Message bien reçu</h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${firstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Nous avons bien reçu votre message et nous vous remercions de nous avoir contactés.
+    </p>
+
+    <div style="background-color: #d1fae5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+      <p style="color: #065f46; margin: 0; font-size: 14px;">
+        ✅ Notre équipe traitera votre demande dans les plus brefs délais. Nous vous répondrons généralement sous 48 heures.
+      </p>
+    </div>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      En attendant, vous pouvez consulter notre site web pour plus d'informations sur nos activités et services.
+    </p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}"
+         style="background-color: #059669; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Visiter le site
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to,
+    subject: `Message reçu - ${MOSQUE_NAME}`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
  * Email de notification générique
  */
 export async function sendNotificationEmail(
