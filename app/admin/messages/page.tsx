@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageSquare, Mail, Phone, CheckCircle, Clock, Search, Filter } from 'lucide-react'
+import { MessageSquare, Mail, Phone, CheckCircle, Clock, Search, Filter, Reply } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -71,6 +71,27 @@ export default function MessagesPage() {
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error)
     }
+  }
+
+  const handleReply = (message: ContactMessage) => {
+    // Créer le sujet de la réponse
+    const subject = `Re: ${message.subject}`
+
+    // Créer le corps du message avec citation
+    const body = `
+
+
+---
+Message original de ${message.firstName} ${message.lastName} (${format(new Date(message.createdAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}) :
+
+${message.message}
+`
+
+    // Créer le lien mailto
+    const mailtoLink = `mailto:${message.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+    // Ouvrir le client email
+    window.location.href = mailtoLink
   }
 
   const filteredMessages = messages.filter((message) => {
@@ -240,12 +261,19 @@ export default function MessagesPage() {
                       {format(new Date(message.createdAt), 'dd MMM yyyy HH:mm', { locale: fr })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => setSelectedMessage(message)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         >
                           Voir
+                        </button>
+                        <button
+                          onClick={() => handleReply(message)}
+                          className="text-primary hover:text-primary-dark dark:text-primary dark:hover:text-primary-dark flex items-center gap-1"
+                        >
+                          <Reply className="h-3 w-3" />
+                          Répondre
                         </button>
                         {!message.read && (
                           <button
@@ -322,6 +350,13 @@ export default function MessagesPage() {
             </div>
 
             <div className="mt-6 flex gap-4">
+              <button
+                onClick={() => handleReply(selectedMessage)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+              >
+                <Reply className="h-4 w-4" />
+                Répondre par email
+              </button>
               {!selectedMessage.read && (
                 <button
                   onClick={() => {
