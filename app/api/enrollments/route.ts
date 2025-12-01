@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getActivities } from '@/lib/directus'
+import { sendEnrollmentConfirmationEmail } from '@/lib/email'
 
 const enrollmentSchema = z.object({
   activityId: z.string().min(1),
@@ -107,6 +108,14 @@ export async function POST(request: NextRequest) {
         notes: validatedData.notes || null,
       },
     })
+
+    // Envoyer l'email de confirmation d'inscription
+    await sendEnrollmentConfirmationEmail(
+      validatedData.email,
+      validatedData.firstName,
+      activity.title || 'Activité',
+      'PENDING'
+    )
 
     return NextResponse.json(
       {

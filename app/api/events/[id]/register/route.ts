@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getEventById } from '@/lib/directus'
+import { sendEventRegistrationEmail } from '@/lib/email'
 
 const registerSchema = z.object({
   firstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
@@ -106,6 +107,8 @@ export async function POST(
       data: {
         eventId,
         eventTitle: event.title,
+        eventDate: event.date ? new Date(event.date) : null,
+        eventLocation: event.location || null,
         firstName: validatedData.firstName,
         lastName: validatedData.lastName,
         email: validatedData.email,
@@ -115,6 +118,25 @@ export async function POST(
         status,
       },
     })
+
+    // Envoyer l'email de confirmation (seulement si confirmé automatiquement)
+    if (status === 'CONFIRMED') {
+      const eventDate = new Date(event.date).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+
+      await sendEventRegistrationEmail(
+        validatedData.email,
+        validatedData.firstName,
+        event.title,
+        eventDate
+      )
+    }
 
     return NextResponse.json({
       success: true,

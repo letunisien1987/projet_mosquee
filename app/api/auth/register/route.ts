@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createUserProfile, createNotification } from '@/lib/directus'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +71,9 @@ export async function POST(request: Request) {
       link: '/membre/dashboard',
       read: false,
     })
+
+    // Envoyer l'email de bienvenue
+    await sendWelcomeEmail(user.email, user.firstName)
 
     // Retourner les données de l'utilisateur (sans le mot de passe)
     return NextResponse.json(
