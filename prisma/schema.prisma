@@ -189,9 +189,6 @@ model Enrollment {
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
   notes         String?          // Notes publiques (du parent)
-  internalNotes String?          // Notes internes admin
-  rejectionReason String?        // Raison du refus si REJECTED
-  priority      Int              @default(0) // Priorité pour liste d'attente
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 

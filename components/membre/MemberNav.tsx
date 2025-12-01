@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
@@ -90,9 +91,16 @@ export default function MemberNav({ user }: MemberNavProps) {
           <div className="flex h-full flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                Espace Membre
-              </span>
+              <Link href="/" className="flex items-center">
+                <Image
+                  src="/mosque-madretsch-logo.png"
+                  alt="Mosquée Madretsch"
+                  width={160}
+                  height={37}
+                  className="h-8 w-auto"
+                  priority
+                />
+              </Link>
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300"
@@ -164,8 +172,15 @@ export default function MemberNav({ user }: MemberNavProps) {
         <div className="flex flex-col flex-1 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-            <Link href="/" className="text-lg font-bold text-gray-900 dark:text-white">
-              Mosquée Al-Nour
+            <Link href="/" className="flex items-center">
+              <Image
+                src="/mosque-madretsch-logo.png"
+                alt="Mosquée Madretsch"
+                width={160}
+                height={37}
+                className="h-8 w-auto"
+                priority
+              />
             </Link>
             <button className="relative p-2 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
               <Bell className="h-5 w-5" />

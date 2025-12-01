@@ -489,7 +489,8 @@ export async function getUserNotifications(userId: string, unreadOnly = false): 
 
     return notifications
   } catch (error) {
-    console.error(`Erreur lors de la récupération des notifications de l'utilisateur ${userId}:`, error)
+    // Retourner un tableau vide si Directus n'est pas configuré ou a un problème de permissions
+    console.warn(`Impossible de récupérer les notifications pour l'utilisateur ${userId}. Directus peut ne pas être configuré correctement.`)
     return []
   }
 }
@@ -568,7 +569,7 @@ export async function getUnreadNotificationsCount(userId: string): Promise<numbe
     const notifications = await getUserNotifications(userId, true)
     return notifications.length
   } catch (error) {
-    console.error(`Erreur lors du comptage des notifications non lues de l'utilisateur ${userId}:`, error)
+    console.warn(`Impossible de compter les notifications non lues pour l'utilisateur ${userId}.`)
     return 0
   }
 }

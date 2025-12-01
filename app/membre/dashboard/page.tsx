@@ -2,7 +2,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getUserNotifications, getUnreadNotificationsCount } from '@/lib/directus'
 import {
   Heart,
   BookOpen,
@@ -20,7 +19,7 @@ export const dynamic = 'force-dynamic'
 async function getDashboardData(userId: string) {
   try {
     // Récupérer les données de l'utilisateur
-    const [donations, enrollments, eventRegistrations, memberships, notifications] = await Promise.all([
+    const [donations, enrollments, eventRegistrations, memberships] = await Promise.all([
       prisma.donation.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
@@ -41,7 +40,6 @@ async function getDashboardData(userId: string) {
         orderBy: { createdAt: 'desc' },
         take: 1,
       }),
-      getUserNotifications(userId),
     ])
 
     // Calculer les statistiques
@@ -63,21 +61,17 @@ async function getDashboardData(userId: string) {
       _count: true,
     })
 
-    const unreadCount = await getUnreadNotificationsCount(userId)
-
     return {
       donations,
       enrollments,
       eventRegistrations,
       currentMembership: memberships[0] || null,
-      notifications: notifications.slice(0, 5),
-      stats: {
-        totalDonations: totalDonations._sum.amount || 0,
-        donationCount: totalDonations._count,
-        enrollmentStats,
-        eventStats,
-        unreadNotifications: unreadCount,
-      },
+      notifications: [], // Pas de notifications pour l'instant
+      totalDonations: totalDonations._sum.amount || 0,
+      donationCount: totalDonations._count,
+      enrollmentStats,
+      eventStats,
+      unreadNotifications: 0, // Pas de notifications pour l'instant
     }
   } catch (error) {
     console.error('Erreur lors de la récupération des données du dashboard:', error)
@@ -137,10 +131,10 @@ export default async function DashboardPage() {
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-            {data.stats.totalDonations.toFixed(2)} €
+            {data.totalDonations.toFixed(2)} €
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Total des dons ({data.stats.donationCount})
+            Total des dons ({data.donationCount})
           </p>
         </Link>
 
@@ -188,14 +182,14 @@ export default async function DashboardPage() {
             <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
               <Bell className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
-            {data.stats.unreadNotifications > 0 && (
+            {data.unreadNotifications > 0 && (
               <span className="inline-flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
-                {data.stats.unreadNotifications}
+                {data.unreadNotifications}
               </span>
             )}
           </div>
           <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-            {data.stats.unreadNotifications}
+            {data.unreadNotifications}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Notifications non lues

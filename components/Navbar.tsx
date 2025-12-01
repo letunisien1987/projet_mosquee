@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useState } from 'react'
-import { Menu, X, Building2 } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { Menu, X, User, LogIn } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 
 const navigation = [
@@ -17,17 +19,22 @@ const navigation = [
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { data: session } = useSession()
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-primary/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="p-2 bg-primary rounded-lg group-hover:bg-primary-dark transition-colors">
-              <Building2 className="h-6 w-6 text-white" />
-            </div>
-            <span className="font-bold text-xl text-primary">Mosquée Madretsch</span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/mosque-madretsch-logo.png"
+              alt="Mosquée Madretsch"
+              width={180}
+              height={42}
+              className="h-10 w-auto"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -41,6 +48,34 @@ export function Navbar() {
                 {item.name}
               </Link>
             ))}
+
+            {/* Auth Links */}
+            {session ? (
+              <Link
+                href="/membre/dashboard"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
+              >
+                <User className="h-4 w-4" />
+                Espace Membre
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/connexion"
+                  className="text-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Connexion
+                </Link>
+                <Link
+                  href="/inscription"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Inscription
+                </Link>
+              </div>
+            )}
+
             <ThemeToggle />
           </div>
 
@@ -75,6 +110,38 @@ export function Navbar() {
                 {item.name}
               </Link>
             ))}
+
+            {/* Mobile Auth Links */}
+            <div className="border-t border-primary/10 pt-2 mt-2 space-y-2">
+              {session ? (
+                <Link
+                  href="/membre/dashboard"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <User className="h-4 w-4" />
+                  Espace Membre
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/connexion"
+                    className="block px-4 py-2 rounded-lg hover:bg-primary/10 transition-colors font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Connexion
+                  </Link>
+                  <Link
+                    href="/inscription"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Inscription
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
