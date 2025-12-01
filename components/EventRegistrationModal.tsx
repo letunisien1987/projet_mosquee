@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface Event {
-  _id: string
+  id: string
   title: string
   date: string
-  location: string
-  startTime: string
-  endTime: string
+  location?: string
+  start_time: string
+  end_time: string
 }
 
 interface EventRegistrationModalProps {
@@ -43,7 +43,7 @@ export function EventRegistrationModal({
     setError('')
 
     try {
-      const response = await fetch(`/api/events/${event._id}/register`, {
+      const response = await fetch(`/api/events/${event.id}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -114,7 +114,7 @@ export function EventRegistrationModal({
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
             <Users className="h-5 w-5 text-primary" />
             <span>
-              {event.startTime} - {event.endTime}
+              {event.start_time} - {event.end_time}
             </span>
           </div>
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">

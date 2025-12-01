@@ -1,5 +1,5 @@
 import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart } from 'lucide-react'
-import { getActivities } from '@/lib/sanity'
+import { getActivities } from '@/lib/directus'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -47,15 +47,18 @@ function getCategoryDescription(category: string): string {
 }
 
 export default async function ActivitesPage() {
-  // Récupérer toutes les activités actives depuis Sanity
-  const allActivities = await getActivities(true)
+  // Récupérer toutes les activités actives depuis Directus
+  const allActivities = await getActivities()
+
+  // Filtrer uniquement les activités actives
+  const activeActivities = allActivities.filter((activity: any) => activity.active)
 
   // Séparer les activités principales des autres
-  const mainActivities = allActivities.filter((activity: any) =>
+  const mainActivities = activeActivities.filter((activity: any) =>
     mainCategories.includes(activity.category)
   )
 
-  const otherActivities = allActivities.filter((activity: any) =>
+  const otherActivities = activeActivities.filter((activity: any) =>
     !mainCategories.includes(activity.category)
   )
 
@@ -74,8 +77,8 @@ export default async function ActivitesPage() {
       levels: categoryActivities.map((activity: any) => ({
         name: activity.title,
         schedule: activity.schedule || '',
-        instructor: activity.instructor?.name || 'À confirmer',
-        participants: activity.ageGroup || '',
+        instructor: activity.instructor || 'À confirmer',
+        participants: activity.age_group || '',
         details: activity.description || '',
       })),
     }
@@ -122,7 +125,7 @@ export default async function ActivitesPage() {
                 </div>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {activity.levels.map((level, levelIndex) => (
+                  {activity.levels.map((level: any, levelIndex: number) => (
                     <div
                       key={levelIndex}
                       className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 hover:border-primary transition-all hover:shadow-xl"

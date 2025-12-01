@@ -57,6 +57,9 @@ enum EnrollmentStatus {
   PENDING
   APPROVED
   REJECTED
+  WAITING_LIST
+  INTERVIEW_REQUIRED
+  ACTIVE
 }
 
 enum RegistrationStatus {
@@ -179,11 +182,14 @@ model Enrollment {
   userId        String?          @db.Uuid
   childId       String?          @db.Uuid
   activityId    String?          @db.Uuid
-  activityIdOld String?          // Old Sanity reference
+  activityIdOld String?          // Directus/Sanity reference
   levelId       String?          @db.Uuid
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
-  notes         String?
+  notes         String?          // Notes publiques (du parent)
+  internalNotes String?          // Notes internes admin
+  rejectionReason String?        // Raison du refus si REJECTED
+  priority      Int              @default(0) // Priorité pour liste d'attente
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 

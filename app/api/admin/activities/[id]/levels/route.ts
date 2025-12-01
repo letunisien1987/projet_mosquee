@@ -36,6 +36,7 @@ export async function POST(
     const level = await prisma.activityLevel.create({
       data: {
         ...validatedData,
+        participants: validatedData.participants || '',
         activityId: id,
       },
     })

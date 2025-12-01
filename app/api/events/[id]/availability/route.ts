@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { client } from '@/sanity/lib/client'
+import { getEventById } from '@/lib/directus'
 
 export async function GET(
   request: NextRequest,
@@ -9,19 +9,8 @@ export async function GET(
   try {
     const { id: eventId } = await params
 
-    // Récupérer les infos de l'événement depuis Sanity
-    const event = await client.fetch(
-      `*[_type == "event" && _id == $eventId][0] {
-        _id,
-        title,
-        registrationRequired,
-        maxCapacity,
-        requiresApproval,
-        registrationDeadline,
-        date
-      }`,
-      { eventId }
-    )
+    // Récupérer les infos de l'événement depuis Directus
+    const event = await getEventById(eventId)
 
     if (!event) {
       return NextResponse.json(
@@ -42,7 +31,7 @@ export async function GET(
     })
 
     const registeredCount = totalRegistered._sum.attendees || 0
-    const maxCapacity = event.maxCapacity || null
+    const maxCapacity = event.max_capacity || null
     const availableSpots = maxCapacity ? maxCapacity - registeredCount : null
     const isFull = maxCapacity ? registeredCount >= maxCapacity : false
 
@@ -52,20 +41,20 @@ export async function GET(
 
     // Vérifier la deadline
     let isDeadlinePassed = false
-    if (event.registrationDeadline) {
-      const deadline = new Date(event.registrationDeadline)
+    if (event.registration_deadline) {
+      const deadline = new Date(event.registration_deadline)
       isDeadlinePassed = new Date() > deadline
     }
 
     const canRegister =
-      event.registrationRequired &&
+      event.registration_required &&
       !isPast &&
       !isFull &&
       !isDeadlinePassed
 
     return NextResponse.json({
-      registrationRequired: event.registrationRequired,
-      requiresApproval: event.requiresApproval,
+      registrationRequired: event.registration_required,
+      requiresApproval: event.requires_approval,
       maxCapacity,
       registeredCount,
       availableSpots,
@@ -73,7 +62,7 @@ export async function GET(
       isPast,
       isDeadlinePassed,
       canRegister,
-      registrationDeadline: event.registrationDeadline,
+      registrationDeadline: event.registration_deadline,
     })
   } catch (error) {
     console.error('Erreur lors de la vérification de disponibilité:', error)

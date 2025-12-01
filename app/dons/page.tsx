@@ -1,34 +1,13 @@
-'use client'
+import { Heart, Landmark, Users, Building, TrendingUp } from 'lucide-react'
+import { getProjects, getDirectusImageUrl } from '@/lib/directus'
+import IbanCopyButton from '@/components/IbanCopyButton'
+import TamaroWidget from '@/components/TamaroWidget'
 
-import { useState } from 'react'
-import { Heart, Landmark, Users, Building, Copy, Check, TrendingUp } from 'lucide-react'
+export const dynamic = 'force-dynamic'
 
-export default function DonsPage() {
-  const [copiedIban, setCopiedIban] = useState(false)
-
-  const projects = [
-    {
-      title: 'Rénovation de la Salle de Prière',
-      description: 'Travaux de rénovation et d\'agrandissement de notre salle de prière principale',
-      goal: 50000,
-      current: 35750,
-      icon: Building,
-    },
-    {
-      title: 'Bibliothèque Islamique',
-      description: 'Acquisition de livres et ressources pour notre bibliothèque communautaire',
-      goal: 15000,
-      current: 12300,
-      icon: Building,
-    },
-    {
-      title: 'Aide aux Familles',
-      description: 'Fonds d\'urgence pour aider les familles en difficulté de notre communauté',
-      goal: 25000,
-      current: 8500,
-      icon: Heart,
-    },
-  ]
+export default async function DonsPage() {
+  // Récupérer les projets actifs depuis Directus
+  const projects = await getProjects()
 
   const donationTypes = [
     {
@@ -70,12 +49,6 @@ export default function DonsPage() {
   ]
 
   const iban = 'FR76 1234 5678 9012 3456 7890 123'
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(iban.replace(/\s/g, ''))
-    setCopiedIban(true)
-    setTimeout(() => setCopiedIban(false), 2000)
-  }
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -125,6 +98,24 @@ export default function DonsPage() {
         </div>
       </section>
 
+      {/* Don en ligne via RaiseNow */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8 border border-primary/10">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-4">Faire un Don en Ligne</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Soutenez la mosquée en quelques clics de manière sécurisée
+            </p>
+          </div>
+
+          {/* Widget Tamaro RaiseNow */}
+          <TamaroWidget
+            language="fr"
+            testMode={false}
+          />
+        </div>
+      </section>
+
       {/* Projects */}
       <section className="bg-gray-50 dark:bg-gray-900 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -136,15 +127,24 @@ export default function DonsPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {projects.map((project, index) => {
-              const Icon = project.icon
-              const percentage = (project.current / project.goal) * 100
+            {projects.map((project: any) => {
+              const percentage = ((project.current_amount || 0) / (project.goal_amount || 1)) * 100
               return (
                 <div
-                  key={index}
+                  key={project.id}
                   className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10"
                 >
-                  <Icon className="h-12 w-12 text-primary mb-4" />
+                  {project.image && typeof project.image === 'string' && getDirectusImageUrl(project.image) ? (
+                    <div className="mb-4 rounded-lg overflow-hidden h-32">
+                      <img
+                        src={getDirectusImageUrl(project.image) || ''}
+                        alt={project.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <Building className="h-12 w-12 text-primary mb-4" />
+                  )}
                   <h3 className="text-xl font-bold mb-2">{project.title}</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                     {project.description}
@@ -163,10 +163,10 @@ export default function DonsPage() {
                     </div>
                     <div className="flex justify-between text-sm pt-2">
                       <span className="text-primary font-bold">
-                        {project.current.toLocaleString('fr-FR')}€
+                        {(project.current_amount || 0).toLocaleString('fr-FR')}€
                       </span>
                       <span className="text-gray-600 dark:text-gray-400">
-                        sur {project.goal.toLocaleString('fr-FR')}€
+                        sur {(project.goal_amount || 0).toLocaleString('fr-FR')}€
                       </span>
                     </div>
                   </div>
@@ -196,23 +196,9 @@ export default function DonsPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">IBAN</p>
-                <div className="flex items-center gap-2">
-                  <p className="font-mono text-lg flex-1">{iban}</p>
-                  <button
-                    onClick={copyToClipboard}
-                    className="p-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
-                    title="Copier l'IBAN"
-                  >
-                    {copiedIban ? (
-                      <Check className="h-5 w-5" />
-                    ) : (
-                      <Copy className="h-5 w-5" />
-                    )}
-                  </button>
+                <div className="relative">
+                  <IbanCopyButton iban={iban} />
                 </div>
-                {copiedIban && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">IBAN copié !</p>
-                )}
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">BIC</p>

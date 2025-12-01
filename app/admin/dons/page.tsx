@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DonationType } from '@prisma/client'
-import { DollarSign, TrendingUp, Heart, Calendar, Search, Filter } from 'lucide-react'
+import { DollarSign, TrendingUp, Heart, Calendar, Search, Filter, Download, PieChart } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -26,6 +26,13 @@ interface Donation {
   } | null
 }
 
+interface ProjectStat {
+  name: string
+  amount: number
+  percentage: number
+  count: number
+}
+
 export default function DonsPage() {
   const [donations, setDonations] = useState<Donation[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,7 +45,9 @@ export default function DonsPage() {
     sadaqa: 0,
     zakatAlFitr: 0,
     project: 0,
+    membership: 0,
   })
+  const [projectStats, setProjectStats] = useState<ProjectStat[]>([])
 
   useEffect(() => {
     fetchDonations()
@@ -55,16 +64,78 @@ export default function DonsPage() {
       setStats({
         total: data.length,
         totalAmount,
-        zakat: data.filter((d: Donation) => d.type === 'ZAKAT').reduce((sum: number, d: Donation) => sum + d.amount, 0),
-        sadaqa: data.filter((d: Donation) => d.type === 'SADAQA').reduce((sum: number, d: Donation) => sum + d.amount, 0),
-        zakatAlFitr: data.filter((d: Donation) => d.type === 'ZAKAT_AL_FITR').reduce((sum: number, d: Donation) => sum + d.amount, 0),
-        project: data.filter((d: Donation) => d.type === 'PROJECT').reduce((sum: number, d: Donation) => sum + d.amount, 0),
+        zakat: data
+          .filter((d: Donation) => d.type === 'ZAKAT')
+          .reduce((sum: number, d: Donation) => sum + d.amount, 0),
+        sadaqa: data
+          .filter((d: Donation) => d.type === 'SADAQA')
+          .reduce((sum: number, d: Donation) => sum + d.amount, 0),
+        zakatAlFitr: data
+          .filter((d: Donation) => d.type === 'ZAKAT_AL_FITR')
+          .reduce((sum: number, d: Donation) => sum + d.amount, 0),
+        project: data
+          .filter((d: Donation) => d.type === 'PROJECT')
+          .reduce((sum: number, d: Donation) => sum + d.amount, 0),
+        membership: data
+          .filter((d: Donation) => d.type === 'MEMBERSHIP')
+          .reduce((sum: number, d: Donation) => sum + d.amount, 0),
       })
+
+      // Calculer les stats par projet
+      const projectDonations = data.filter((d: Donation) => d.type === 'PROJECT' && d.projectName)
+      const projectTotals = projectDonations.reduce((acc: any, d: Donation) => {
+        const name = d.projectName || 'Non spécifié'
+        if (!acc[name]) {
+          acc[name] = { amount: 0, count: 0 }
+        }
+        acc[name].amount += d.amount
+        acc[name].count += 1
+        return acc
+      }, {})
+
+      const projectAmount = data
+        .filter((d: Donation) => d.type === 'PROJECT')
+        .reduce((sum: number, d: Donation) => sum + d.amount, 0)
+
+      const projectStatsArray: ProjectStat[] = Object.entries(projectTotals).map(([name, stats]: [string, any]) => ({
+        name,
+        amount: stats.amount,
+        count: stats.count,
+        percentage: projectAmount > 0 ? (stats.amount / projectAmount) * 100 : 0,
+      }))
+
+      projectStatsArray.sort((a, b) => b.amount - a.amount)
+      setProjectStats(projectStatsArray)
     } catch (error) {
       console.error('Erreur lors du chargement des dons:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const exportToCSV = () => {
+    const headers = ['Date', 'Donateur', 'Email', 'Téléphone', 'Type', 'Projet', 'Montant', 'Message']
+    const rows = filteredDonations.map((d) => [
+      format(new Date(d.createdAt), 'dd/MM/yyyy'),
+      d.anonymous ? 'Anonyme' : `${d.firstName} ${d.lastName}`,
+      d.anonymous ? '' : d.email,
+      d.anonymous ? '' : d.phone || '',
+      getTypeLabel(d.type),
+      d.projectName || '',
+      d.amount.toFixed(2),
+      d.message || '',
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `dons_${format(new Date(), 'yyyy-MM-dd')}.csv`
+    link.click()
   }
 
   const filteredDonations = donations.filter((donation) => {
@@ -101,6 +172,44 @@ export default function DonsPage() {
     return colors[type] || colors.SADAQA
   }
 
+  const typeStats = [
+    {
+      type: 'ZAKAT',
+      label: 'Zakat',
+      amount: stats.zakat,
+      percentage: stats.totalAmount > 0 ? (stats.zakat / stats.totalAmount) * 100 : 0,
+      color: 'bg-green-500',
+    },
+    {
+      type: 'SADAQA',
+      label: 'Sadaqa',
+      amount: stats.sadaqa,
+      percentage: stats.totalAmount > 0 ? (stats.sadaqa / stats.totalAmount) * 100 : 0,
+      color: 'bg-blue-500',
+    },
+    {
+      type: 'ZAKAT_AL_FITR',
+      label: 'Zakat al-Fitr',
+      amount: stats.zakatAlFitr,
+      percentage: stats.totalAmount > 0 ? (stats.zakatAlFitr / stats.totalAmount) * 100 : 0,
+      color: 'bg-purple-500',
+    },
+    {
+      type: 'PROJECT',
+      label: 'Projets',
+      amount: stats.project,
+      percentage: stats.totalAmount > 0 ? (stats.project / stats.totalAmount) * 100 : 0,
+      color: 'bg-yellow-500',
+    },
+    {
+      type: 'MEMBERSHIP',
+      label: 'Adhésions',
+      amount: stats.membership,
+      percentage: stats.totalAmount > 0 ? (stats.membership / stats.totalAmount) * 100 : 0,
+      color: 'bg-gray-500',
+    },
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -111,49 +220,171 @@ export default function DonsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Gestion des Dons</h1>
+        <button
+          onClick={exportToCSV}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+        >
+          <Download className="h-4 w-4" />
+          Exporter CSV
+        </button>
+      </div>
+
+      {/* Stats principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Dons</p>
-              <p className="text-3xl font-bold mt-2">{stats.total}</p>
+              <p className="text-blue-100 text-sm font-medium">Nombre total de dons</p>
+              <p className="text-4xl font-bold mt-2">{stats.total}</p>
             </div>
-            <DollarSign className="h-12 w-12 text-blue-500" />
+            <DollarSign className="h-16 w-16 text-blue-200 opacity-50" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Montant Total</p>
-              <p className="text-2xl font-bold mt-2">{stats.totalAmount.toFixed(2)}€</p>
+              <p className="text-green-100 text-sm font-medium">Montant total collecté</p>
+              <p className="text-4xl font-bold mt-2">{stats.totalAmount.toLocaleString('fr-FR')}€</p>
             </div>
-            <TrendingUp className="h-12 w-12 text-green-500" />
+            <TrendingUp className="h-16 w-16 text-green-200 opacity-50" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Zakat</p>
-            <p className="text-xl font-bold mt-2">{stats.zakat.toFixed(2)}€</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Sadaqa</p>
-            <p className="text-xl font-bold mt-2">{stats.sadaqa.toFixed(2)}€</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Projets</p>
-            <p className="text-xl font-bold mt-2">{stats.project.toFixed(2)}€</p>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Montant moyen par don</p>
+              <p className="text-4xl font-bold mt-2">
+                {stats.total > 0 ? (stats.totalAmount / stats.total).toFixed(2) : '0'}€
+              </p>
+            </div>
+            <Heart className="h-16 w-16 text-purple-200 opacity-50" />
           </div>
         </div>
       </div>
+
+      {/* Répartition par type */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <PieChart className="h-6 w-6 text-primary" />
+          <h2 className="text-xl font-bold">Répartition par Type de Don</h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="border-b-2 border-gray-200 dark:border-gray-700">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-sm">Type</th>
+                <th className="text-right py-3 px-4 font-semibold text-sm">Montant</th>
+                <th className="text-right py-3 px-4 font-semibold text-sm">Pourcentage</th>
+                <th className="py-3 px-4">Visualisation</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {typeStats.map((stat) => (
+                <tr key={stat.type} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="py-4 px-4">
+                    <span className="font-medium">{stat.label}</span>
+                  </td>
+                  <td className="py-4 px-4 text-right font-semibold text-green-600 dark:text-green-400">
+                    {stat.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                  </td>
+                  <td className="py-4 px-4 text-right font-semibold">
+                    {stat.percentage.toFixed(1)}%
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full ${stat.color} transition-all duration-500`}
+                        style={{ width: `${stat.percentage}%` }}
+                      ></div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="border-t-2 border-gray-200 dark:border-gray-700 font-bold">
+              <tr>
+                <td className="py-3 px-4">TOTAL</td>
+                <td className="py-3 px-4 text-right text-lg text-green-600 dark:text-green-400">
+                  {stats.totalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                </td>
+                <td className="py-3 px-4 text-right">100%</td>
+                <td className="py-3 px-4"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Répartition par projet */}
+      {projectStats.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <Heart className="h-6 w-6 text-primary" />
+            <h2 className="text-xl font-bold">Répartition par Projet</h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="border-b-2 border-gray-200 dark:border-gray-700">
+                <tr>
+                  <th className="text-left py-3 px-4 font-semibold text-sm">Nom du Projet</th>
+                  <th className="text-right py-3 px-4 font-semibold text-sm">Nb Dons</th>
+                  <th className="text-right py-3 px-4 font-semibold text-sm">Montant</th>
+                  <th className="text-right py-3 px-4 font-semibold text-sm">% du Total Projets</th>
+                  <th className="py-3 px-4">Visualisation</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {projectStats.map((project) => (
+                  <tr key={project.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-4 px-4">
+                      <span className="font-medium">{project.name}</span>
+                    </td>
+                    <td className="py-4 px-4 text-right text-gray-600 dark:text-gray-400">
+                      {project.count}
+                    </td>
+                    <td className="py-4 px-4 text-right font-semibold text-green-600 dark:text-green-400">
+                      {project.amount.toLocaleString('fr-FR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                      €
+                    </td>
+                    <td className="py-4 px-4 text-right font-semibold">{project.percentage.toFixed(1)}%</td>
+                    <td className="py-4 px-4">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="h-full bg-yellow-500 transition-all duration-500"
+                          style={{ width: `${project.percentage}%` }}
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-gray-200 dark:border-gray-700 font-bold">
+                <tr>
+                  <td className="py-3 px-4">TOTAL PROJETS</td>
+                  <td className="py-3 px-4 text-right">
+                    {projectStats.reduce((sum, p) => sum + p.count, 0)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-lg text-green-600 dark:text-green-400">
+                    {stats.project.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                  </td>
+                  <td className="py-3 px-4 text-right">100%</td>
+                  <td className="py-3 px-4"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -245,14 +476,16 @@ export default function DonsPage() {
                       {!donation.anonymous && (
                         <div className="text-sm">
                           <div className="text-gray-600 dark:text-gray-400">{donation.email}</div>
-                          {donation.phone && (
-                            <div className="text-gray-500 dark:text-gray-500">{donation.phone}</div>
-                          )}
+                          {donation.phone && <div className="text-gray-500 dark:text-gray-500">{donation.phone}</div>}
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(donation.type)}`}>
+                      <span
+                        className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(
+                          donation.type
+                        )}`}
+                      >
                         {getTypeLabel(donation.type)}
                       </span>
                     </td>

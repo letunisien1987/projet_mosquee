@@ -5,7 +5,7 @@ import { PrayerCountdown } from '@/components/PrayerCountdown'
 import HeroWithAnnouncements from '@/components/HeroWithAnnouncements'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
-import { getJumuaMessages } from '@/lib/sanity'
+import { getJumuaMessages } from '@/lib/directus'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,13 +46,13 @@ export default async function Home() {
 
   // Transform Jumua messages for the carousel
   const jumuaAnnouncements = jumuaMessages.map((msg) => ({
-    id: msg._id,
+    id: msg.id,
     title: msg.title,
     content: msg.message,
-    image: msg.image?.asset?.url,
+    image: msg.image ? `${process.env.DIRECTUS_URL}/assets/${msg.image}` : undefined,
     priority: 'high',
     isJumua: true,
-    jumuaTimes: specialInfo.jumua || []
+    jumuaTimes: msg.times || specialInfo.jumua || []
   }))
 
   // Transform Mawaqit announcements for the carousel

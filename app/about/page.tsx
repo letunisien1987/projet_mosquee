@@ -1,28 +1,16 @@
 import { Heart, Target, Users, Award, BookOpen, HandHeart } from 'lucide-react'
+import { getTeamMembers, getDirectusImageUrl } from '@/lib/directus'
+import { getMawaqitServices } from '@/lib/mawaqit'
+import MosqueServices from '@/components/MosqueServices'
 
-export default function AboutPage() {
-  const teamMembers = [
-    {
-      name: 'Imam Mohammed Benali',
-      role: 'Imam et Directeur Spirituel',
-      description: 'Diplômé de l\'Université Al-Azhar, avec 15 ans d\'expérience dans l\'enseignement islamique',
-    },
-    {
-      name: 'Dr. Fatima Zahri',
-      role: 'Responsable des Activités Féminines',
-      description: 'Docteur en Sciences Islamiques, spécialisée dans l\'éducation des enfants',
-    },
-    {
-      name: 'Ahmed Karim',
-      role: 'Président de l\'Association',
-      description: 'Entrepreneur engagé dans le développement de la communauté musulmane',
-    },
-    {
-      name: 'Youssef Mansour',
-      role: 'Professeur d\'Arabe',
-      description: 'Enseignant certifié avec 10 ans d\'expérience dans l\'enseignement de la langue arabe',
-    },
-  ]
+export const dynamic = 'force-dynamic'
+
+export default async function AboutPage() {
+  // Récupérer les membres de l'équipe depuis Directus
+  const teamMembers = await getTeamMembers()
+
+  // Récupérer les services depuis Mawaqit
+  const services = await getMawaqitServices()
 
   const values = [
     {
@@ -147,6 +135,9 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Services & Équipements */}
+      <MosqueServices {...services} />
+
       {/* Notre Équipe */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-12">
@@ -157,18 +148,28 @@ export default function AboutPage() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {teamMembers.map((member, index) => (
+          {teamMembers.map((member: any) => (
             <div
-              key={index}
+              key={member.id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-primary/10 hover:shadow-xl transition-shadow"
             >
-              <div className="bg-gradient-to-br from-primary to-primary-dark h-48 flex items-center justify-center">
-                <Users className="h-24 w-24 text-white/30" />
-              </div>
+              {member.photo && typeof member.photo === 'string' && getDirectusImageUrl(member.photo) ? (
+                <div className="h-48 overflow-hidden">
+                  <img
+                    src={getDirectusImageUrl(member.photo) || ''}
+                    alt={member.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-primary to-primary-dark h-48 flex items-center justify-center">
+                  <Users className="h-24 w-24 text-white/30" />
+                </div>
+              )}
               <div className="p-6">
                 <h3 className="text-xl font-bold mb-1">{member.name}</h3>
-                <p className="text-primary font-semibold mb-3 text-sm">{member.role}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{member.description}</p>
+                <p className="text-primary font-semibold mb-3 text-sm">{member.position}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{member.bio}</p>
               </div>
             </div>
           ))}

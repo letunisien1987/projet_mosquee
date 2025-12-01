@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { client } from '@/sanity/lib/client'
+import { getEventById } from '@/lib/directus'
 
 const registerSchema = z.object({
   firstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
@@ -21,19 +21,8 @@ export async function POST(
     const body = await request.json()
     const validatedData = registerSchema.parse(body)
 
-    // Récupérer les infos de l'événement depuis Sanity
-    const event = await client.fetch(
-      `*[_type == "event" && _id == $eventId][0] {
-        _id,
-        title,
-        registrationRequired,
-        maxCapacity,
-        requiresApproval,
-        registrationDeadline,
-        date
-      }`,
-      { eventId }
-    )
+    // Récupérer les infos de l'événement depuis Directus
+    const event = await getEventById(eventId)
 
     if (!event) {
       return NextResponse.json(
@@ -42,7 +31,7 @@ export async function POST(
       )
     }
 
-    if (!event.registrationRequired) {
+    if (!event.registration_required) {
       return NextResponse.json(
         { error: 'Cet événement ne nécessite pas d\'inscription' },
         { status: 400 }
@@ -59,8 +48,8 @@ export async function POST(
     }
 
     // Vérifier la deadline d'inscription
-    if (event.registrationDeadline) {
-      const deadline = new Date(event.registrationDeadline)
+    if (event.registration_deadline) {
+      const deadline = new Date(event.registration_deadline)
       if (new Date() > deadline) {
         return NextResponse.json(
           { error: 'La date limite d\'inscription est dépassée' },
@@ -86,7 +75,7 @@ export async function POST(
     }
 
     // Vérifier les places disponibles
-    if (event.maxCapacity) {
+    if (event.max_capacity) {
       const totalRegistered = await prisma.eventRegistration.aggregate({
         where: {
           eventId,
@@ -98,7 +87,7 @@ export async function POST(
       })
 
       const currentAttendees = totalRegistered._sum.attendees || 0
-      const availableSpots = event.maxCapacity - currentAttendees
+      const availableSpots = event.max_capacity - currentAttendees
 
       if (availableSpots < validatedData.attendees) {
         return NextResponse.json(
@@ -111,7 +100,7 @@ export async function POST(
     }
 
     // Créer l'inscription
-    const status = event.requiresApproval ? 'PENDING' : 'CONFIRMED'
+    const status = event.requires_approval ? 'PENDING' : 'CONFIRMED'
 
     const registration = await prisma.eventRegistration.create({
       data: {
