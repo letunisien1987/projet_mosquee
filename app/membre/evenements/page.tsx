@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Calendar, MapPin, Users, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import CancelEventButton from '@/components/CancelEventButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,16 +149,10 @@ export default async function EvenementsPage() {
                 )}
 
                 {registration.status === 'CONFIRMED' && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <form action={`/api/membre/evenements/${registration.id}/cancel`} method="POST">
-                      <button
-                        type="submit"
-                        className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
-                      >
-                        Annuler ma participation
-                      </button>
-                    </form>
-                  </div>
+                  <CancelEventButton
+                    registrationId={registration.id}
+                    eventTitle={registration.eventTitle}
+                  />
                 )}
               </div>
             ))}
