@@ -169,16 +169,16 @@ export default function AdminDashboard() {
             Lire Messages
           </a>
           <a
-            href="/admin/horaires"
-            className="bg-blue-500 text-white rounded-lg p-4 text-center hover:bg-blue-600 transition-colors"
+            href="/admin/dons"
+            className="bg-green-500 text-white rounded-lg p-4 text-center hover:bg-green-600 transition-colors"
           >
-            Importer Horaires
+            Voir Dons
           </a>
           <a
-            href="/admin/studio"
-            className="bg-purple-500 text-white rounded-lg p-4 text-center hover:bg-purple-600 transition-colors"
+            href="/admin/services"
+            className="bg-blue-500 text-white rounded-lg p-4 text-center hover:bg-blue-600 transition-colors"
           >
-            Ouvrir Sanity
+            Demandes Services
           </a>
         </div>
       </div>
