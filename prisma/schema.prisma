@@ -103,6 +103,8 @@ model User {
   contactMessages    ContactMessage[]
   serviceRequests    ServiceRequest[]
   enrollments        Enrollment[]
+  profile            UserProfile?
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -322,4 +324,43 @@ model MosqueSettings {
   updatedBy     String?  // Email de l'admin qui a modifié
 
   @@map("mosque_settings")
+}
+
+// Profil utilisateur étendu pour l'espace membre
+model UserProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  city              String?
+  postalCode        String?
+  country           String?  @default("France")
+  dateOfBirth       DateTime?
+  profilePicture    String?  // URL de l'image
+  bio               String?
+  preferredLanguage String   @default("fr") // "fr" ou "ar"
+  notificationEmail Boolean  @default(true)
+  notificationSms   Boolean  @default(false)
+  newsletter        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// Système de notifications pour l'espace membre
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String   // "EVENT", "COURSE", "DONATION", "SYSTEM", "REMINDER"
+  title     String
+  message   String
+  link      String?  // URL relative pour le lien
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId, read])
 }
