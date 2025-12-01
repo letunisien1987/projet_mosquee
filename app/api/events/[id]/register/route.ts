@@ -107,8 +107,6 @@ export async function POST(
       data: {
         eventId,
         eventTitle: event.title,
-        eventDate: event.date ? new Date(event.date) : null,
-        eventLocation: event.location || null,
         firstName: validatedData.firstName,
         lastName: validatedData.lastName,
         email: validatedData.email,

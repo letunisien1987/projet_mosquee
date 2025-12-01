@@ -27,15 +27,10 @@ export default async function EvenementsPage() {
   }
 
   // Séparer les événements à venir et passés
+  // TEMPORAIRE: Afficher toutes les inscriptions en "à venir" car eventDate n'existe pas encore dans la DB
   const now = new Date()
-  const upcomingEvents = registrations.filter(r => {
-    if (!r.eventDate) return false
-    return new Date(r.eventDate) >= now
-  })
-  const pastEvents = registrations.filter(r => {
-    if (!r.eventDate) return false
-    return new Date(r.eventDate) < now
-  })
+  const upcomingEvents = registrations.filter(r => r.status !== 'CANCELLED')
+  const pastEvents: typeof registrations = [] // Vide pour l'instant
 
   return (
     <div className="max-w-7xl mx-auto">
