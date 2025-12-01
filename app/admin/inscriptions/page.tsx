@@ -75,7 +75,29 @@ export default function InscriptionsPage() {
   const fetchEnrollments = async () => {
     try {
       const response = await fetch('/api/admin/enrollments')
+
+      // Vérifier le statut de la réponse
+      if (response.status === 401) {
+        // Non autorisé - rediriger vers login
+        window.location.href = '/admin/login'
+        return
+      }
+
+      if (!response.ok) {
+        console.error('Erreur API:', response.status, response.statusText)
+        setEnrollments([])
+        return
+      }
+
       const data = await response.json()
+
+      // Vérifier que data est un tableau
+      if (!Array.isArray(data)) {
+        console.error('Les données reçues ne sont pas un tableau:', data)
+        setEnrollments([])
+        return
+      }
+
       setEnrollments(data)
 
       // Calculer les stats
@@ -90,6 +112,7 @@ export default function InscriptionsPage() {
       })
     } catch (error) {
       console.error('Erreur lors du chargement des inscriptions:', error)
+      setEnrollments([])
     } finally {
       setLoading(false)
     }
