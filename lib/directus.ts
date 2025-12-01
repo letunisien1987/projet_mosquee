@@ -242,10 +242,7 @@ export async function getActivities() {
         filter: { active: { _eq: true } },
         sort: ['category'],
         limit: -1,
-        fields: [
-          '*',
-          { instructor: ['id', 'name', 'role'] } // Charger les données de l'instructeur
-        ]
+        fields: ['*'] // Charger tous les champs (instructor est un champ texte simple)
       })
     )
 
