@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { getActivities } from '@/lib/directus'
+import { getActivityById } from '@/lib/directus'
 import { sendEnrollmentConfirmationEmail } from '@/lib/email'
+import { stripe } from '@/lib/stripe'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
 
 const enrollmentSchema = z.object({
   activityId: z.string().min(1),
-  levelId: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
   phone: z.string().min(1),
-  birthDate: z.string().optional(),
   notes: z.string().optional(),
   isForChild: z.boolean(),
+  // Pour enfant existant
+  childId: z.string().uuid().optional(),
+  // Pour nouvel enfant
   childFirstName: z.string().optional(),
   childLastName: z.string().optional(),
   childBirthDate: z.string().optional(),
@@ -22,105 +27,204 @@ const enrollmentSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log('📝 Données reçues:', body)
+    console.log('📝 Données inscription reçues:', body)
 
     const validatedData = enrollmentSchema.parse(body)
 
-    // Récupérer l'activité depuis Directus pour le titre
-    const activities = await getActivities()
-    console.log('📋 Activités disponibles:', activities.map((a: any) => ({ id: a.id, title: a.title })))
-    console.log('🔍 Recherche activityId:', validatedData.activityId, 'Type:', typeof validatedData.activityId)
+    // Vérifier la session utilisateur
+    const session = await getServerSession(authOptions)
 
-    const activity = activities.find((a: any) => {
-      console.log('   Comparaison:', a.id, 'Type:', typeof a.id, 'Match:', a.id == validatedData.activityId)
-      return a.id == validatedData.activityId // Utiliser == pour permettre la conversion de type
-    })
+    // Récupérer l'activité depuis Directus
+    const activity = await getActivityById(validatedData.activityId)
 
     if (!activity) {
-      console.log('❌ Activité non trouvée')
+      console.log('❌ Activité non trouvée:', validatedData.activityId)
       return NextResponse.json(
-        {
-          error: 'Activité non trouvée',
-          debug: {
-            receivedId: validatedData.activityId,
-            availableIds: activities.map((a: any) => a.id)
-          }
-        },
+        { error: 'Activité non trouvée' },
         { status: 404 }
       )
     }
 
-    console.log('✅ Activité trouvée:', activity.title)
+    console.log('✅ Activité trouvée:', activity.title, 'Prix:', activity.price, 'Approbation:', activity.requires_approval)
 
-    // Si c'est pour un enfant, créer d'abord l'enfant
-    let childId: string | undefined
-    let userId: string | undefined
+    // Récupérer ou créer l'utilisateur
+    let user = await prisma.user.findUnique({
+      where: { email: validatedData.email },
+    })
 
-    if (validatedData.isForChild && validatedData.childFirstName && validatedData.childLastName && validatedData.childBirthDate) {
-      // Vérifier si l'utilisateur existe par email
-      let user = await prisma.user.findUnique({
-        where: { email: validatedData.email },
-      })
+    if (!user) {
+      // Créer l'utilisateur avec un mot de passe temporaire
+      const tempPassword = Math.random().toString(36).slice(-10)
+      const hashedPassword = await bcrypt.hash(tempPassword, 10)
 
-      // Si l'utilisateur n'existe pas, le créer avec un password temporaire
-      if (!user) {
-        // Générer un password aléatoire temporaire
-        const tempPassword = Math.random().toString(36).slice(-8)
-
-        user = await prisma.user.create({
-          data: {
-            email: validatedData.email,
-            firstName: validatedData.firstName,
-            lastName: validatedData.lastName,
-            phone: validatedData.phone,
-            password: tempPassword, // À remplacer par un hash en production
-            role: 'MEMBER',
-          },
-        })
-      }
-
-      userId = user.id
-
-      // Créer l'enfant
-      const child = await prisma.child.create({
+      user = await prisma.user.create({
         data: {
-          firstName: validatedData.childFirstName,
-          lastName: validatedData.childLastName,
-          birthDate: new Date(validatedData.childBirthDate),
-          parentId: user.id,
+          email: validatedData.email,
+          firstName: validatedData.firstName,
+          lastName: validatedData.lastName,
+          phone: validatedData.phone,
+          password: hashedPassword,
+          role: 'MEMBER',
         },
       })
+      console.log('👤 Nouvel utilisateur créé:', user.id)
+    }
 
-      childId = child.id
+    // Gérer l'enfant si inscription pour un enfant
+    let childId: string | null = null
+
+    if (validatedData.isForChild) {
+      if (validatedData.childId) {
+        // Utiliser un enfant existant - vérifier qu'il appartient à l'utilisateur
+        const existingChild = await prisma.child.findFirst({
+          where: {
+            id: validatedData.childId,
+            parentId: user.id,
+          },
+        })
+        if (existingChild) {
+          childId = existingChild.id
+        } else {
+          return NextResponse.json(
+            { error: 'Enfant non trouvé ou non autorisé' },
+            { status: 400 }
+          )
+        }
+      } else if (validatedData.childFirstName && validatedData.childLastName && validatedData.childBirthDate) {
+        // Créer un nouvel enfant
+        const newChild = await prisma.child.create({
+          data: {
+            firstName: validatedData.childFirstName,
+            lastName: validatedData.childLastName,
+            birthDate: new Date(validatedData.childBirthDate),
+            parentId: user.id,
+          },
+        })
+        childId = newChild.id
+        console.log('👶 Nouvel enfant créé:', childId)
+      }
+    }
+
+    // Déterminer le statut initial et si paiement requis
+    const requiresPayment = activity.price && activity.price > 0
+    const requiresApproval = activity.requires_approval
+
+    // Si pas d'approbation requise ET payant -> passer en APPROVED et rediriger vers paiement
+    // Si pas d'approbation requise ET gratuit -> passer directement en ACTIVE
+    // Si approbation requise -> rester en PENDING
+    let initialStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' = 'PENDING'
+
+    if (!requiresApproval) {
+      if (requiresPayment) {
+        initialStatus = 'APPROVED' // Prêt pour paiement
+      } else {
+        initialStatus = 'ACTIVE' // Directement actif
+      }
     }
 
     // Créer l'inscription
-    // Utiliser activityIdOld car les IDs Directus ne sont pas des UUIDs
     const enrollment = await prisma.enrollment.create({
       data: {
-        activityIdOld: validatedData.activityId, // Stocker l'ID Directus dans activityIdOld
-        activityId: null, // Pas d'activité dans Prisma
-        levelId: null, // Pas de niveau dans Prisma (les activités sont dans Directus)
+        activityId: validatedData.activityId,
         activityTitle: activity.title || 'Activité',
-        childId: childId || null,
-        userId: userId || null,
-        status: 'PENDING',
+        userId: user.id,
+        childId: childId,
+        status: initialStatus,
         notes: validatedData.notes || null,
+        requiresPayment: !!requiresPayment,
+        paymentAmount: requiresPayment ? activity.price : null,
       },
     })
 
-    // Envoyer l'email de confirmation d'inscription
+    console.log('📝 Inscription créée:', enrollment.id, 'Statut:', initialStatus)
+
+    // Créer une notification
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: initialStatus === 'PENDING' ? 'ENROLLMENT_CONFIRMATION' : 'ENROLLMENT_APPROVED',
+        title: initialStatus === 'PENDING'
+          ? 'Demande d\'inscription reçue'
+          : requiresPayment
+            ? 'Inscription - Paiement requis'
+            : 'Inscription confirmée',
+        message: initialStatus === 'PENDING'
+          ? `Votre demande d'inscription à "${activity.title}" a été reçue et est en attente de validation.`
+          : requiresPayment
+            ? `Votre inscription à "${activity.title}" est validée. Finalisez le paiement de ${activity.price} CHF.`
+            : `Votre inscription à "${activity.title}" est confirmée.`,
+        link: requiresPayment ? '/membre/paiements' : '/membre/inscriptions',
+        read: false,
+        emailSent: true,
+      },
+    })
+
+    // Envoyer l'email de confirmation
+    // Note: sendEnrollmentConfirmationEmail attend 'PENDING' ou 'ACTIVE'
+    // 'APPROVED' signifie en attente de paiement, donc on envoie 'PENDING' pour l'email
+    const emailStatus = initialStatus === 'ACTIVE' ? 'ACTIVE' : 'PENDING'
     await sendEnrollmentConfirmationEmail(
       validatedData.email,
       validatedData.firstName,
       activity.title || 'Activité',
-      'PENDING'
+      emailStatus
     )
+
+    // Si paiement direct requis (pas d'approbation et payant), créer la session Stripe
+    if (!requiresApproval && requiresPayment) {
+      const participantName = childId
+        ? `${validatedData.childFirstName || ''} ${validatedData.childLastName || ''}`
+        : `${validatedData.firstName} ${validatedData.lastName}`
+
+      const stripeSession = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'chf',
+              product_data: {
+                name: `Inscription: ${activity.title}`,
+                description: `Participant: ${participantName}`,
+              },
+              unit_amount: Math.round(activity.price! * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${process.env.NEXTAUTH_URL}/membre/inscriptions?payment=success&enrollmentId=${enrollment.id}`,
+        cancel_url: `${process.env.NEXTAUTH_URL}/activites/${validatedData.activityId}?payment=cancelled`,
+        customer_email: validatedData.email,
+        metadata: {
+          type: 'ACTIVITY_ENROLLMENT',
+          enrollmentId: enrollment.id,
+          activityId: validatedData.activityId,
+          activityTitle: activity.title,
+          userId: user.id,
+          childId: childId || '',
+          participantName,
+        },
+      })
+
+      console.log('💳 Session Stripe créée:', stripeSession.id)
+
+      return NextResponse.json(
+        {
+          message: 'Inscription créée - Redirection vers paiement',
+          enrollment,
+          checkoutUrl: stripeSession.url,
+          requiresPayment: true,
+        },
+        { status: 201 }
+      )
+    }
 
     return NextResponse.json(
       {
         message: 'Inscription enregistrée avec succès',
         enrollment,
+        requiresApproval,
+        requiresPayment: false,
       },
       { status: 201 }
     )

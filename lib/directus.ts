@@ -24,6 +24,8 @@ export interface DirectusEvent {
   registration_deadline?: string
   featured: boolean
   published: boolean
+  manager_id?: string // UUID du responsable (référence User PostgreSQL)
+  manager_email?: string // Email du responsable pour affichage
   restrictions?: {
     enabled: boolean
     participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
@@ -51,6 +53,8 @@ export interface DirectusActivity {
   price?: number
   active: boolean
   enrollment_open: boolean
+  manager_id?: string // UUID du responsable (référence User PostgreSQL)
+  manager_email?: string // Email du responsable pour affichage
   restrictions?: {
     enabled: boolean
     participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
@@ -87,6 +91,7 @@ export interface DirectusProject {
   goal_amount: number
   current_amount: number
   image?: string
+  raisenow_code?: string // Code RaiseNow unique (ex: zsmgy)
   start_date?: string
   end_date?: string
   priority: number
@@ -264,6 +269,24 @@ export async function getActivities() {
   } catch (error) {
     console.error('Erreur lors de la récupération des activités:', error)
     return []
+  }
+}
+
+/**
+ * Récupère une activité par son ID
+ */
+export async function getActivityById(id: string): Promise<DirectusActivity | null> {
+  try {
+    const activity = await directusClient.request(
+      readItem('activities', id, {
+        fields: ['*']
+      })
+    )
+
+    return activity as DirectusActivity
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'activité:', error)
+    return null
   }
 }
 
@@ -581,6 +604,230 @@ export async function getUnreadNotificationsCount(userId: string): Promise<numbe
     return notifications.length
   } catch (error) {
     console.warn(`Impossible de compter les notifications non lues pour l'utilisateur ${userId}.`)
+    return 0
+  }
+}
+
+// ==================== ACTIVITY MANAGERS ====================
+
+/**
+ * Récupère les activités gérées par un responsable
+ */
+export async function getActivitiesByManager(managerId: string): Promise<DirectusActivity[]> {
+  try {
+    const activities = await directusClient.request(
+      readItems('activities', {
+        filter: { manager_id: { _eq: managerId } },
+        sort: ['category', 'title'],
+        limit: -1,
+        fields: ['*']
+      })
+    )
+
+    return activities as DirectusActivity[]
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des activités du responsable ${managerId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Assigne un responsable à une activité
+ */
+export async function assignActivityManager(
+  activityId: string,
+  managerId: string,
+  managerEmail: string
+): Promise<DirectusActivity | null> {
+  try {
+    const activity = await directusClient.request(
+      updateItem('activities', activityId, {
+        manager_id: managerId,
+        manager_email: managerEmail,
+      })
+    )
+
+    return activity as DirectusActivity
+  } catch (error) {
+    console.error(`Erreur lors de l'assignation du responsable à l'activité ${activityId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Retire le responsable d'une activité
+ */
+export async function removeActivityManager(activityId: string): Promise<boolean> {
+  try {
+    await directusClient.request(
+      updateItem('activities', activityId, {
+        manager_id: null,
+        manager_email: null,
+      })
+    )
+
+    return true
+  } catch (error) {
+    console.error(`Erreur lors du retrait du responsable de l'activité ${activityId}:`, error)
+    return false
+  }
+}
+
+/**
+ * Vérifie si un utilisateur est responsable d'une activité
+ */
+export async function isActivityManager(activityId: string, userId: string): Promise<boolean> {
+  try {
+    const activity = await getActivityById(activityId)
+    return activity?.manager_id === userId
+  } catch (error) {
+    return false
+  }
+}
+
+// ==================== EVENT MANAGERS ====================
+
+/**
+ * Récupère les événements gérés par un responsable
+ */
+export async function getEventsByManager(managerId: string): Promise<DirectusEvent[]> {
+  try {
+    const events = await directusClient.request(
+      readItems('events', {
+        filter: { manager_id: { _eq: managerId } },
+        sort: ['-date'],
+        limit: -1,
+        fields: ['*']
+      })
+    )
+
+    return events as DirectusEvent[]
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des événements du responsable ${managerId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Assigne un responsable à un événement
+ */
+export async function assignEventManager(
+  eventId: string,
+  managerId: string,
+  managerEmail: string
+): Promise<DirectusEvent | null> {
+  try {
+    const event = await directusClient.request(
+      updateItem('events', eventId, {
+        manager_id: managerId,
+        manager_email: managerEmail,
+      })
+    )
+
+    return event as DirectusEvent
+  } catch (error) {
+    console.error(`Erreur lors de l'assignation du responsable à l'événement ${eventId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Retire le responsable d'un événement
+ */
+export async function removeEventManager(eventId: string): Promise<boolean> {
+  try {
+    await directusClient.request(
+      updateItem('events', eventId, {
+        manager_id: null,
+        manager_email: null,
+      })
+    )
+
+    return true
+  } catch (error) {
+    console.error(`Erreur lors du retrait du responsable de l'événement ${eventId}:`, error)
+    return false
+  }
+}
+
+/**
+ * Vérifie si un utilisateur est responsable d'un événement
+ */
+export async function isEventManager(eventId: string, userId: string): Promise<boolean> {
+  try {
+    const event = await getEventById(eventId)
+    return event?.manager_id === userId
+  } catch (error) {
+    return false
+  }
+}
+
+/**
+ * Assigne un responsable par défaut à toutes les activités sans responsable
+ */
+export async function assignDefaultManagerToActivities(managerId: string, managerEmail: string): Promise<number> {
+  try {
+    const activities = await directusClient.request(
+      readItems('activities', {
+        filter: {
+          _or: [
+            { manager_id: { _null: true } },
+            { manager_id: { _eq: '' } }
+          ]
+        },
+        limit: -1,
+      })
+    )
+
+    let count = 0
+    for (const activity of activities) {
+      await directusClient.request(
+        updateItem('activities', activity.id, {
+          manager_id: managerId,
+          manager_email: managerEmail,
+        })
+      )
+      count++
+    }
+
+    return count
+  } catch (error) {
+    console.error('Erreur lors de l\'assignation du responsable par défaut aux activités:', error)
+    return 0
+  }
+}
+
+/**
+ * Assigne un responsable par défaut à tous les événements sans responsable
+ */
+export async function assignDefaultManagerToEvents(managerId: string, managerEmail: string): Promise<number> {
+  try {
+    const events = await directusClient.request(
+      readItems('events', {
+        filter: {
+          _or: [
+            { manager_id: { _null: true } },
+            { manager_id: { _eq: '' } }
+          ]
+        },
+        limit: -1,
+      })
+    )
+
+    let count = 0
+    for (const event of events) {
+      await directusClient.request(
+        updateItem('events', event.id, {
+          manager_id: managerId,
+          manager_email: managerEmail,
+        })
+      )
+      count++
+    }
+
+    return count
+  } catch (error) {
+    console.error('Erreur lors de l\'assignation du responsable par défaut aux événements:', error)
     return 0
   }
 }

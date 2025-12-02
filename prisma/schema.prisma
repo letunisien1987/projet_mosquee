@@ -19,10 +19,12 @@ enum UserRole {
 }
 
 enum MembershipType {
-  INDIVIDUAL
-  FAMILY
-  STUDENT
-  SENIOR
+  ACTIF       // Membre actif avec droit de vote
+  PASSIF      // Membre passif sans droit de vote
+  INDIVIDUAL  // Ancien: membre individuel
+  FAMILY      // Ancien: membre famille
+  STUDENT     // Ancien: étudiant
+  SENIOR      // Ancien: senior
 }
 
 enum MembershipStatus {
@@ -70,6 +72,7 @@ enum RegistrationStatus {
 
 enum PaymentStatus {
   PENDING
+  PAID
   COMPLETED
   FAILED
   REFUNDED
@@ -81,14 +84,31 @@ enum NotificationType {
   EVENT_REMINDER
   EVENT_CANCELLED
   EVENT_WAITLIST_SPOT_AVAILABLE
+  EVENT_PAYMENT_PENDING           // Paiement événement en attente
   ENROLLMENT_CONFIRMATION
   ENROLLMENT_APPROVED
   ENROLLMENT_REJECTED
+  ENROLLMENT_PAYMENT_PENDING      // Paiement activité en attente
+  ENROLLMENT_PAYMENT_CONFIRMED    // Paiement activité confirmé
   PAYMENT_PENDING
   PAYMENT_CONFIRMED
   PAYMENT_FAILED
+  MEMBERSHIP_PENDING_PAYMENT
+  MEMBERSHIP_CONFIRMED
+  MEMBERSHIP_REFUNDED
+  MEMBERSHIP_EXPIRING_SOON
+  DONATION_CONFIRMED
   SYSTEM
   REMINDER
+}
+
+enum MembershipRequestStatus {
+  PENDING         // En attente de validation admin
+  APPROVED        // Approuvé, en attente de paiement
+  PAYMENT_SENT    // Lien de paiement envoyé
+  COMPLETED       // Payé et membership créé
+  REJECTED        // Refusé par admin
+  EXPIRED         // Lien de paiement expiré (> 7 jours)
 }
 
 enum ActivityStatus {
@@ -121,6 +141,7 @@ model User {
 
   children           Child[]
   memberships        Membership[]
+  membershipRequests MembershipRequest[]
   donations          Donation[]
   eventRegistrations EventRegistration[]
   contactMessages    ContactMessage[]
@@ -155,19 +176,82 @@ model Child {
 }
 
 model Membership {
-  id          String           @id @default(uuid()) @db.Uuid
-  userId      String           @db.Uuid
-  type        MembershipType
-  status      MembershipStatus @default(PENDING)
-  amount      Float
-  startDate   DateTime
-  endDate     DateTime
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id                     String           @id @default(uuid()) @db.Uuid
+  userId                 String           @db.Uuid
+  type                   MembershipType
+  status                 MembershipStatus @default(PENDING)
+  paymentStatus          PaymentStatus    @default(PENDING)
+  amount                 Float
+  startDate              DateTime
+  endDate                DateTime
+  stripeSessionId        String?          @unique
+  stripePaymentIntentId  String?          @unique
+  receiptSent            Boolean          @default(false)
+  receiptSentAt          DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membershipRequest MembershipRequest?
 
   @@map("memberships")
+}
+
+// Demandes d'adhésion avec workflow d'approbation
+model MembershipRequest {
+  id                String                   @id @default(uuid()) @db.Uuid
+
+  // Informations du demandeur
+  firstName         String
+  lastName          String
+  email             String
+  phone             String
+  dateOfBirth       DateTime?
+
+  // Adresse
+  address           String
+  city              String
+  postalCode        String
+  country           String                   @default("Suisse")
+
+  // Type et dates
+  membershipType    MembershipType           // ACTIF ou PASSIF (ou anciens types)
+  desiredStartDate  DateTime
+
+  // Message optionnel
+  motivation        String?
+
+  // Statut et workflow
+  status            MembershipRequestStatus  @default(PENDING)
+
+  // Validation admin
+  reviewedBy        String?                  @db.Uuid
+  reviewedAt        DateTime?
+  rejectionReason   String?
+
+  // Lien de paiement
+  paymentToken      String?                  @unique
+  paymentLinkSentAt DateTime?
+  paymentExpiresAt  DateTime?
+
+  // Paiement
+  stripeSessionId   String?                  @unique
+  paidAt            DateTime?
+  membershipId      String?                  @unique @db.Uuid
+  userId            String?                  @db.Uuid
+
+  // Métadonnées
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  // Relations
+  membership        Membership?              @relation(fields: [membershipId], references: [id])
+  user              User?                    @relation(fields: [userId], references: [id])
+
+  @@map("membership_requests")
+  @@index([email])
+  @@index([status])
+  @@index([paymentToken])
 }
 
 // NOTE: Activity and ActivityLevel are managed by Directus, not Prisma
@@ -183,33 +267,47 @@ model Enrollment {
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
   notes         String?          // Notes publiques (du parent)
+
+  // Champs de paiement
+  requiresPayment   Boolean      @default(false)
+  paymentAmount     Float?       // Montant à payer
+  paymentId         String?      @db.Uuid // Lien vers Payment
+  paymentToken      String?      @unique  // Token pour lien de paiement
+  paymentExpiresAt  DateTime?    // Expiration du lien de paiement
+
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   user          User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   child         Child?           @relation(fields: [childId], references: [id], onDelete: Cascade)
+  payment       Payment?         @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@map("enrollments")
+  @@index([paymentToken])
 }
 
 model Donation {
-  id          String       @id @default(uuid()) @db.Uuid
-  userId      String?      @db.Uuid
-  firstName   String
-  lastName    String
-  email       String
-  phone       String?
-  amount      Float
-  type        DonationType
-  projectId   String?      // Référence à Sanity si PROJECT
-  projectName String?
-  message     String?
-  anonymous   Boolean      @default(false)
-  createdAt   DateTime     @default(now())
+  id                String       @id @default(uuid()) @db.Uuid
+  userId            String?      @db.Uuid
+  firstName         String
+  lastName          String
+  email             String
+  phone             String?
+  amount            Float
+  type              DonationType
+  projectId         String?      // Référence à Sanity si PROJECT
+  projectName       String?
+  message           String?
+  anonymous         Boolean      @default(false)
+  stripeSessionId   String?      @unique // ID de la session Stripe Checkout
+  receiptSent       Boolean      @default(false) // Reçu envoyé par email
+  receiptSentAt     DateTime?    // Date d'envoi du reçu
+  createdAt         DateTime     @default(now())
 
-  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user              User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("donations")
+  @@index([email])
 }
 
 model EventRegistration {
@@ -403,6 +501,7 @@ model Payment {
 
   user                User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   eventRegistrations  EventRegistration[]
+  enrollments         Enrollment[]
 
   @@map("payments")
   @@index([userId])

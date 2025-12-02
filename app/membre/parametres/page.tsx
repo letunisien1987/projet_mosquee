@@ -58,10 +58,11 @@ export default function ParametresPage() {
       const response = await fetch('/api/membre/notifications')
       if (response.ok) {
         const data = await response.json()
-        setNotifications(data)
+        setNotifications(data.notifications || [])
       }
     } catch (error) {
       console.error('Erreur lors du chargement des notifications:', error)
+      setNotifications([])
     } finally {
       setLoadingNotifications(false)
     }
@@ -112,8 +113,8 @@ export default function ParametresPage() {
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      const response = await fetch(`/api/membre/notifications/${notificationId}/read`, {
-        method: 'POST',
+      const response = await fetch(`/api/membre/notifications/${notificationId}`, {
+        method: 'PATCH',
       })
 
       if (response.ok) {
@@ -128,8 +129,12 @@ export default function ParametresPage() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      const response = await fetch('/api/membre/notifications/mark-all-read', {
-        method: 'POST',
+      const response = await fetch('/api/membre/notifications', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'mark-all-read' }),
       })
 
       if (response.ok) {

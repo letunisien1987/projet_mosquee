@@ -14,8 +14,16 @@ export default async function DonsPage() {
     redirect('/connexion')
   }
 
+  // Récupérer TOUS les dons liés à cet utilisateur :
+  // 1. Dons avec userId (quand l'utilisateur était connecté)
+  // 2. Dons avec email (dons faits AVANT la création du compte)
   const donations = await prisma.donation.findMany({
-    where: { userId: session.user.id },
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { email: session.user.email || '' },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
   })
 
@@ -54,7 +62,7 @@ export default async function DonsPage() {
             <TrendingUp className="h-5 w-5" />
           </div>
           <h3 className="text-3xl font-bold mb-1">
-            {stats.total.toFixed(2)} €
+            {stats.total.toFixed(2)} CHF
           </h3>
           <p className="text-green-100 text-sm">
             Total des dons
@@ -82,7 +90,7 @@ export default async function DonsPage() {
             </div>
           </div>
           <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-            {stats.thisYear.toFixed(2)} €
+            {stats.thisYear.toFixed(2)} CHF
           </h3>
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Cette année
@@ -120,7 +128,7 @@ export default async function DonsPage() {
                   </span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {amount.toFixed(2)} €
+                  {amount.toFixed(2)} CHF
                 </span>
               </div>
             ))}
@@ -168,10 +176,7 @@ export default async function DonsPage() {
                     Montant
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Statut
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Reçu
+                    Email de reçu
                   </th>
                 </tr>
               </thead>
@@ -196,34 +201,21 @@ export default async function DonsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-green-600 dark:text-green-400">
-                        {donation.amount.toFixed(2)} €
+                        {donation.amount.toFixed(2)} CHF
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        donation.status === 'COMPLETED'
+                        donation.receiptSent
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                          : donation.status === 'PENDING'
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
                       }`}>
-                        {donation.status}
+                        {donation.receiptSent ? '✓ Email envoyé' : '⏳ En attente'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {donation.status === 'COMPLETED' ? (
-                        <form action="/api/membre/dons/export" method="POST" className="inline">
-                          <input type="hidden" name="donationId" value={donation.id} />
-                          <button
-                            type="submit"
-                            className="text-primary hover:text-primary-dark text-sm font-medium inline-flex items-center gap-1"
-                          >
-                            <Download className="h-4 w-4" />
-                            Télécharger
-                          </button>
-                        </form>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
+                      {donation.receiptSent && donation.receiptSentAt && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {new Date(donation.receiptSentAt).toLocaleDateString('fr-FR')}
+                        </div>
                       )}
                     </td>
                   </tr>

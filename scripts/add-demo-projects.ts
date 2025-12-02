@@ -24,6 +24,7 @@ const demoProjects = [
     content: '<p>La mosquée a besoin d\'agrandir sa capacité d\'accueil. Ce projet permettra de rénover entièrement la salle de prière et d\'ajouter 200 places supplémentaires.</p>',
     goal_amount: 50000,
     current_amount: 12500,
+    raisenow_code: 'zsmgy', // Code RaiseNow (remplacez par le vôtre)
     priority: 1,
     active: true,
   },
@@ -34,6 +35,7 @@ const demoProjects = [
     content: '<p>Un espace dédié pour nos enfants avec 6 salles de classe modernes et équipées.</p>',
     goal_amount: 120000,
     current_amount: 45000,
+    raisenow_code: 'ecole24', // Code RaiseNow (remplacez par le vôtre)
     priority: 2,
     active: true,
   },
@@ -44,6 +46,7 @@ const demoProjects = [
     content: '<p>Distribution de colis alimentaires, aide au loyer, et soutien scolaire pour les enfants.</p>',
     goal_amount: 25000,
     current_amount: 18750,
+    raisenow_code: 'aide24', // Code RaiseNow (remplacez par le vôtre)
     priority: 3,
     active: true,
   },
@@ -54,6 +57,7 @@ const demoProjects = [
     content: '<p>Installation de 8 climatiseurs réversibles pour la salle de prière et les salles de cours.</p>',
     goal_amount: 15000,
     current_amount: 8200,
+    raisenow_code: 'clim24', // Code RaiseNow (remplacez par le vôtre)
     priority: 4,
     active: true,
   },
@@ -64,6 +68,7 @@ const demoProjects = [
     content: '<p>Achat de 500 livres de référence, construction d\'étagères et aménagement d\'un espace de lecture.</p>',
     goal_amount: 8000,
     current_amount: 2400,
+    raisenow_code: 'bib24', // Code RaiseNow (remplacez par le vôtre)
     priority: 5,
     active: true,
   },

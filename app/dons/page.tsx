@@ -1,7 +1,7 @@
 import { Heart, Landmark, Users, Building, TrendingUp } from 'lucide-react'
 import { getProjects, getDirectusImageUrl } from '@/lib/directus'
 import IbanCopyButton from '@/components/IbanCopyButton'
-import TamaroWidget from '@/components/TamaroWidget'
+import DonationProjectCard from '@/components/DonationProjectCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,23 +98,7 @@ export default async function DonsPage() {
         </div>
       </section>
 
-      {/* Don en ligne via RaiseNow */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8 border border-primary/10">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">Faire un Don en Ligne</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Soutenez la mosquée en quelques clics de manière sécurisée
-            </p>
-          </div>
-
-          {/* Widget Tamaro RaiseNow */}
-          <TamaroWidget
-            language="fr"
-            testMode={false}
-          />
-        </div>
-      </section>
+      {/* Section retirée - utilisons les cartes de projets ci-dessous */}
 
       {/* Projects */}
       <section className="bg-gray-50 dark:bg-gray-900 py-16">
@@ -127,52 +111,18 @@ export default async function DonsPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {projects.map((project: any) => {
-              const percentage = ((project.current_amount || 0) / (project.goal_amount || 1)) * 100
-              return (
-                <div
-                  key={project.id}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10"
-                >
-                  {project.image && typeof project.image === 'string' && getDirectusImageUrl(project.image) ? (
-                    <div className="mb-4 rounded-lg overflow-hidden h-32">
-                      <img
-                        src={getDirectusImageUrl(project.image) || ''}
-                        alt={project.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <Building className="h-12 w-12 text-primary mb-4" />
-                  )}
-                  <h3 className="text-xl font-bold mb-2">{project.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                    {project.description}
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Progression</span>
-                      <span className="font-semibold">{percentage.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-primary to-primary-dark h-full rounded-full transition-all duration-500"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-sm pt-2">
-                      <span className="text-primary font-bold">
-                        {(project.current_amount || 0).toLocaleString('fr-FR')}€
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        sur {(project.goal_amount || 0).toLocaleString('fr-FR')}€
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            {projects.map((project: any) => (
+              <DonationProjectCard
+                key={project.id}
+                id={project.id}
+                title={project.title}
+                description={project.description || ''}
+                image={project.image && typeof project.image === 'string' ? getDirectusImageUrl(project.image) || undefined : undefined}
+                goalAmount={project.goal_amount || 0}
+                currentAmount={project.current_amount || 0}
+                raisenowCode={project.raisenow_code}
+              />
+            ))}
           </div>
         </div>
       </section>

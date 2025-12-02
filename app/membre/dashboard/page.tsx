@@ -13,13 +13,14 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import Link from 'next/link'
+import NotificationsList from '@/components/NotificationsList'
 
 export const dynamic = 'force-dynamic'
 
 async function getDashboardData(userId: string) {
   try {
     // Récupérer les données de l'utilisateur
-    const [donations, enrollments, eventRegistrations, memberships] = await Promise.all([
+    const [donations, enrollments, eventRegistrations, memberships, notifications] = await Promise.all([
       prisma.donation.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
@@ -39,6 +40,11 @@ async function getDashboardData(userId: string) {
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 1,
+      }),
+      prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
       }),
     ])
 
@@ -61,17 +67,21 @@ async function getDashboardData(userId: string) {
       _count: true,
     })
 
+    const unreadCount = await prisma.notification.count({
+      where: { userId, read: false },
+    })
+
     return {
       donations,
       enrollments,
       eventRegistrations,
       currentMembership: memberships[0] || null,
-      notifications: [], // Pas de notifications pour l'instant
+      notifications,
       totalDonations: totalDonations._sum.amount || 0,
       donationCount: totalDonations._count,
       enrollmentStats,
       eventStats,
-      unreadNotifications: 0, // Pas de notifications pour l'instant
+      unreadNotifications: unreadCount,
     }
   } catch (error) {
     console.error('Erreur lors de la récupération des données du dashboard:', error)
@@ -206,59 +216,13 @@ export default async function DashboardPage() {
             </h2>
             <Link
               href="/membre/parametres"
-              className="text-sm text-primary hover:text-primary-dark transition-colors"
+              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
             >
               Tout voir
             </Link>
           </div>
 
-          {data.notifications.length > 0 ? (
-            <div className="space-y-3">
-              {data.notifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  className={`p-3 rounded-lg border ${
-                    notif.read
-                      ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
-                      : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <Bell className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
-                      notif.read ? 'text-gray-400' : 'text-blue-600 dark:text-blue-400'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${
-                        notif.read
-                          ? 'text-gray-700 dark:text-gray-300'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
-                        {notif.title}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {notif.message}
-                      </p>
-                      {notif.link && (
-                        <Link
-                          href={notif.link}
-                          className="text-xs text-primary hover:text-primary-dark mt-2 inline-block"
-                        >
-                          Voir plus →
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Bell className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Aucune notification
-              </p>
-            </div>
-          )}
+          <NotificationsList initialNotifications={data.notifications} />
         </div>
 
         {/* Activité récente */}

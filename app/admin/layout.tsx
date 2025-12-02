@@ -14,6 +14,8 @@ import {
   LogOut,
   Menu,
   X,
+  ClipboardCheck,
+  Home,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -31,6 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Membres', href: '/admin/membres', icon: Users },
+    { name: 'Demandes Adhésion', href: '/admin/demandes-adhesion', icon: ClipboardCheck },
     { name: 'Cotisations', href: '/admin/cotisations', icon: DollarSign },
     { name: 'Inscriptions Cours', href: '/admin/inscriptions', icon: BookOpen },
     { name: 'Dons', href: '/admin/dons', icon: DollarSign },
@@ -78,7 +81,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )
             })}
           </nav>
-          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <Link
+              href="/membre/dashboard"
+              className="flex items-center gap-3 px-4 py-3 w-full text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span>Espace Membre</span>
+            </Link>
             <button
               onClick={() => signOut({ callbackUrl: '/admin/login' })}
               className="flex items-center gap-3 px-4 py-3 w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -119,7 +129,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )
             })}
           </nav>
-          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <Link
+              href="/membre/dashboard"
+              className="flex items-center gap-3 px-4 py-3 w-full text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span>Espace Membre</span>
+            </Link>
             <button
               onClick={() => signOut({ callbackUrl: '/admin/login' })}
               className="flex items-center gap-3 px-4 py-3 w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

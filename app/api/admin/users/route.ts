@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
+    // Vérifier si on doit inclure les memberships complets
+    const { searchParams } = new URL(request.url)
+    const includeMemberships = searchParams.get('includeMemberships') === 'true'
+
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -21,10 +25,34 @@ export async function GET(request: NextRequest) {
         address: true,
         role: true,
         createdAt: true,
+        profile: {
+          select: {
+            city: true,
+            postalCode: true,
+            country: true,
+          },
+        },
+        memberships: includeMemberships ? {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            paymentStatus: true,
+            amount: true,
+            startDate: true,
+            endDate: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        } : false,
         _count: {
           select: {
             memberships: true,
             donations: true,
+            eventRegistrations: true,
+            enrollments: true,
           },
         },
       },

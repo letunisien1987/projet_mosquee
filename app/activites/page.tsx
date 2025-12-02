@@ -1,8 +1,9 @@
-import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart } from 'lucide-react'
+import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart, ArrowRight, Tag } from 'lucide-react'
 import { getActivities } from '@/lib/directus'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 // Mapping des catégories vers les icônes par défaut
 const categoryIcons: Record<string, any> = {
@@ -75,11 +76,15 @@ export default async function ActivitesPage() {
       description: getCategoryDescription(category),
       color: 'primary',
       levels: categoryActivities.map((activity: any) => ({
+        id: activity.id,
         name: activity.title,
         schedule: activity.schedule || '',
         instructor: activity.instructor || 'À confirmer',
         participants: activity.age_group || '',
         details: activity.description || '',
+        price: activity.price || 0,
+        enrollment_open: activity.enrollment_open,
+        requires_approval: activity.requires_approval,
       })),
     }
   }).filter(Boolean)
@@ -88,10 +93,14 @@ export default async function ActivitesPage() {
     const IconComponent = categoryIcons[activity.category] || BookOpen
 
     return {
+      id: activity.id,
       title: activity.title,
       schedule: activity.schedule || '',
       description: activity.description || '',
       icon: IconComponent,
+      price: activity.price || 0,
+      enrollment_open: activity.enrollment_open,
+      requires_approval: activity.requires_approval,
     }
   })
 
@@ -128,11 +137,11 @@ export default async function ActivitesPage() {
                   {activity.levels.map((level: any, levelIndex: number) => (
                     <div
                       key={levelIndex}
-                      className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 hover:border-primary transition-all hover:shadow-xl"
+                      className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 hover:border-primary transition-all hover:shadow-xl flex flex-col"
                     >
                       <h3 className="text-xl font-bold mb-4 text-primary">{level.name}</h3>
 
-                      <div className="space-y-3 mb-4">
+                      <div className="space-y-3 mb-4 flex-1">
                         <div className="flex items-start gap-2">
                           <Clock className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
                           <div>
@@ -158,11 +167,47 @@ export default async function ActivitesPage() {
                             </div>
                           </div>
                         )}
+
+                        {level.details && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                            {level.details}
+                          </p>
+                        )}
                       </div>
 
-                      <p className="text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 pt-4">
-                        {level.details}
-                      </p>
+                      {/* Prix et bouton d'inscription */}
+                      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4 text-primary" />
+                            <span className="text-lg font-bold text-primary">
+                              {level.price > 0 ? `${level.price} CHF` : 'Gratuit'}
+                            </span>
+                          </div>
+                          {level.requires_approval && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">
+                              Sur validation
+                            </span>
+                          )}
+                        </div>
+                        <Link
+                          href={`/activites/${level.id}`}
+                          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold transition-all ${
+                            level.enrollment_open !== false
+                              ? 'bg-primary hover:bg-primary-dark text-white'
+                              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {level.enrollment_open !== false ? (
+                            <>
+                              S'inscrire
+                              <ArrowRight className="h-4 w-4" />
+                            </>
+                          ) : (
+                            'Inscriptions fermées'
+                          )}
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -183,7 +228,7 @@ export default async function ActivitesPage() {
                 return (
                   <div
                     key={index}
-                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10"
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 flex flex-col"
                   >
                     <Icon className="h-12 w-12 text-primary mb-4" />
                     <h3 className="text-xl font-bold mb-2">{activity.title}</h3>
@@ -193,7 +238,38 @@ export default async function ActivitesPage() {
                         <span>{activity.schedule}</span>
                       </div>
                     )}
-                    <p className="text-gray-600 dark:text-gray-300">{activity.description}</p>
+                    <p className="text-gray-600 dark:text-gray-300 flex-1">{activity.description}</p>
+
+                    {/* Prix et bouton d'inscription */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-lg font-bold text-primary">
+                          {activity.price > 0 ? `${activity.price} CHF` : 'Gratuit'}
+                        </span>
+                        {activity.requires_approval && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">
+                            Sur validation
+                          </span>
+                        )}
+                      </div>
+                      <Link
+                        href={`/activites/${activity.id}`}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold transition-all ${
+                          activity.enrollment_open !== false
+                            ? 'bg-primary hover:bg-primary-dark text-white'
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {activity.enrollment_open !== false ? (
+                          <>
+                            S'inscrire
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        ) : (
+                          'Inscriptions fermées'
+                        )}
+                      </Link>
+                    </div>
                   </div>
                 )
               })}
