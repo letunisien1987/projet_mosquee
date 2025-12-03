@@ -1,26 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { EnrollmentStatus } from '@prisma/client'
 import {
   BookOpen,
   CheckCircle,
   XCircle,
   Clock,
-  Search,
-  Filter,
   Eye,
   Mail,
-  FileText,
-  Download,
   Users,
   AlertCircle,
   UserCheck,
   X,
-  Edit2,
+  RefreshCw,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { DataTable, ColumnDef, RowAction, BulkAction } from '@/components/admin/DataTable'
 
 interface Enrollment {
   id: string
@@ -49,24 +46,78 @@ interface Enrollment {
   } | null
 }
 
+const statusConfig: Record<EnrollmentStatus, { color: string; icon: typeof Clock; label: string }> = {
+  PENDING: {
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    icon: Clock,
+    label: 'En attente',
+  },
+  APPROVED: {
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    icon: CheckCircle,
+    label: 'Approuvé',
+  },
+  REJECTED: {
+    color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    icon: XCircle,
+    label: 'Rejeté',
+  },
+  WAITING_LIST: {
+    color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+    icon: Users,
+    label: "Liste d'attente",
+  },
+  INTERVIEW_REQUIRED: {
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+    icon: AlertCircle,
+    label: 'Entretien requis',
+  },
+  ACTIVE: {
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    icon: UserCheck,
+    label: 'Actif',
+  },
+}
+
+const statusFilterOptions = [
+  { value: 'PENDING', label: 'En attente' },
+  { value: 'APPROVED', label: 'Approuvé' },
+  { value: 'ACTIVE', label: 'Actif' },
+  { value: 'WAITING_LIST', label: "Liste d'attente" },
+  { value: 'INTERVIEW_REQUIRED', label: 'Entretien requis' },
+  { value: 'REJECTED', label: 'Rejeté' },
+]
+
+const statusEditOptions = [
+  { value: 'PENDING', label: 'En attente' },
+  { value: 'APPROVED', label: 'Approuvé' },
+  { value: 'ACTIVE', label: 'Actif' },
+  { value: 'WAITING_LIST', label: "Liste d'attente" },
+  { value: 'INTERVIEW_REQUIRED', label: 'Entretien requis' },
+  { value: 'REJECTED', label: 'Rejeté' },
+]
+
 export default function InscriptionsPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<EnrollmentStatus | 'ALL'>('ALL')
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [internalNote, setInternalNote] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-    waitingList: 0,
-    interviewRequired: 0,
-    active: 0,
-  })
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Stats
+  const stats = useMemo(() => {
+    return {
+      total: enrollments.length,
+      pending: enrollments.filter((e) => e.status === 'PENDING').length,
+      approved: enrollments.filter((e) => e.status === 'APPROVED').length,
+      rejected: enrollments.filter((e) => e.status === 'REJECTED').length,
+      waitingList: enrollments.filter((e) => e.status === 'WAITING_LIST').length,
+      interviewRequired: enrollments.filter((e) => e.status === 'INTERVIEW_REQUIRED').length,
+      active: enrollments.filter((e) => e.status === 'ACTIVE').length,
+    }
+  }, [enrollments])
 
   useEffect(() => {
     fetchEnrollments()
@@ -76,9 +127,7 @@ export default function InscriptionsPage() {
     try {
       const response = await fetch('/api/admin/enrollments')
 
-      // Vérifier le statut de la réponse
       if (response.status === 401) {
-        // Non autorisé - rediriger vers login
         window.location.href = '/admin/login'
         return
       }
@@ -91,7 +140,6 @@ export default function InscriptionsPage() {
 
       const data = await response.json()
 
-      // Vérifier que data est un tableau
       if (!Array.isArray(data)) {
         console.error('Les données reçues ne sont pas un tableau:', data)
         setEnrollments([])
@@ -99,23 +147,18 @@ export default function InscriptionsPage() {
       }
 
       setEnrollments(data)
-
-      // Calculer les stats
-      setStats({
-        total: data.length,
-        pending: data.filter((e: Enrollment) => e.status === 'PENDING').length,
-        approved: data.filter((e: Enrollment) => e.status === 'APPROVED').length,
-        rejected: data.filter((e: Enrollment) => e.status === 'REJECTED').length,
-        waitingList: data.filter((e: Enrollment) => e.status === 'WAITING_LIST').length,
-        interviewRequired: data.filter((e: Enrollment) => e.status === 'INTERVIEW_REQUIRED').length,
-        active: data.filter((e: Enrollment) => e.status === 'ACTIVE').length,
-      })
     } catch (error) {
       console.error('Erreur lors du chargement des inscriptions:', error)
       setEnrollments([])
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetchEnrollments()
   }
 
   const updateStatus = async (
@@ -141,85 +184,25 @@ export default function InscriptionsPage() {
     }
   }
 
-  const exportToCSV = () => {
-    const headers = ['Activité', 'Inscrit', 'Parent', 'Email', 'Téléphone', 'Statut', 'Date', 'Notes']
-    const rows = filteredEnrollments.map((e) => [
-      e.activityTitle,
-      e.child ? `${e.child.firstName} ${e.child.lastName}` : e.user ? `${e.user.firstName} ${e.user.lastName}` : '-',
-      e.user ? `${e.user.firstName} ${e.user.lastName}` : '-',
-      e.user?.email || '-',
-      e.user?.phone || '-',
-      getStatusBadge(e.status).label,
-      format(new Date(e.createdAt), 'dd/MM/yyyy'),
-      e.notes || '',
-    ])
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `inscriptions_${format(new Date(), 'yyyy-MM-dd')}.csv`
-    link.click()
+  const bulkUpdateStatus = async (enrollments: Enrollment[], status: EnrollmentStatus) => {
+    try {
+      await Promise.all(
+        enrollments.map((e) =>
+          fetch(`/api/admin/enrollments/${e.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+          })
+        )
+      )
+      fetchEnrollments()
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour en masse:', error)
+    }
   }
 
   const sendEmail = (email: string, subject: string = '') => {
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`
-  }
-
-  const filteredEnrollments = enrollments.filter((enrollment) => {
-    const matchesSearch =
-      enrollment.activityTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (enrollment.user &&
-        (enrollment.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          enrollment.user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          enrollment.user.email.toLowerCase().includes(searchTerm.toLowerCase()))) ||
-      (enrollment.child &&
-        (enrollment.child.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          enrollment.child.lastName.toLowerCase().includes(searchTerm.toLowerCase())))
-
-    const matchesStatus = statusFilter === 'ALL' || enrollment.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
-
-  const getStatusBadge = (status: EnrollmentStatus) => {
-    const badges = {
-      PENDING: {
-        color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-        icon: Clock,
-        label: 'En attente',
-      },
-      APPROVED: {
-        color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-        icon: CheckCircle,
-        label: 'Approuvé',
-      },
-      REJECTED: {
-        color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-        icon: XCircle,
-        label: 'Rejeté',
-      },
-      WAITING_LIST: {
-        color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-        icon: Users,
-        label: 'Liste d\'attente',
-      },
-      INTERVIEW_REQUIRED: {
-        color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-        icon: AlertCircle,
-        label: 'Entretien requis',
-      },
-      ACTIVE: {
-        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-        icon: UserCheck,
-        label: 'Actif',
-      },
-    }
-    return badges[status] || badges.PENDING
   }
 
   const calculateAge = (birthDate: string) => {
@@ -240,28 +223,176 @@ export default function InscriptionsPage() {
     setShowDetailsModal(true)
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Chargement...</div>
-      </div>
-    )
-  }
+  // Colonnes du tableau
+  const columns: ColumnDef<Enrollment>[] = useMemo(
+    () => [
+      {
+        id: 'activityTitle',
+        header: 'Activité',
+        accessorKey: 'activityTitle',
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.activityTitle}</div>
+            {row.notes && (
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Note: {row.notes.substring(0, 50)}
+                {row.notes.length > 50 && '...'}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'inscrit',
+        header: 'Inscrit',
+        accessorFn: (row) =>
+          row.child
+            ? `${row.child.firstName} ${row.child.lastName}`
+            : row.user
+            ? `${row.user.firstName} ${row.user.lastName}`
+            : '-',
+        cell: ({ row }) =>
+          row.child ? (
+            <div>
+              <div className="font-medium">
+                {row.child.firstName} {row.child.lastName}
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {calculateAge(row.child.birthDate)} ans
+              </div>
+            </div>
+          ) : row.user ? (
+            <div>
+              {row.user.firstName} {row.user.lastName}
+            </div>
+          ) : (
+            <span className="text-gray-500">-</span>
+          ),
+      },
+      {
+        id: 'parent',
+        header: 'Parent / Contact',
+        accessorFn: (row) => (row.user ? `${row.user.firstName} ${row.user.lastName}` : '-'),
+        cell: ({ row }) =>
+          row.user ? (
+            <div>
+              <div>
+                {row.user.firstName} {row.user.lastName}
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{row.user.email}</div>
+              {row.user.phone && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">{row.user.phone}</div>
+              )}
+            </div>
+          ) : (
+            <span className="text-gray-500">-</span>
+          ),
+      },
+      {
+        id: 'status',
+        header: 'Statut',
+        accessorKey: 'status',
+        filterType: 'select',
+        filterOptions: statusFilterOptions,
+        editable: true,
+        editType: 'select',
+        editOptions: statusEditOptions,
+        onEdit: async (row, newValue) => {
+          await updateStatus(row.id, newValue as EnrollmentStatus)
+        },
+        cell: ({ row }) => {
+          const config = statusConfig[row.status]
+          const StatusIcon = config.icon
+          return (
+            <span
+              className={`px-3 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${config.color}`}
+            >
+              <StatusIcon className="h-3 w-3" />
+              {config.label}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'createdAt',
+        header: 'Date',
+        accessorKey: 'createdAt',
+        cell: ({ value }) => (
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {format(new Date(value), 'dd MMM yyyy', { locale: fr })}
+          </span>
+        ),
+      },
+    ],
+    []
+  )
+
+  // Actions sur les lignes
+  const rowActions: RowAction<Enrollment>[] = useMemo(
+    () => [
+      {
+        id: 'view',
+        label: 'Voir les détails',
+        icon: Eye,
+        onClick: (row) => openDetailsModal(row),
+        variant: 'primary',
+      },
+      {
+        id: 'email',
+        label: 'Envoyer un email',
+        icon: Mail,
+        onClick: (row) => {
+          if (row.user) {
+            sendEmail(row.user.email, `Inscription - ${row.activityTitle}`)
+          }
+        },
+        condition: (row) => !!row.user,
+      },
+    ],
+    []
+  )
+
+  // Actions en masse
+  const bulkActions: BulkAction<Enrollment>[] = useMemo(
+    () => [
+      {
+        id: 'approve',
+        label: 'Approuver',
+        icon: CheckCircle,
+        onClick: (rows) => bulkUpdateStatus(rows, 'APPROVED'),
+        variant: 'success',
+        confirmMessage: 'Approuver les inscriptions sélectionnées ?',
+      },
+      {
+        id: 'activate',
+        label: 'Activer',
+        icon: UserCheck,
+        onClick: (rows) => bulkUpdateStatus(rows, 'ACTIVE'),
+        variant: 'primary',
+        confirmMessage: 'Activer les inscriptions sélectionnées ?',
+      },
+      {
+        id: 'waitingList',
+        label: "Liste d'attente",
+        icon: Users,
+        onClick: (rows) => bulkUpdateStatus(rows, 'WAITING_LIST'),
+        variant: 'warning',
+        confirmMessage: 'Mettre en liste d\'attente ?',
+      },
+      {
+        id: 'reject',
+        label: 'Rejeter',
+        icon: XCircle,
+        onClick: (rows) => bulkUpdateStatus(rows, 'REJECTED'),
+        variant: 'danger',
+        confirmMessage: 'Rejeter les inscriptions sélectionnées ?',
+      },
+    ],
+    []
+  )
 
   return (
     <div className="space-y-6">
-      {/* Header avec bouton export */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Gestion des Inscriptions</h1>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
-        >
-          <Download className="h-4 w-4" />
-          Exporter CSV
-        </button>
-      </div>
-
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
@@ -335,177 +466,36 @@ export default function InscriptionsPage() {
         </div>
       </div>
 
-      {/* Filtres */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Rechercher par activité, nom, email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-gray-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as EnrollmentStatus | 'ALL')}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="ALL">Tous les statuts</option>
-              <option value="PENDING">En attente</option>
-              <option value="APPROVED">Approuvé</option>
-              <option value="ACTIVE">Actif</option>
-              <option value="WAITING_LIST">Liste d'attente</option>
-              <option value="INTERVIEW_REQUIRED">Entretien requis</option>
-              <option value="REJECTED">Rejeté</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Liste des inscriptions */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Activité
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Inscrit
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Parent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredEnrollments.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                    Aucune inscription trouvée
-                  </td>
-                </tr>
-              ) : (
-                filteredEnrollments.map((enrollment) => {
-                  const statusBadge = getStatusBadge(enrollment.status)
-                  const StatusIcon = statusBadge.icon
-
-                  return (
-                    <tr key={enrollment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium">{enrollment.activityTitle}</div>
-                        {enrollment.notes && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            Note: {enrollment.notes.substring(0, 50)}
-                            {enrollment.notes.length > 50 && '...'}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {enrollment.child ? (
-                          <div>
-                            <div className="text-sm font-medium">
-                              {enrollment.child.firstName} {enrollment.child.lastName}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {calculateAge(enrollment.child.birthDate)} ans
-                            </div>
-                          </div>
-                        ) : enrollment.user ? (
-                          <div className="text-sm">
-                            {enrollment.user.firstName} {enrollment.user.lastName}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {enrollment.user ? (
-                          <div>
-                            <div className="text-sm">
-                              {enrollment.user.firstName} {enrollment.user.lastName}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {enrollment.user.email}
-                            </div>
-                            {enrollment.user.phone && (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                {enrollment.user.phone}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${statusBadge.color}`}
-                        >
-                          <StatusIcon className="h-3 w-3" />
-                          {statusBadge.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {format(new Date(enrollment.createdAt), 'dd MMM yyyy', { locale: fr })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => openDetailsModal(enrollment)}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Voir les détails"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          {enrollment.user && (
-                            <button
-                              onClick={() =>
-                                sendEmail(
-                                  enrollment.user!.email,
-                                  `Inscription - ${enrollment.activityTitle}`
-                                )
-                              }
-                              className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
-                              title="Envoyer un email"
-                            >
-                              <Mail className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Résumé */}
-      <div className="text-sm text-gray-500 dark:text-gray-400 text-right">
-        Affichage de {filteredEnrollments.length} inscription{filteredEnrollments.length > 1 ? 's' : ''} sur{' '}
-        {stats.total}
-      </div>
+      {/* DataTable */}
+      <DataTable
+        data={enrollments}
+        columns={columns}
+        rowActions={rowActions}
+        bulkActions={bulkActions}
+        getRowId={(row) => row.id}
+        loading={loading}
+        title="Inscriptions aux activités"
+        subtitle={`${stats.pending} inscription(s) en attente de traitement`}
+        enableSelection={true}
+        enablePagination={true}
+        enableSearch={true}
+        enableColumnVisibility={true}
+        enableExport={true}
+        enableRowNumbers={true}
+        pageSize={25}
+        searchPlaceholder="Rechercher par activité, nom, email..."
+        emptyMessage="Aucune inscription trouvée"
+        headerActions={
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            title="Actualiser"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        }
+      />
 
       {/* Modal Détails */}
       {showDetailsModal && selectedEnrollment && (
@@ -569,14 +559,14 @@ export default function InscriptionsPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Statut actuel</h3>
                   {(() => {
-                    const statusBadge = getStatusBadge(selectedEnrollment.status)
-                    const StatusIcon = statusBadge.icon
+                    const config = statusConfig[selectedEnrollment.status]
+                    const StatusIcon = config.icon
                     return (
                       <span
-                        className={`px-3 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${statusBadge.color}`}
+                        className={`px-3 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${config.color}`}
                       >
                         <StatusIcon className="h-3 w-3" />
-                        {statusBadge.label}
+                        {config.label}
                       </span>
                     )
                   })()}

@@ -1,5 +1,9 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
+import { UserRole } from '@prisma/client'
+
+// Rôles qui ont accès à l'admin par défaut (peuvent être restreints par permissions)
+const ADMIN_ROLES: UserRole[] = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER']
 
 export default withAuth(
   function middleware(req) {
@@ -7,9 +11,14 @@ export default withAuth(
     if (req.nextUrl.pathname.startsWith('/admin') && req.nextUrl.pathname !== '/admin/login') {
       const token = req.nextauth.token
 
-      if (!token || !['ADMIN', 'IMAM', 'STAFF'].includes(token.role as string)) {
+      // Vérifier que l'utilisateur a un rôle qui permet l'accès admin
+      if (!token || !ADMIN_ROLES.includes(token.role as UserRole)) {
         return NextResponse.redirect(new URL('/admin/login', req.url))
       }
+
+      // Note: La vérification fine des permissions est faite côté client
+      // et dans les API routes pour des raisons de performance
+      // (le middleware ne peut pas faire d'appels async à la DB facilement)
     }
 
     return NextResponse.next()

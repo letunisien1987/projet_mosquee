@@ -1,11 +1,16 @@
-import { BookOpen, GraduationCap, Users, Clock, MapPin, Phone, Heart, ArrowRight, Tag } from 'lucide-react'
-import { getActivities } from '@/lib/directus'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { BookOpen, GraduationCap, Users, MapPin, Phone, Heart } from 'lucide-react'
 import Link from 'next/link'
+import { CategoryFilter, activityCategoryStyles } from '@/components/CategoryFilter'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { EmptyState } from '@/components/EmptyState'
+import { ItemCard, activityCategoryColors } from '@/components/ItemCard'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+type ActivityCategory = 'Tous' | 'Coran' | 'Arabe' | 'École' | 'Autres'
 
-// Mapping des catégories vers les icônes par défaut
+// Mapping des catégories vers les icônes
 const categoryIcons: Record<string, any> = {
   coran: BookOpen,
   arabe: GraduationCap,
@@ -16,95 +21,64 @@ const categoryIcons: Record<string, any> = {
   autre: BookOpen,
 }
 
-// Catégories principales à afficher en premier
-const mainCategories = ['coran', 'arabe', 'ecole']
-
-// Titres des catégories
-function getCategoryTitle(category: string): string {
-  const titles: Record<string, string> = {
-    coran: 'Cours de Coran',
-    arabe: 'Cours d\'Arabe',
-    ecole: 'École du Dimanche',
-    tajweed: 'Tajweed',
-    hifz: 'Hifz',
-    halaqat: 'Halaqat',
-    autre: 'Autres Activités',
-  }
-  return titles[category] || category
+// Mapping des catégories API vers les catégories de filtre
+const categoryMapping: Record<string, ActivityCategory> = {
+  coran: 'Coran',
+  arabe: 'Arabe',
+  ecole: 'École',
+  tajweed: 'Autres',
+  hifz: 'Autres',
+  halaqat: 'Autres',
+  autre: 'Autres',
 }
 
-// Descriptions des catégories
-function getCategoryDescription(category: string): string {
-  const descriptions: Record<string, string> = {
-    coran: 'Apprentissage de la lecture et de la récitation du Coran',
-    arabe: 'Cours de langue arabe pour tous les niveaux',
-    ecole: 'Programmes éducatifs pour enfants le dimanche',
-    tajweed: 'Perfectionnement de la récitation coranique',
-    hifz: 'Mémorisation du Coran',
-    halaqat: 'Cercles d\'étude et de science islamique',
-    autre: 'Autres programmes et activités',
-  }
-  return descriptions[category] || ''
+interface Activity {
+  id: string
+  title: string
+  category: string
+  schedule?: string
+  instructor?: string
+  age_group?: string
+  description?: string
+  price?: number
+  enrollment_open?: boolean
+  requires_approval?: boolean
+  active?: boolean
 }
 
-export default async function ActivitesPage() {
-  // Récupérer toutes les activités actives depuis Directus
-  const allActivities = await getActivities()
+export default function ActivitesPage() {
+  const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>('Tous')
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Filtrer uniquement les activités actives
-  const activeActivities = allActivities.filter((activity: any) => activity.active)
+  const categories: ActivityCategory[] = ['Tous', 'Coran', 'Arabe', 'École', 'Autres']
 
-  // Séparer les activités principales des autres
-  const mainActivities = activeActivities.filter((activity: any) =>
-    mainCategories.includes(activity.category)
-  )
+  useEffect(() => {
+    fetchActivities()
+  }, [])
 
-  const otherActivities = activeActivities.filter((activity: any) =>
-    !mainCategories.includes(activity.category)
-  )
-
-  // Grouper les activités principales par catégorie
-  const groupedActivities = mainCategories.map(category => {
-    const categoryActivities = mainActivities.filter((a: any) => a.category === category)
-    if (categoryActivities.length === 0) return null
-
-    const IconComponent = categoryIcons[category] || BookOpen
-
-    return {
-      title: getCategoryTitle(category),
-      icon: IconComponent,
-      description: getCategoryDescription(category),
-      color: 'primary',
-      levels: categoryActivities.map((activity: any) => ({
-        id: activity.id,
-        name: activity.title,
-        schedule: activity.schedule || '',
-        instructor: activity.instructor || 'À confirmer',
-        participants: activity.age_group || '',
-        details: activity.description || '',
-        price: activity.price || 0,
-        enrollment_open: activity.enrollment_open,
-        requires_approval: activity.requires_approval,
-      })),
+  const fetchActivities = async () => {
+    try {
+      const response = await fetch('/api/activities')
+      if (!response.ok) throw new Error('Erreur réseau')
+      const data = await response.json()
+      const activeActivities = (data || []).filter((a: Activity) => a.active !== false)
+      setActivities(activeActivities)
+    } catch (error) {
+      console.error('Erreur lors du chargement des activités:', error)
+      setActivities([])
+    } finally {
+      setLoading(false)
     }
-  }).filter(Boolean)
+  }
 
-  const additionalActivities = otherActivities.map((activity: any) => {
-    const IconComponent = categoryIcons[activity.category] || BookOpen
+  const filteredActivities = selectedCategory === 'Tous'
+    ? activities
+    : activities.filter(activity => categoryMapping[activity.category] === selectedCategory)
 
-    return {
-      id: activity.id,
-      title: activity.title,
-      schedule: activity.schedule || '',
-      description: activity.description || '',
-      icon: IconComponent,
-      price: activity.price || 0,
-      enrollment_open: activity.enrollment_open,
-      requires_approval: activity.requires_approval,
-    }
-  })
-
-  const activities = groupedActivities as any[]
+  if (loading) {
+    return <LoadingSpinner message="Chargement des activités..." />
+  }
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -118,172 +92,67 @@ export default async function ActivitesPage() {
         </div>
       </section>
 
-      {/* Main Activities */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="space-y-16">
-          {activities.map((activity, index) => {
-            const Icon = activity.icon
+      {/* Filter Section */}
+      <CategoryFilter
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+        styles={activityCategoryStyles}
+        resultCount={filteredActivities.length}
+        resultLabel="activité"
+      />
+
+      {/* Activities Grid */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredActivities.map((activity) => {
+            const categoryConfig = activityCategoryColors[activity.category] || activityCategoryColors.autre
+            const Icon = categoryIcons[activity.category] || BookOpen
+
             return (
-              <div key={index}>
-                <div className="text-center mb-8">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-                    <Icon className="h-8 w-8 text-primary" />
-                  </div>
-                  <h2 className="text-3xl font-bold mb-2">{activity.title}</h2>
-                  <p className="text-lg text-gray-600 dark:text-gray-300">{activity.description}</p>
-                </div>
-
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {activity.levels.map((level: any, levelIndex: number) => (
-                    <div
-                      key={levelIndex}
-                      className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 hover:border-primary transition-all hover:shadow-xl flex flex-col"
-                    >
-                      <h3 className="text-xl font-bold mb-4 text-primary">{level.name}</h3>
-
-                      <div className="space-y-3 mb-4 flex-1">
-                        <div className="flex items-start gap-2">
-                          <Clock className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-semibold">Horaire</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{level.schedule}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2">
-                          <GraduationCap className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-semibold">Enseignant</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{level.instructor}</p>
-                          </div>
-                        </div>
-
-                        {level.participants && (
-                          <div className="flex items-start gap-2">
-                            <Users className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-semibold">Participants</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">{level.participants}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {level.details && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                            {level.details}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Prix et bouton d'inscription */}
-                      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-primary" />
-                            <span className="text-lg font-bold text-primary">
-                              {level.price > 0 ? `${level.price} CHF` : 'Gratuit'}
-                            </span>
-                          </div>
-                          {level.requires_approval && (
-                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">
-                              Sur validation
-                            </span>
-                          )}
-                        </div>
-                        <Link
-                          href={`/activites/${level.id}`}
-                          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold transition-all ${
-                            level.enrollment_open !== false
-                              ? 'bg-primary hover:bg-primary-dark text-white'
-                              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          }`}
-                        >
-                          {level.enrollment_open !== false ? (
-                            <>
-                              S'inscrire
-                              <ArrowRight className="h-4 w-4" />
-                            </>
-                          ) : (
-                            'Inscriptions fermées'
-                          )}
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ItemCard
+                key={activity.id}
+                id={activity.id}
+                title={activity.title}
+                href={`/activites/${activity.id}`}
+                description={activity.description}
+                categoryConfig={categoryConfig}
+                icon={Icon}
+                infos={[
+                  ...(activity.schedule ? [{ icon: 'clock' as const, label: 'Horaire', value: activity.schedule }] : []),
+                  ...(activity.instructor ? [{ icon: 'instructor' as const, label: 'Enseignant', value: activity.instructor }] : []),
+                  ...(activity.age_group ? [{ icon: 'users' as const, label: 'Participants', value: activity.age_group }] : []),
+                ]}
+                price={{
+                  amount: activity.price || 0,
+                }}
+                badge={activity.requires_approval ? {
+                  text: 'Sur validation',
+                  variant: 'warning',
+                } : undefined}
+                status={activity.enrollment_open !== false ? {
+                  type: 'available',
+                } : {
+                  type: 'closed',
+                }}
+              />
             )
           })}
         </div>
+
+        {filteredActivities.length === 0 && (
+          <EmptyState
+            icon={BookOpen}
+            message="Aucune activité trouvée pour cette catégorie"
+          />
+        )}
       </section>
 
-      {/* Additional Activities */}
-      {additionalActivities.length > 0 && (
-        <section className="bg-gray-50 dark:bg-gray-900 py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl font-bold text-center mb-12">Autres Activités</h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              {additionalActivities.map((activity, index) => {
-                const Icon = activity.icon
-                return (
-                  <div
-                    key={index}
-                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-primary/10 flex flex-col"
-                  >
-                    <Icon className="h-12 w-12 text-primary mb-4" />
-                    <h3 className="text-xl font-bold mb-2">{activity.title}</h3>
-                    {activity.schedule && (
-                      <div className="flex items-center gap-2 text-sm text-primary mb-3">
-                        <Clock className="h-4 w-4" />
-                        <span>{activity.schedule}</span>
-                      </div>
-                    )}
-                    <p className="text-gray-600 dark:text-gray-300 flex-1">{activity.description}</p>
-
-                    {/* Prix et bouton d'inscription */}
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-bold text-primary">
-                          {activity.price > 0 ? `${activity.price} CHF` : 'Gratuit'}
-                        </span>
-                        {activity.requires_approval && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">
-                            Sur validation
-                          </span>
-                        )}
-                      </div>
-                      <Link
-                        href={`/activites/${activity.id}`}
-                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold transition-all ${
-                          activity.enrollment_open !== false
-                            ? 'bg-primary hover:bg-primary-dark text-white'
-                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {activity.enrollment_open !== false ? (
-                          <>
-                            S'inscrire
-                            <ArrowRight className="h-4 w-4" />
-                          </>
-                        ) : (
-                          'Inscriptions fermées'
-                        )}
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Inscription Info avec lien vers formulaire */}
+      {/* Inscription Info */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-primary text-white rounded-xl p-8 shadow-xl">
           <h2 className="text-2xl font-bold mb-4 text-center">Comment s'inscrire ?</h2>
 
-          {/* Bouton d'inscription en ligne */}
           <div className="mb-6 text-center">
             <Link href="/activites/inscription">
               <button className="bg-white text-primary px-8 py-3 rounded-lg font-bold hover:bg-white/90 transition-all inline-flex items-center gap-2">

@@ -19,18 +19,22 @@ export async function GET(
       )
     }
 
-    // Compter les places prises
-    const totalRegistered = await prisma.eventRegistration.aggregate({
+    // Compter les places prises (nombre total de participants: adultes + enfants)
+    const registrations = await prisma.eventRegistration.findMany({
       where: {
         eventId,
         status: { not: 'CANCELLED' },
       },
-      _sum: {
-        attendees: true,
+      select: {
+        numberOfAdults: true,
+        numberOfChildren: true,
       },
     })
 
-    const registeredCount = totalRegistered._sum.attendees || 0
+    const registeredCount = registrations.reduce(
+      (total, r) => total + r.numberOfAdults + r.numberOfChildren,
+      0
+    )
     const maxCapacity = event.max_capacity || null
     const availableSpots = maxCapacity ? maxCapacity - registeredCount : null
     const isFull = maxCapacity ? registeredCount >= maxCapacity : false

@@ -120,6 +120,7 @@ async function handleEventRegistrationPayment(
   }
 
   // 2. Créer le Payment
+  const isSubscription = session.mode === 'subscription'
   const payment = await prisma.payment.create({
     data: {
       ...(userId ? { user: { connect: { id: userId } } } : {}),
@@ -129,48 +130,89 @@ async function handleEventRegistrationPayment(
       status: 'COMPLETED',
       stripeCheckoutId: session.id,
       stripePaymentId: session.payment_intent as string || null,
+      stripeSubscriptionId: session.subscription as string || null,
       paidAt: new Date(),
       metadata: {
         type: 'EVENT_REGISTRATION',
         eventTitle: metadata.eventTitle,
         participationType: metadata.participationType,
+        paymentType: metadata.paymentType || 'ONE_TIME',
+        isSubscription,
       }
     }
   })
 
-  console.log('💰 Payment créé:', payment.id, '-', payment.amount, 'CHF')
+  console.log('💰 Payment créé:', payment.id, '-', payment.amount, 'CHF', isSubscription ? '(ABONNEMENT)' : '(UNIQUE)')
 
-  // 3. Créer l'EventRegistration
-  const [firstName = '', ...lastNameParts] = metadata.contactName.split(' ')
-  const lastName = lastNameParts.join(' ') || firstName
+  // 3. Vérifier si une inscription existante doit être mise à jour
+  let registration
 
-  const participants = metadata.participants ? JSON.parse(metadata.participants) : null
+  if (metadata.registrationId) {
+    // Mettre à jour l'inscription existante
+    const existingRegistration = await prisma.eventRegistration.findUnique({
+      where: { id: metadata.registrationId }
+    })
 
-  const registration = await prisma.eventRegistration.create({
-    data: {
-      ...(userId ? { user: { connect: { id: userId } } } : {}),
-      ...(metadata.childId ? { child: { connect: { id: metadata.childId } } } : {}),
-      eventId: metadata.eventId,
-      eventTitle: metadata.eventTitle,
-      participationType: metadata.participationType,
-      numberOfAdults: parseInt(metadata.numberOfAdults || '1'),
-      numberOfChildren: parseInt(metadata.numberOfChildren || '0'),
-      firstName,
-      lastName,
-      email: email.toLowerCase(),
-      phone: metadata.contactPhone,
-      attendees: parseInt(metadata.totalAttendees || '1'),
-      participants,
-      status: 'CONFIRMED',
-      requiresPayment: true,
-      paymentAmount: payment.amount,
-      payment: { connect: { id: payment.id } }
+    if (existingRegistration) {
+      registration = await prisma.eventRegistration.update({
+        where: { id: metadata.registrationId },
+        data: {
+          status: 'CONFIRMED',
+          paymentId: payment.id,
+          ...(userId && !existingRegistration.userId ? { userId } : {}),
+        }
+      })
+      console.log('📝 Inscription mise à jour:', registration.id, '- Statut: CONFIRMED')
     }
-  })
+  }
 
-  console.log('📝 Inscription créée:', registration.id, '- Statut: CONFIRMED')
+  // Si pas d'inscription existante, en créer une nouvelle (rétrocompatibilité)
+  if (!registration) {
+    const [firstName = '', ...lastNameParts] = (metadata.contactName || '').split(' ')
+    const lastName = lastNameParts.join(' ') || firstName
+    const participants = metadata.participants ? JSON.parse(metadata.participants) : null
 
-  // 4. Envoyer email de confirmation
+    registration = await prisma.eventRegistration.create({
+      data: {
+        ...(userId ? { user: { connect: { id: userId } } } : {}),
+        ...(metadata.childId ? { child: { connect: { id: metadata.childId } } } : {}),
+        eventId: metadata.eventId,
+        eventTitle: metadata.eventTitle,
+        participationType: metadata.participationType,
+        numberOfAdults: parseInt(metadata.numberOfAdults || '1'),
+        numberOfChildren: parseInt(metadata.numberOfChildren || '0'),
+        firstName,
+        lastName,
+        email: email.toLowerCase(),
+        phone: metadata.contactPhone,
+        attendees: parseInt(metadata.totalAttendees || '1'),
+        participants,
+        status: 'CONFIRMED',
+        requiresPayment: true,
+        paymentAmount: payment.amount,
+        payment: { connect: { id: payment.id } }
+      }
+    })
+    console.log('📝 Nouvelle inscription créée:', registration.id, '- Statut: CONFIRMED')
+  }
+
+  // 4. Créer une notification pour le membre
+  if (userId) {
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: 'EVENT_CONFIRMATION',
+        title: isSubscription ? 'Abonnement confirmé' : 'Paiement confirmé',
+        message: `Votre ${isSubscription ? 'abonnement' : 'paiement'} pour "${metadata.eventTitle}" a été confirmé. Votre inscription est validée.`,
+        link: '/membre/evenements',
+        read: false,
+        emailSent: true
+      }
+    })
+    console.log('📬 Notification de paiement créée pour:', email)
+  }
+
+  // 5. Envoyer email de confirmation
   try {
     const { sendEventRegistrationConfirmation } = await import('@/lib/email')
 
@@ -185,7 +227,8 @@ async function handleEventRegistrationPayment(
       numberOfChildren: registration.numberOfChildren,
       amount: payment.amount,
       registrationId: registration.id,
-      hasAccount: !!userId
+      hasAccount: !!userId,
+      isSubscription,
     })
 
     console.log('📧 Email de confirmation envoyé à:', email)

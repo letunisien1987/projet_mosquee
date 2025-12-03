@@ -26,6 +26,11 @@ export interface DirectusEvent {
   published: boolean
   manager_id?: string // UUID du responsable (référence User PostgreSQL)
   manager_email?: string // Email du responsable pour affichage
+  // Champs de paiement
+  price?: number // Prix en CHF (0 ou undefined = gratuit)
+  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION' // Type de paiement
+  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY' // Intervalle pour abonnement
+  stripe_price_id?: string // ID du prix Stripe pour abonnements
   restrictions?: {
     enabled: boolean
     participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
@@ -252,6 +257,25 @@ export async function getEventById(id: string) {
 }
 
 /**
+ * Récupère un événement par son slug
+ */
+export async function getEventBySlug(slug: string) {
+  try {
+    const events = await directusClient.request(
+      readItems('events', {
+        filter: { slug: { _eq: slug } },
+        limit: 1,
+        fields: ['*']
+      })
+    )
+    return events.length > 0 ? events[0] : null
+  } catch (error) {
+    console.error(`Erreur lors de la récupération de l'événement par slug ${slug}:`, error)
+    return null
+  }
+}
+
+/**
  * Récupère toutes les activités actives
  */
 export async function getActivities() {
@@ -402,14 +426,42 @@ export async function getJumuaMessages() {
     const messages = await directusClient.request(
       readItems('jumua_messages', {
         filter: {
-          is_active: { _eq: true }
+          is_active: { _eq: true },
+          _and: [
+            {
+              _or: [
+                { valid_from: { _null: true } },
+                { valid_from: { _lte: today } }
+              ]
+            },
+            {
+              _or: [
+                { valid_until: { _null: true } },
+                { valid_until: { _gte: today } }
+              ]
+            }
+          ]
         },
         sort: ['order'],
         limit: -1,
       })
     )
 
-    return messages
+    // Sanitiser les messages pour éviter les objets vides
+    return (messages as any[]).map(msg => {
+      let cleanTimes: string[] | null = null
+      if (msg.times) {
+        if (Array.isArray(msg.times)) {
+          cleanTimes = msg.times.filter((t: any) => typeof t === 'string' && t.trim() !== '')
+          if (cleanTimes.length === 0) cleanTimes = null
+        }
+      }
+      return {
+        ...msg,
+        times: cleanTimes,
+        image: msg.image && typeof msg.image === 'string' ? msg.image : null,
+      }
+    })
   } catch (error) {
     console.error('Erreur lors de la récupération des messages Joumou\'a:', error)
     return []
@@ -417,15 +469,16 @@ export async function getJumuaMessages() {
 }
 
 /**
- * Helper pour construire les URLs d'images Directus
+ * Helper pour construire les URLs d'images via le proxy API
+ * Utilise /api/assets pour éviter les problèmes d'authentification côté client
  */
 export function getDirectusImageUrl(imageId?: string): string | null {
   if (!imageId) return null
-  return `${DIRECTUS_URL}/assets/${imageId}`
+  return `/api/assets/${imageId}`
 }
 
 /**
- * Helper pour construire les URLs d'images avec transformations
+ * Helper pour construire les URLs d'images avec transformations via le proxy API
  */
 export function getDirectusImageUrlWithTransform(
   imageId?: string,
@@ -445,7 +498,7 @@ export function getDirectusImageUrlWithTransform(
   if (options.quality) params.set('quality', options.quality.toString())
 
   const queryString = params.toString()
-  return `${DIRECTUS_URL}/assets/${imageId}${queryString ? `?${queryString}` : ''}`
+  return `/api/assets/${imageId}${queryString ? `?${queryString}` : ''}`
 }
 
 // ==================== USER PROFILES ====================
@@ -829,5 +882,255 @@ export async function assignDefaultManagerToEvents(managerId: string, managerEma
   } catch (error) {
     console.error('Erreur lors de l\'assignation du responsable par défaut aux événements:', error)
     return 0
+  }
+}
+
+// ==================== CRUD ACTIVITIES ====================
+
+/**
+ * Crée une nouvelle activité
+ */
+export async function createActivity(data: Omit<DirectusActivity, 'id' | 'date_created' | 'date_updated'>): Promise<DirectusActivity | null> {
+  try {
+    const activity = await directusClient.request(
+      createItem('activities', data)
+    )
+    return activity as DirectusActivity
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'activité:', error)
+    return null
+  }
+}
+
+/**
+ * Met à jour une activité
+ */
+export async function updateActivity(id: string, data: Partial<DirectusActivity>): Promise<DirectusActivity | null> {
+  try {
+    const activity = await directusClient.request(
+      updateItem('activities', id, data)
+    )
+    return activity as DirectusActivity
+  } catch (error) {
+    console.error(`Erreur lors de la mise à jour de l'activité ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Supprime une activité
+ */
+export async function deleteActivity(id: string): Promise<boolean> {
+  try {
+    await directusClient.request(
+      deleteItem('activities', id)
+    )
+    return true
+  } catch (error) {
+    console.error(`Erreur lors de la suppression de l'activité ${id}:`, error)
+    return false
+  }
+}
+
+// ==================== CRUD EVENTS ====================
+
+/**
+ * Crée un nouvel événement
+ */
+export async function createEvent(data: Omit<DirectusEvent, 'id' | 'date_created' | 'date_updated'>): Promise<DirectusEvent | null> {
+  try {
+    const event = await directusClient.request(
+      createItem('events', data)
+    )
+    return event as DirectusEvent
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'événement:', error)
+    return null
+  }
+}
+
+/**
+ * Met à jour un événement
+ */
+export async function updateEvent(id: string, data: Partial<DirectusEvent>): Promise<DirectusEvent | null> {
+  try {
+    const event = await directusClient.request(
+      updateItem('events', id, data)
+    )
+    return event as DirectusEvent
+  } catch (error) {
+    console.error(`Erreur lors de la mise à jour de l'événement ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Supprime un événement
+ */
+export async function deleteEvent(id: string): Promise<boolean> {
+  try {
+    await directusClient.request(
+      deleteItem('events', id)
+    )
+    return true
+  } catch (error) {
+    console.error(`Erreur lors de la suppression de l'événement ${id}:`, error)
+    return false
+  }
+}
+
+// ==================== CRUD JUMUA MESSAGES ====================
+
+/**
+ * Récupère un message Jumua par son ID
+ */
+export async function getJumuaMessageById(id: string): Promise<DirectusJumuaMessage | null> {
+  try {
+    const message = await directusClient.request(
+      readItem('jumua_messages', id)
+    )
+    return message as DirectusJumuaMessage
+  } catch (error) {
+    console.error(`Erreur lors de la récupération du message Jumua ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Récupère tous les messages Jumua (actifs et inactifs)
+ */
+export async function getAllJumuaMessages(): Promise<DirectusJumuaMessage[]> {
+  try {
+    const messages = await directusClient.request(
+      readItems('jumua_messages', {
+        sort: ['order'],
+        limit: -1,
+      })
+    )
+    return messages as DirectusJumuaMessage[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération des messages Jumua:', error)
+    return []
+  }
+}
+
+/**
+ * Récupère les messages Jumua actifs (pour l'affichage public)
+ * Filtre par is_active et par validité de date
+ */
+export async function getActiveJumuaMessages(): Promise<DirectusJumuaMessage[]> {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+
+    const messages = await directusClient.request(
+      readItems('jumua_messages', {
+        filter: {
+          is_active: { _eq: true },
+          _and: [
+            {
+              _or: [
+                { valid_from: { _null: true } },
+                { valid_from: { _lte: today } }
+              ]
+            },
+            {
+              _or: [
+                { valid_until: { _null: true } },
+                { valid_until: { _gte: today } }
+              ]
+            }
+          ]
+        },
+        sort: ['order'],
+        limit: -1,
+      })
+    )
+    return messages as DirectusJumuaMessage[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération des messages Jumua actifs:', error)
+    return []
+  }
+}
+
+/**
+ * Crée un nouveau message Jumua
+ */
+export async function createJumuaMessage(data: Omit<DirectusJumuaMessage, 'id' | 'date_created' | 'date_updated'>): Promise<DirectusJumuaMessage | null> {
+  try {
+    const message = await directusClient.request(
+      createItem('jumua_messages', data)
+    )
+    return message as DirectusJumuaMessage
+  } catch (error) {
+    console.error('Erreur lors de la création du message Jumua:', error)
+    return null
+  }
+}
+
+/**
+ * Met à jour un message Jumua
+ */
+export async function updateJumuaMessage(id: string, data: Partial<DirectusJumuaMessage>): Promise<DirectusJumuaMessage | null> {
+  try {
+    const message = await directusClient.request(
+      updateItem('jumua_messages', id, data)
+    )
+    return message as DirectusJumuaMessage
+  } catch (error) {
+    console.error(`Erreur lors de la mise à jour du message Jumua ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Supprime un message Jumua
+ */
+export async function deleteJumuaMessage(id: string): Promise<boolean> {
+  try {
+    await directusClient.request(
+      deleteItem('jumua_messages', id)
+    )
+    return true
+  } catch (error) {
+    console.error(`Erreur lors de la suppression du message Jumua ${id}:`, error)
+    return false
+  }
+}
+
+/**
+ * Récupère toutes les activités (actives et inactives) pour l'admin
+ */
+export async function getAllActivities(): Promise<DirectusActivity[]> {
+  try {
+    const activities = await directusClient.request(
+      readItems('activities', {
+        sort: ['category', 'title'],
+        limit: -1,
+        fields: ['*']
+      })
+    )
+    return activities as DirectusActivity[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération de toutes les activités:', error)
+    return []
+  }
+}
+
+/**
+ * Récupère tous les événements (publiés et non publiés) pour l'admin
+ */
+export async function getAllEvents(): Promise<DirectusEvent[]> {
+  try {
+    const events = await directusClient.request(
+      readItems('events', {
+        sort: ['-date'],
+        limit: -1,
+        fields: ['*']
+      })
+    )
+    return events as DirectusEvent[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération de tous les événements:', error)
+    return []
   }
 }

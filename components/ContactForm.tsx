@@ -6,6 +6,7 @@ import { Mail } from 'lucide-react'
 export default function ContactForm() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -18,6 +19,7 @@ export default function ContactForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
 
     try {
       const response = await fetch('/api/contact', {
@@ -29,7 +31,18 @@ export default function ContactForm() {
       })
 
       if (!response.ok) {
-        throw new Error('Erreur lors de l\'envoi')
+        const errorData = await response.json()
+        // Gérer les erreurs de validation Zod
+        if (Array.isArray(errorData.error)) {
+          const messages = errorData.error.map((e: any) => {
+            if (e.path?.includes('message') && e.code === 'too_small') {
+              return 'Le message doit contenir au moins 10 caractères'
+            }
+            return e.message
+          })
+          throw new Error(messages.join(', '))
+        }
+        throw new Error(errorData.error || 'Erreur lors de l\'envoi')
       }
 
       setSuccess(true)
@@ -43,9 +56,8 @@ export default function ContactForm() {
       })
 
       setTimeout(() => setSuccess(false), 5000)
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Une erreur est survenue. Veuillez réessayer.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue. Veuillez réessayer.')
     } finally {
       setLoading(false)
     }
@@ -61,6 +73,12 @@ export default function ContactForm() {
       {success && (
         <div className="mb-6 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-4 rounded-lg">
           Merci pour votre message ! Nous vous répondrons dans les plus brefs délais.
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg">
+          {error}
         </div>
       )}
 

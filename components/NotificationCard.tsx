@@ -21,18 +21,25 @@ interface NotificationCardProps {
   onDelete?: (id: string) => Promise<void>
 }
 
+// Default config for unknown types
+const defaultConfig = { icon: Bell, color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-900/20' }
+
 // Map notification types to icons and colors
 const notificationConfig: Record<
   NotificationType,
   { icon: React.ElementType; color: string; bgColor: string }
 > = {
   EVENT_CONFIRMATION: { icon: Calendar, color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
+  EVENT_REGISTRATION_NEW: { icon: Calendar, color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
   EVENT_REMINDER: { icon: Calendar, color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
   EVENT_CANCELLED: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   EVENT_WAITLIST_SPOT_AVAILABLE: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  EVENT_PAYMENT_PENDING: { icon: CreditCard, color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
   ENROLLMENT_CONFIRMATION: { icon: BookOpen, color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
   ENROLLMENT_APPROVED: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
   ENROLLMENT_REJECTED: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
+  ENROLLMENT_PAYMENT_PENDING: { icon: CreditCard, color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
+  ENROLLMENT_PAYMENT_CONFIRMED: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
   PAYMENT_PENDING: { icon: CreditCard, color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
   PAYMENT_CONFIRMED: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
   PAYMENT_FAILED: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
@@ -71,7 +78,7 @@ export default function NotificationCard({ notification, onMarkAsRead, onDelete 
   const [isDeleting, setIsDeleting] = useState(false)
   const [isMarkingAsRead, setIsMarkingAsRead] = useState(false)
 
-  const config = notificationConfig[notification.type]
+  const config = notificationConfig[notification.type] || defaultConfig
   const Icon = config.icon
   const actionButton = getActionButton(notification.type, notification.link)
 

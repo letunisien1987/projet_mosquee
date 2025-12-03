@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle, Info, CreditCard } from 'lucide-react'
 import { EventRestrictions, getRestrictionsMessage } from '@/types/restrictions'
+import { useRouter } from 'next/navigation'
 
 interface Event {
   id: string
@@ -12,6 +13,10 @@ interface Event {
   start_time: string
   end_time: string
   restrictions?: EventRestrictions
+  // Champs de paiement
+  price?: number | string
+  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 }
 
 interface EventRegistrationModalProps {
@@ -27,10 +32,16 @@ export function EventRegistrationModal({
   onClose,
   onSuccess,
 }: EventRegistrationModalProps) {
+  const router = useRouter()
   const restrictions = event.restrictions
   const isFamily = restrictions?.enabled && (restrictions.participation_type === 'FAMILY' || restrictions.participation_type === 'MIXED')
   const requiresGender = restrictions?.enabled && restrictions.allowed_gender !== 'ALL'
   const requiresAge = restrictions?.enabled && (restrictions.min_age !== null || restrictions.max_age !== null)
+
+  // Calcul du prix
+  const price = event.price ? parseFloat(String(event.price)) : 0
+  const isPaidEvent = event.payment_type && event.payment_type !== 'FREE' && price > 0
+  const isSubscription = event.payment_type === 'SUBSCRIPTION'
 
   const [participationType, setParticipationType] = useState<'INDIVIDUAL' | 'FAMILY'>('INDIVIDUAL')
   const [formData, setFormData] = useState({
@@ -51,6 +62,19 @@ export function EventRegistrationModal({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  // Calcul du prix total
+  const totalAttendees = participationType === 'FAMILY'
+    ? formData.numberOfAdults + formData.numberOfChildren
+    : 1
+  const totalPrice = price * totalAttendees
+
+  // Labels pour les intervalles d'abonnement
+  const intervalLabels: Record<string, string> = {
+    WEEKLY: 'par semaine',
+    MONTHLY: 'par mois',
+    YEARLY: 'par an',
+  }
+
   // Adapter le type de participation selon les restrictions
   useEffect(() => {
     if (restrictions?.enabled) {
@@ -68,10 +92,24 @@ export function EventRegistrationModal({
     setError('')
 
     try {
+      // Préparer les données avec les bons noms de champs
+      const submitData = {
+        participationType,
+        contactFirstName: formData.firstName,
+        contactLastName: formData.lastName,
+        contactEmail: formData.email,
+        contactPhone: formData.phone,
+        notes: formData.notes,
+        participantGender: formData.participantGender || undefined,
+        participantBirthDate: formData.participantBirthDate || undefined,
+        numberOfAdults: formData.numberOfAdults,
+        numberOfChildren: formData.numberOfChildren,
+      }
+
       const response = await fetch(`/api/events/${event.id}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       })
 
       const data = await response.json()
@@ -81,19 +119,32 @@ export function EventRegistrationModal({
       }
 
       setSuccess(true)
-      setTimeout(() => {
-        onSuccess()
-        onClose()
-        setSuccess(false)
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          attendees: 1,
-          notes: '',
-        })
-      }, 2000)
+
+      // Si paiement requis, rediriger vers le checkout
+      if (data.registration?.requiresPayment && data.registration?.checkoutUrl) {
+        setTimeout(() => {
+          router.push(data.registration.checkoutUrl)
+        }, 1500)
+      } else {
+        // Sinon, fermer le modal normalement
+        setTimeout(() => {
+          onSuccess()
+          onClose()
+          setSuccess(false)
+          setFormData({
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            attendees: 1,
+            notes: '',
+            participantGender: '',
+            participantBirthDate: '',
+            numberOfAdults: 1,
+            numberOfChildren: 0,
+          })
+        }, 2000)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
@@ -146,6 +197,20 @@ export function EventRegistrationModal({
             <MapPin className="h-5 w-5 text-primary" />
             <span>{event.location}</span>
           </div>
+          {/* Affichage du prix */}
+          {isPaidEvent && (
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <span className="font-semibold">
+                {price} CHF / personne
+                {isSubscription && event.subscription_interval && (
+                  <span className="text-sm font-normal ml-1">
+                    ({intervalLabels[event.subscription_interval] || 'récurrent'})
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Success Message */}
@@ -154,10 +219,12 @@ export function EventRegistrationModal({
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-green-800 dark:text-green-200">
-                Inscription confirmée !
+                {isPaidEvent ? 'Inscription enregistrée !' : 'Inscription confirmée !'}
               </p>
               <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                Vous recevrez une confirmation par email.
+                {isPaidEvent
+                  ? 'Redirection vers la page de paiement...'
+                  : 'Vous recevrez une confirmation par email.'}
               </p>
             </div>
           </div>
@@ -283,7 +350,11 @@ export function EventRegistrationModal({
               disabled={loading || success}
               className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Inscription en cours...' : 'Confirmer l\'inscription'}
+              {loading ? 'Inscription en cours...' : (
+                isPaidEvent
+                  ? `Payer ${totalPrice} CHF${isSubscription ? ` ${intervalLabels[event.subscription_interval || 'MONTHLY']}` : ''}`
+                  : 'Confirmer l\'inscription'
+              )}
             </button>
           </div>
         </form>

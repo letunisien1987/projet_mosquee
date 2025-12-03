@@ -13,13 +13,15 @@ interface EventRegistration {
   lastName: string
   email: string
   phone: string | null
-  attendees: number
+  numberOfAdults: number
+  numberOfChildren: number
   notes: string | null
   createdAt: string
+  status: string
   user: {
     id: string
-    firstName: string
-    lastName: string
+    firstName: string | null
+    lastName: string | null
   } | null
 }
 
@@ -41,14 +43,17 @@ export default function EvenementsPage() {
     try {
       const response = await fetch('/api/admin/event-registrations')
       const data = await response.json()
-      setRegistrations(data)
+
+      // Verifier que data est un tableau
+      const registrationsData = Array.isArray(data) ? data : []
+      setRegistrations(registrationsData)
 
       // Calculer les stats
-      const uniqueEvents = new Set(data.map((r: EventRegistration) => r.eventId)).size
-      const totalAttendees = data.reduce((sum: number, r: EventRegistration) => sum + r.attendees, 0)
+      const uniqueEvents = new Set(registrationsData.map((r: EventRegistration) => r.eventId)).size
+      const totalAttendees = registrationsData.reduce((sum: number, r: EventRegistration) => sum + (r.numberOfAdults || 0) + (r.numberOfChildren || 0), 0)
 
       setStats({
-        total: data.length,
+        total: registrationsData.length,
         totalAttendees,
         uniqueEvents,
       })
@@ -60,11 +65,12 @@ export default function EvenementsPage() {
   }
 
   const filteredRegistrations = registrations.filter((registration) => {
+    const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
-      registration.eventTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      registration.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      registration.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      registration.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (registration.eventTitle || '').toLowerCase().includes(searchLower) ||
+      (registration.firstName || '').toLowerCase().includes(searchLower) ||
+      (registration.lastName || '').toLowerCase().includes(searchLower) ||
+      (registration.email || '').toLowerCase().includes(searchLower)
 
     return matchesSearch
   })
@@ -79,7 +85,7 @@ export default function EvenementsPage() {
       }
     }
     acc[reg.eventId].registrations++
-    acc[reg.eventId].attendees += reg.attendees
+    acc[reg.eventId].attendees += (reg.numberOfAdults || 0) + (reg.numberOfChildren || 0)
     return acc
   }, {})
 
@@ -217,8 +223,13 @@ export default function EvenementsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-semibold">
-                        {registration.attendees} personne{registration.attendees > 1 ? 's' : ''}
+                        {(registration.numberOfAdults || 0) + (registration.numberOfChildren || 0)} personne{((registration.numberOfAdults || 0) + (registration.numberOfChildren || 0)) > 1 ? 's' : ''}
                       </span>
+                      {registration.numberOfChildren > 0 && (
+                        <span className="text-xs text-gray-500 block">
+                          ({registration.numberOfAdults} adulte{registration.numberOfAdults > 1 ? 's' : ''}, {registration.numberOfChildren} enfant{registration.numberOfChildren > 1 ? 's' : ''})
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(registration.createdAt), 'dd MMM yyyy', { locale: fr })}

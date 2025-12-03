@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEventById } from '@/lib/directus'
-import { sendEventRegistrationEmail } from '@/lib/email'
+import { sendEventRegistrationEmail, sendEventPaymentRequest } from '@/lib/email'
 import { validateRestrictions, type EventRegistrationFormData } from '@/types/restrictions'
 
 const registerSchema = z.object({
@@ -11,8 +13,8 @@ const registerSchema = z.object({
   // Contact
   contactFirstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
   contactLastName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
-  contactEmail: z.string().email('Email invalide'),
-  contactPhone: z.string().min(10, 'Numéro de téléphone invalide'),
+  contactEmail: z.string().email('Adresse email invalide (ex: nom@exemple.com)'),
+  contactPhone: z.string().min(8, 'Le numéro de téléphone doit contenir au moins 8 chiffres'),
   notes: z.string().optional(),
   // Pour INDIVIDUAL
   participantGender: z.enum(['MALE', 'FEMALE', 'CHILD']).optional(),
@@ -134,17 +136,21 @@ export async function POST(
 
     // Vérifier les places disponibles
     if (event.max_capacity) {
-      const totalRegistered = await prisma.eventRegistration.aggregate({
+      const registrations = await prisma.eventRegistration.findMany({
         where: {
           eventId,
           status: { not: 'CANCELLED' },
         },
-        _sum: {
-          attendees: true,
+        select: {
+          numberOfAdults: true,
+          numberOfChildren: true,
         },
       })
 
-      const currentAttendees = totalRegistered._sum.attendees || 0
+      const currentAttendees = registrations.reduce(
+        (total, r) => total + r.numberOfAdults + r.numberOfChildren,
+        0
+      )
       const availableSpots = event.max_capacity - currentAttendees
 
       if (availableSpots < totalAttendees) {
@@ -157,8 +163,15 @@ export async function POST(
       }
     }
 
-    // Créer l'inscription
-    const status = event.requires_approval ? 'PENDING' : 'CONFIRMED'
+    // Déterminer si l'événement est payant
+    const isPaidEvent = event.payment_type && event.payment_type !== 'FREE' && event.price && parseFloat(event.price) > 0
+    const paymentAmount = isPaidEvent ? parseFloat(event.price) * totalAttendees : null
+
+    // Créer l'inscription - statut PENDING_PAYMENT si paiement requis
+    let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT' = event.requires_approval ? 'PENDING' : 'CONFIRMED'
+    if (isPaidEvent) {
+      status = 'PENDING_PAYMENT'
+    }
 
     // Ajouter la relation parent aux notes si c'est un enfant
     let notesWithParentInfo = formData.notes || ''
@@ -173,6 +186,26 @@ export async function POST(
       notesWithParentInfo = `[Relation parent: ${relationLabel}]${notesWithParentInfo ? '\n' + notesWithParentInfo : ''}`
     }
 
+    // Chercher l'utilisateur connecté OU par email pour lier l'inscription
+    let userId: string | null = null
+
+    // 1. Essayer de récupérer l'utilisateur connecté
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      userId = session.user.id
+    }
+
+    // 2. Sinon, chercher par email dans la base
+    if (!userId) {
+      const userByEmail = await prisma.user.findFirst({
+        where: { email: formData.contactEmail },
+        select: { id: true }
+      })
+      if (userByEmail) {
+        userId = userByEmail.id
+      }
+    }
+
     const registration = await prisma.eventRegistration.create({
       data: {
         eventId,
@@ -182,28 +215,163 @@ export async function POST(
         email: formData.contactEmail,
         phone: formData.contactPhone,
         attendees: totalAttendees,
+        numberOfAdults: formData.numberOfAdults || 1,
+        numberOfChildren: formData.numberOfChildren || 0,
+        participationType: formData.participationType,
+        participantGender: formData.participantGender,
         notes: notesWithParentInfo,
         status,
+        requiresPayment: isPaidEvent || false,
+        paymentAmount,
+        userId, // Lier au compte utilisateur si trouvé
       },
     })
 
-    // Envoyer l'email de confirmation (seulement si confirmé automatiquement)
-    if (status === 'CONFIRMED') {
-      const eventDate = new Date(event.date).toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    console.log('📝 Inscription créée:', registration.id, 'userId:', userId || 'invité')
 
-      await sendEventRegistrationEmail(
-        formData.contactEmail,
-        formData.contactFirstName,
-        event.title,
-        eventDate
-      )
+    // Envoyer l'email à l'inscrit selon le statut
+    const eventDateFormatted = new Date(event.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+
+    try {
+      if (status === 'CONFIRMED') {
+        // Email de confirmation immédiate
+        await sendEventRegistrationEmail(
+          formData.contactEmail,
+          formData.contactFirstName,
+          event.title,
+          eventDateFormatted
+        )
+        console.log('📧 Email de confirmation envoyé à:', formData.contactEmail)
+      } else if (status === 'PENDING_PAYMENT') {
+        // Email avec lien de paiement
+        const paymentUrl = `${process.env.NEXTAUTH_URL}/api/events/${eventId}/checkout?registrationId=${registration.id}`
+        await sendEventPaymentRequest({
+          email: formData.contactEmail,
+          firstName: formData.contactFirstName,
+          eventTitle: event.title,
+          eventDate: event.date,
+          participationType: formData.participationType,
+          numberOfAdults: formData.numberOfAdults || 1,
+          numberOfChildren: formData.numberOfChildren || 0,
+          amount: paymentAmount || 0,
+          paymentUrl,
+          registrationId: registration.id,
+        })
+        console.log('📧 Email de paiement envoyé à:', formData.contactEmail)
+      } else if (status === 'PENDING') {
+        // Email de confirmation d'inscription en attente d'approbation
+        const { sendEventPendingApprovalEmail } = await import('@/lib/email')
+        await sendEventPendingApprovalEmail({
+          email: formData.contactEmail,
+          firstName: formData.contactFirstName,
+          eventTitle: event.title,
+          eventDate: event.date,
+        })
+        console.log('📧 Email d\'attente d\'approbation envoyé à:', formData.contactEmail)
+      }
+    } catch (emailError) {
+      console.error('⚠️ Erreur envoi email inscrit (non bloquant):', emailError)
+    }
+
+    // Créer une notification pour l'inscrit s'il a un compte
+    if (userId) {
+      try {
+        const notifMessage = status === 'CONFIRMED'
+          ? `Votre inscription à "${event.title}" est confirmée.`
+          : status === 'PENDING_PAYMENT'
+          ? `Votre inscription à "${event.title}" est en attente de paiement.`
+          : `Votre inscription à "${event.title}" est en attente d'approbation.`
+
+        await prisma.notification.create({
+          data: {
+            userId,
+            type: status === 'CONFIRMED' ? 'EVENT_CONFIRMATION' : 'EVENT_REGISTRATION_NEW',
+            title: status === 'CONFIRMED' ? 'Inscription confirmée' : 'Inscription reçue',
+            message: notifMessage,
+            link: '/membre/evenements',
+            read: false,
+            emailSent: true,
+          }
+        })
+        console.log('🔔 Notification créée pour l\'inscrit:', userId)
+      } catch (notifError) {
+        console.error('⚠️ Erreur notification inscrit:', notifError)
+      }
+    }
+
+    // Notifier le responsable de l'événement
+    if (event.manager_email) {
+      let notificationId: string | null = null
+      try {
+        // Chercher le responsable par email dans notre base utilisateurs
+        const managerUser = await prisma.user.findFirst({
+          where: { email: event.manager_email },
+          select: { id: true }
+        })
+
+        // Créer une notification si le responsable a un compte dans notre base
+        if (managerUser) {
+          const notification = await prisma.notification.create({
+            data: {
+              userId: managerUser.id,
+              type: 'EVENT_REGISTRATION_NEW',
+              title: 'Nouvelle inscription',
+              message: `${formData.contactFirstName} ${formData.contactLastName} s'est inscrit(e) à "${event.title}" (${totalAttendees} participant(s))${isPaidEvent ? ` - ${paymentAmount} CHF` : ''}`,
+              link: `/admin/evenements-gestion/${eventId}`,
+              read: false,
+              emailSent: false,
+            }
+          })
+          notificationId = notification.id
+          console.log('🔔 Notification créée pour le responsable:', managerUser.id)
+        }
+
+        // Envoyer un email au responsable
+        const { sendNewRegistrationToManager } = await import('@/lib/email')
+        const emailResult = await sendNewRegistrationToManager({
+          managerEmail: event.manager_email,
+          eventTitle: event.title,
+          eventId,
+          participantName: `${formData.contactFirstName} ${formData.contactLastName}`,
+          participantEmail: formData.contactEmail,
+          participantPhone: formData.contactPhone,
+          numberOfParticipants: totalAttendees,
+          participationType: formData.participationType,
+          amount: isPaidEvent ? paymentAmount : null,
+          requiresPayment: isPaidEvent || false,
+          status,
+        })
+
+        // Mettre à jour la notification avec emailSent = true si l'email a été envoyé
+        if (emailResult.success && notificationId) {
+          await prisma.notification.update({
+            where: { id: notificationId },
+            data: { emailSent: true }
+          })
+        }
+
+        console.log('📧 Email envoyé au responsable:', event.manager_email, emailResult.success ? '✅' : '❌')
+      } catch (notifError) {
+        console.error('⚠️ Erreur notification responsable (non bloquant):', notifError)
+      }
+    }
+
+    // Construire le message et la réponse
+    let message = 'Votre inscription a été confirmée avec succès'
+    let checkoutUrl = null
+
+    if (status === 'PENDING_PAYMENT') {
+      message = `Votre inscription a été enregistrée. Montant à payer: ${paymentAmount} CHF`
+      checkoutUrl = `/api/events/${eventId}/checkout?registrationId=${registration.id}`
+    } else if (status === 'PENDING') {
+      message = 'Votre inscription a été enregistrée et sera confirmée par un administrateur'
     }
 
     return NextResponse.json({
@@ -211,16 +379,43 @@ export async function POST(
       registration: {
         id: registration.id,
         status: registration.status,
-        message:
-          status === 'PENDING'
-            ? 'Votre inscription a été enregistrée et sera confirmée par un administrateur'
-            : 'Votre inscription a été confirmée avec succès',
+        message,
+        requiresPayment: isPaidEvent,
+        paymentAmount,
+        checkoutUrl,
+        paymentType: event.payment_type,
       },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
+      // Construire un message d'erreur lisible
+      const fieldMessages: Record<string, string> = {
+        contactFirstName: 'Prénom',
+        contactLastName: 'Nom',
+        contactEmail: 'Email',
+        contactPhone: 'Téléphone',
+        participationType: 'Type de participation',
+        participantGender: 'Genre',
+        participantBirthDate: 'Date de naissance',
+        numberOfAdults: 'Nombre d\'adultes',
+        numberOfChildren: 'Nombre d\'enfants',
+      }
+
+      const errorMessages = error.issues.map(issue => {
+        const field = issue.path[0] as string
+        const fieldName = fieldMessages[field] || field
+        return `${fieldName}: ${issue.message}`
+      })
+
       return NextResponse.json(
-        { error: 'Données invalides', details: error.issues },
+        {
+          error: 'Veuillez corriger les erreurs suivantes',
+          details: errorMessages,
+          fieldErrors: error.issues.map(issue => ({
+            field: issue.path[0],
+            message: issue.message
+          }))
+        },
         { status: 400 }
       )
     }

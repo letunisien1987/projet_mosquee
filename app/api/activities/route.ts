@@ -6,15 +6,23 @@ export async function GET() {
   try {
     const activities = await getActivities()
 
-    // Adapter le format pour le formulaire d'inscription
-    // Chaque activité Directus devient une activité avec un seul niveau
+    // Retourner toutes les informations nécessaires pour l'affichage
     const formattedActivities = activities.map((activity: any) => ({
-      id: String(activity.id), // Convertir en string pour la cohérence
+      id: String(activity.id),
       title: activity.title,
       category: activity.category,
+      schedule: activity.schedule || '',
+      instructor: activity.instructor || '',
+      age_group: activity.age_group || '',
+      description: activity.description || '',
+      price: activity.price || 0,
+      enrollment_open: activity.enrollment_open !== false,
+      requires_approval: activity.requires_approval || false,
+      active: activity.active !== false,
+      // Garder levels pour compatibilité avec le formulaire d'inscription
       levels: [
         {
-          id: String(activity.id), // Utiliser le même ID que l'activité
+          id: String(activity.id),
           name: activity.level || 'Niveau unique',
           schedule: activity.schedule || '',
           price: activity.price || null,

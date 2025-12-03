@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a full-featured mosque and Islamic association management platform built with Next.js 16, TypeScript, Prisma, and Directus CMS. The application serves both public users (mosque members and visitors) and administrators managing the mosque operations.
 
-**Note**: The project is currently migrating from Sanity CMS to Directus CMS. Some documentation may still reference Sanity, but Directus is the target CMS platform.
+**Note**: The project uses both Directus CMS (primary) and Sanity CMS (legacy). New content should be managed in Directus (http://localhost:8055).
 
 ## Development Commands
 
@@ -90,7 +90,8 @@ The application uses **two separate data storage systems** working together:
 - **NextAuth v4** with JWT strategy
 - Custom credentials provider using bcryptjs
 - Protected admin routes via middleware (`middleware.ts`)
-- Role-based access: Only ADMIN, IMAM, and STAFF can access `/admin/*` routes
+- Role-based access: ADMIN, IMAM, STAFF, and MANAGER can access `/admin/*` routes
+- MANAGER role: Can manage their own activities/events (assigned via manager_email in Directus)
 - Admin login at `/admin/login`
 - Session data includes user role and ID in JWT token
 
@@ -151,9 +152,11 @@ Setup:
 **`lib/auth.ts`**: NextAuth configuration with Prisma adapter and JWT callbacks
 **`lib/prisma.ts`**: Singleton Prisma client instance
 **`lib/directus.ts`**: Directus client configuration and helper functions for CMS operations
-**`lib/sanity.ts`**: Legacy Sanity client (being phased out in favor of Directus)
+**`lib/stripe.ts`**: Stripe client and payment utilities
+**`lib/email.ts`**: Email sending via Resend (registration confirmations, payment requests, notifications)
+**`lib/pricing.ts`**: Price calculation utilities for events/activities
 **`lib/mawaqit.ts`**: Mawaqit API integration for prayer times with iqama calculation logic
-**`lib/prayer-times.ts`**: Prayer time utilities and formatting
+**`lib/sanity.ts`**: Legacy Sanity client (being phased out)
 **`lib/utils.ts`**: General utility functions (cn for className merging)
 
 ### Component Architecture
@@ -213,18 +216,30 @@ Sanity Studio:
 Required in `.env`:
 
 ```bash
-# Database (Prisma Accelerate)
-DATABASE_URL=prisma+postgres://...
+# Database
+DATABASE_URL=postgresql://...
 
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your_secret_key
 
+# Directus CMS (Primary)
+DIRECTUS_URL=http://localhost:8055
+DIRECTUS_ADMIN_TOKEN=your_admin_token
+
 # Mawaqit API
 MAWAQIT_API_URL=https://mawaqit.elghoudi.net/api/v1
 masjid_id=mosque-madretsch-biel-bienne
 
-# Sanity
+# Stripe Payments
+STRIPE_SECRET_KEY=sk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
+
+# Email (Resend)
+RESEND_API_KEY=re_...
+
+# Sanity (Legacy)
 NEXT_PUBLIC_SANITY_PROJECT_ID=your_project_id
 NEXT_PUBLIC_SANITY_DATASET=production
 SANITY_API_TOKEN=your_token
@@ -327,10 +342,27 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 const session = await getServerSession(authOptions)
-if (!session || !['ADMIN', 'IMAM', 'STAFF'].includes(session.user.role)) {
+if (!session || !['ADMIN', 'IMAM', 'STAFF', 'MANAGER'].includes(session.user.role)) {
   return new Response('Unauthorized', { status: 401 })
 }
 ```
+
+### Stripe Payment Flow
+
+Event/Activity payment flow:
+1. User registers via `/api/events/[id]/register` or `/api/enrollments`
+2. If paid event, status is set to `PENDING_PAYMENT`
+3. User redirected to `/api/events/[id]/checkout` which creates Stripe Checkout Session
+4. After payment, Stripe webhook (`/api/stripe/webhook`) updates status to `CONFIRMED`
+5. Email confirmation sent via Resend
+
+### Email System
+
+Emails are sent via Resend (`lib/email.ts`). Key email functions:
+- `sendEventRegistrationEmail` - Confirmation after successful registration
+- `sendEventPaymentRequest` - Payment link for paid events
+- `sendEventPendingApprovalEmail` - Registration awaiting approval
+- `sendNewRegistrationToManager` - Notify event manager of new registration
 
 ## Database Workflow
 
@@ -389,9 +421,21 @@ npm run dev
 ## Deployment Notes
 
 - Next.js 16 with App Router
-- Database uses Prisma Accelerate (connection pooling)
-- Sanity Studio embeddable at `/studio` and `/admin/studio`
+- Database: PostgreSQL (can use Prisma Accelerate for connection pooling)
+- Directus CMS must be running separately (port 8055)
+- Stripe webhooks must be configured for production URL
 - Environment variables must be set in production
 - Build command: `npm run build`
-- Requires PostgreSQL database
-- Sanity project must be deployed separately
+
+## Running the Full Stack Locally
+
+```bash
+# Terminal 1: Start Directus CMS
+cd ~/directus-mosquee && npx directus start  # Port 8055
+
+# Terminal 2: Start Next.js
+npm run dev  # Port 3000
+
+# Optional: Stripe webhook listener (for payment testing)
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```

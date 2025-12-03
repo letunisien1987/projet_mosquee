@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, Book, Heart, Users } from 'lucide-react'
 import { UnifiedPrayerCard } from '@/components/UnifiedPrayerCard'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
 import HeroWithAnnouncements from '@/components/HeroWithAnnouncements'
+import AnnouncementsGallery from '@/components/AnnouncementsGallery'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
 import { getJumuaMessages } from '@/lib/directus'
@@ -45,14 +46,16 @@ export default async function Home() {
   }
 
   // Transform Jumua messages for the carousel
+  // Note: Les horaires Jumua viennent de l'API Mawaqit (jumua, jumua2, jumua3)
+  // Les messages Jumua (Directus) ne contiennent que le contenu du message, pas les horaires
   const jumuaAnnouncements = jumuaMessages.map((msg) => ({
     id: msg.id,
     title: msg.title,
     content: msg.message,
-    image: msg.image ? `${process.env.DIRECTUS_URL}/assets/${msg.image}` : undefined,
+    image: msg.image ? `/api/assets/${msg.image}` : undefined,
     priority: 'high',
     isJumua: true,
-    jumuaTimes: msg.times || specialInfo.jumua || []
+    jumuaTimes: specialInfo.jumua || []  // Horaires Jumua depuis Mawaqit uniquement
   }))
 
   // Transform Mawaqit announcements for the carousel
@@ -72,16 +75,29 @@ export default async function Home() {
     isJumua: false
   }))
 
-  // Combine all announcements (Jumua messages first if it's Friday or close to Friday)
-  const announcements = currentDay === 5 || currentDay === 4 || currentDay === 6
-    ? [...jumuaAnnouncements, ...mawaqitAnnouncements]
-    : [...mawaqitAnnouncements, ...jumuaAnnouncements]
+  // Séparer les annonces: avec image pour la galerie, sans image pour les slides
+  const announcementsWithImage = mawaqitAnnouncements.filter(a => a.image)
+  const announcementsWithoutImage = mawaqitAnnouncements.filter(a => !a.image)
+
+  // Les slides: annonces Joumou'a + annonces texte seulement
+  const slideAnnouncements = currentDay === 5 || currentDay === 4 || currentDay === 6
+    ? [...jumuaAnnouncements, ...announcementsWithoutImage]
+    : [...announcementsWithoutImage, ...jumuaAnnouncements]
+
+  // La galerie: toutes les annonces avec images
+  const galleryAnnouncements = announcementsWithImage.map(a => ({
+    id: a.id,
+    title: a.title,
+    content: a.content,
+    date: a.date,
+    image: a.image as string
+  }))
 
   return (
     <div>
-      {/* Hero Section with Announcements Carousel */}
+      {/* Hero Section with Announcements Carousel (text only) */}
       <HeroWithAnnouncements
-        announcements={announcements}
+        announcements={slideAnnouncements}
         hijriDate={hijriDate}
         gregorianDate={prayerData.date.gregorian.date}
         jumuaTime={specialInfo.jumua}
@@ -113,6 +129,9 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* Announcements with Images Gallery */}
+      <AnnouncementsGallery announcements={galleryAnnouncements} />
 
       {/* Quick Links */}
       <section className="relative z-10 bg-background w-full py-12">

@@ -270,6 +270,91 @@ export async function sendEventRegistrationEmail(
 }
 
 /**
+ * Email d'inscription en attente d'approbation pour un événement
+ */
+export async function sendEventPendingApprovalEmail(data: {
+  email: string
+  firstName: string
+  eventTitle: string
+  eventDate?: string
+}) {
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'À confirmer'
+    try {
+      const date = new Date(dateStr)
+      return date.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
+  const content = `
+    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
+      <h3 style="color: #92400e; margin: 0 0 10px 0; font-size: 18px;">
+        ⏳ Inscription en attente
+      </h3>
+      <p style="color: #78350f; margin: 0; font-size: 14px;">
+        Votre inscription est en cours de traitement et sera validée prochainement.
+      </p>
+    </div>
+
+    <h2 style="color: #DC2626; margin: 0 0 20px 0;">
+      ${data.eventTitle}
+    </h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${data.firstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Nous avons bien reçu votre demande d'inscription à l'événement <strong>"${data.eventTitle}"</strong>.
+    </p>
+
+    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 50%;">📅 Date de l'événement</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${formatDate(data.eventDate)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📋 Statut</td>
+          <td style="padding: 8px 0; color: #f59e0b; font-weight: 600; font-size: 14px;">En attente d'approbation</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Votre inscription sera examinée par notre équipe et vous recevrez un email de confirmation dès qu'elle sera validée.
+    </p>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/membre/evenements"
+         style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir mes inscriptions
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Qu'Allah vous facilite.<br>
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.email,
+    subject: `⏳ Inscription reçue - ${data.eventTitle}`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
  * Email de confirmation de don
  */
 export async function sendDonationConfirmationEmail(
@@ -1624,6 +1709,109 @@ export async function sendEnrollmentRejectionEmail(
   return sendEmail({
     to: email,
     subject: `Inscription à ${activityTitle} - Réponse`,
+    html: getEmailTemplate(content),
+  })
+}
+
+/**
+ * Email au responsable d'événement pour une nouvelle inscription
+ */
+export async function sendNewRegistrationToManager(data: {
+  managerEmail: string
+  eventTitle: string
+  eventId: string
+  participantName: string
+  participantEmail: string
+  participantPhone: string
+  numberOfParticipants: number
+  participationType: string
+  amount: number | null
+  requiresPayment: boolean
+  status: string
+}) {
+  const participationLabel = data.participationType === 'FAMILY' ? 'Inscription familiale' : 'Inscription individuelle'
+  const statusLabel = {
+    PENDING: 'En attente d\'approbation',
+    PENDING_PAYMENT: 'En attente de paiement',
+    CONFIRMED: 'Confirmée',
+  }[data.status] || data.status
+
+  const content = `
+    <div style="background-color: #DBEAFE; border-left: 4px solid #3B82F6; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
+      <h3 style="color: #1E40AF; margin: 0 0 10px 0; font-size: 18px;">
+        🆕 Nouvelle inscription
+      </h3>
+      <p style="color: #1E40AF; margin: 0; font-size: 14px;">
+        Une nouvelle inscription a été enregistrée pour votre événement.
+      </p>
+    </div>
+
+    <h2 style="color: #DC2626; margin: 0 0 20px 0;">
+      ${data.eventTitle}
+    </h2>
+
+    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
+      <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">📋 Détails de l'inscription</h3>
+
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 40%;">👤 Participant</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${data.participantName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📧 Email</td>
+          <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">
+            <a href="mailto:${data.participantEmail}" style="color: #3b82f6;">${data.participantEmail}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📱 Téléphone</td>
+          <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">
+            <a href="tel:${data.participantPhone}" style="color: #3b82f6;">${data.participantPhone}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">👥 Type</td>
+          <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${participationLabel}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">🎫 Nombre</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${data.numberOfParticipants} participant(s)</td>
+        </tr>
+        ${data.requiresPayment && data.amount ? `
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">💰 Montant</td>
+          <td style="padding: 8px 0; color: #DC2626; font-weight: 700; font-size: 16px;">${data.amount.toFixed(2)} CHF</td>
+        </tr>
+        ` : ''}
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📊 Statut</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">
+            <span style="background-color: ${data.status === 'CONFIRMED' ? '#D1FAE5' : data.status === 'PENDING_PAYMENT' ? '#FEF3C7' : '#DBEAFE'};
+                         color: ${data.status === 'CONFIRMED' ? '#065F46' : data.status === 'PENDING_PAYMENT' ? '#92400E' : '#1E40AF'};
+                         padding: 4px 10px; border-radius: 4px; font-size: 12px;">
+              ${statusLabel}
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/admin/evenements-gestion/${data.eventId}"
+         style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir les inscriptions
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Vous recevez cet email car vous êtes responsable de cet événement.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.managerEmail,
+    subject: `🆕 Nouvelle inscription - ${data.eventTitle}`,
     html: getEmailTemplate(content),
   })
 }

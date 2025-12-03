@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, Calendar, MapPin, Users, CheckCircle, AlertCircle, Info } from 'lucide-react'
 import { EventRestrictions, getRestrictionsMessage } from '@/types/restrictions'
+import { PriceBadge } from '@/components/PriceBadge'
+import { useRouter } from 'next/navigation'
+import { PricingConfig, calculatePrice, isPaidItem, getPricingSummary } from '@/lib/pricing'
 
 interface Event {
   id: string
@@ -12,6 +15,11 @@ interface Event {
   start_time: string
   end_time: string
   restrictions?: EventRestrictions
+  // Champs de paiement
+  price?: number | string
+  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  pricing?: PricingConfig | null
 }
 
 interface EventRegistrationModalProps {
@@ -27,8 +35,19 @@ export function SmartEventRegistrationModal({
   onClose,
   onSuccess,
 }: EventRegistrationModalProps) {
+  const router = useRouter()
   const restrictions = event.restrictions
   const restrictionsMessage = restrictions ? getRestrictionsMessage(restrictions) : null
+
+  // Déterminer si l'événement est payant
+  const fallbackPrice = event.price ? parseFloat(String(event.price)) : 0
+  const isPaidEvent = isPaidItem(event.payment_type, event.price, event.pricing)
+  const isSubscription = event.payment_type === 'SUBSCRIPTION'
+  const intervalLabels: Record<string, string> = {
+    WEEKLY: '/semaine',
+    MONTHLY: '/mois',
+    YEARLY: '/an',
+  }
 
   // Détermine le type de participation autorisé
   const allowIndividual = !restrictions?.enabled ||
@@ -65,6 +84,22 @@ export function SmartEventRegistrationModal({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [ageError, setAgeError] = useState('')
+
+  // Calcul dynamique du prix selon la configuration
+  const priceResult = useMemo(() => {
+    const numberOfAdults = participationType === 'FAMILY' ? formData.numberOfAdults : 1
+    const numberOfChildren = participationType === 'FAMILY' ? formData.numberOfChildren : 0
+
+    return calculatePrice(
+      event.pricing || null,
+      {
+        numberOfAdults,
+        numberOfChildren,
+        registrationDate: new Date(),
+      },
+      fallbackPrice
+    )
+  }, [event.pricing, participationType, formData.numberOfAdults, formData.numberOfChildren, fallbackPrice])
 
   // Calculer l'âge à partir de la date de naissance
   const calculateAge = (birthDate: string): number | null => {
@@ -175,28 +210,42 @@ export function SmartEventRegistrationModal({
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Une erreur est survenue')
+        // Construire un message d'erreur détaillé
+        let errorMessage = data.error || 'Une erreur est survenue'
+        if (data.details && Array.isArray(data.details) && data.details.length > 0) {
+          errorMessage = data.details.join('\n')
+        }
+        throw new Error(errorMessage)
       }
 
       setSuccess(true)
-      setTimeout(() => {
-        onSuccess()
-        onClose()
-        setSuccess(false)
-        // Reset form
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          notes: '',
-          participantGender: '',
-          participantBirthDate: '',
-          parentRelation: '',
-          numberOfAdults: 1,
-          numberOfChildren: 0,
-        })
-      }, 2000)
+
+      // Si paiement requis, rediriger vers le checkout
+      if (data.registration?.requiresPayment && data.registration?.checkoutUrl) {
+        setTimeout(() => {
+          router.push(data.registration.checkoutUrl)
+        }, 1500)
+      } else {
+        // Sinon, fermer le modal normalement
+        setTimeout(() => {
+          onSuccess()
+          onClose()
+          setSuccess(false)
+          // Reset form
+          setFormData({
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            notes: '',
+            participantGender: '',
+            participantBirthDate: '',
+            parentRelation: '',
+            numberOfAdults: 1,
+            numberOfChildren: 0,
+          })
+        }, 2000)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
@@ -251,6 +300,16 @@ export function SmartEventRegistrationModal({
               <span>{event.location}</span>
             </div>
           )}
+          {/* Badge prix */}
+          <div className="pt-2">
+            <PriceBadge
+              price={event.price}
+              paymentType={event.payment_type}
+              subscriptionInterval={event.subscription_interval}
+              pricing={event.pricing}
+              size="lg"
+            />
+          </div>
         </div>
 
         {/* Restrictions Info */}
@@ -267,10 +326,12 @@ export function SmartEventRegistrationModal({
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-green-800 dark:text-green-200">
-                Inscription confirmée !
+                {isPaidEvent ? 'Inscription enregistrée !' : 'Inscription confirmée !'}
               </p>
               <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                Vous recevrez une confirmation par email.
+                {isPaidEvent
+                  ? 'Redirection vers la page de paiement...'
+                  : 'Vous recevrez une confirmation par email.'}
               </p>
             </div>
           </div>
@@ -280,7 +341,17 @@ export function SmartEventRegistrationModal({
         {error && (
           <div className="mx-6 mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            <div className="text-sm text-red-800 dark:text-red-200">
+              {error.includes('\n') ? (
+                <ul className="list-disc list-inside space-y-1">
+                  {error.split('\n').map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{error}</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -544,9 +615,41 @@ export function SmartEventRegistrationModal({
                   />
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-2">
-                Total: {formData.numberOfAdults + formData.numberOfChildren} personne(s)
-              </p>
+              {/* Récapitulatif du prix avec détail */}
+              <div className="mt-3 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 dark:text-gray-300">
+                    Total: <strong>{formData.numberOfAdults + formData.numberOfChildren}</strong> personne(s)
+                  </span>
+                </div>
+                {isPaidEvent && (
+                  <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2 space-y-1">
+                    {/* Détail du calcul */}
+                    {priceResult.breakdown.slice(0, -1).map((line, idx) => (
+                      <div key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex justify-between">
+                        <span>{line}</span>
+                      </div>
+                    ))}
+                    {/* Total final */}
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-300 dark:border-gray-500">
+                      <span className="font-medium text-gray-700 dark:text-gray-200">Total:</span>
+                      <span className="font-bold text-xl text-red-600 dark:text-red-400">
+                        {priceResult.total} CHF
+                        {isSubscription && event.subscription_interval && (
+                          <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
+                        )}
+                      </span>
+                    </div>
+                    {/* Réductions appliquées */}
+                    {priceResult.discountAmount > 0 && priceResult.discountReason && (
+                      <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>{priceResult.discountReason}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -566,6 +669,38 @@ export function SmartEventRegistrationModal({
             />
           </div>
 
+          {/* Récapitulatif du prix pour INDIVIDUAL */}
+          {participationType === 'INDIVIDUAL' && isPaidEvent && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-2">
+              {/* Détail si pricing config existe */}
+              {event.pricing && (
+                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  {priceResult.breakdown.slice(0, -1).map((line, idx) => (
+                    <div key={idx}>{line}</div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-red-200 dark:border-red-700">
+                <span className="text-gray-700 dark:text-gray-300">
+                  Total à payer:
+                </span>
+                <span className="font-bold text-xl text-red-600 dark:text-red-400">
+                  {priceResult.total} CHF
+                  {isSubscription && event.subscription_interval && (
+                    <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
+                  )}
+                </span>
+              </div>
+              {/* Réductions */}
+              {priceResult.discountAmount > 0 && priceResult.discountReason && (
+                <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4" />
+                  <span>{priceResult.discountReason}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
             <button
@@ -578,9 +713,22 @@ export function SmartEventRegistrationModal({
             <button
               type="submit"
               disabled={loading || success || !!ageError}
-              className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 px-6 py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                isPaidEvent
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-primary text-white hover:bg-primary-dark'
+              }`}
             >
-              {loading ? 'Inscription en cours...' : 'Confirmer l\'inscription'}
+              {loading ? 'Inscription en cours...' : (
+                isPaidEvent ? (
+                  <>
+                    Payer {priceResult.total} CHF
+                    {isSubscription && event.subscription_interval && (
+                      <span className="text-sm ml-1">{intervalLabels[event.subscription_interval]}</span>
+                    )}
+                  </>
+                ) : 'Confirmer l\'inscription'
+              )}
             </button>
           </div>
         </form>

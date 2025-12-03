@@ -24,7 +24,8 @@ export default function ConnexionPage() {
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 5000)
     }
-  }, [searchParams])
+  },
+ [searchParams])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value

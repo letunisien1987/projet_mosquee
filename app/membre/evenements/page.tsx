@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { Calendar, MapPin, Users, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Calendar, Users, Clock, CheckCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import CancelEventButton from '@/components/CancelEventButton'
 
@@ -101,23 +101,14 @@ export default async function EvenementsPage() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                       {registration.eventTitle}
                     </h3>
-                    {registration.eventDate && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(registration.eventDate).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </div>
-                    )}
-                    {registration.eventLocation && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <MapPin className="h-4 w-4" />
-                        {registration.eventLocation}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      Inscrit le {new Date(registration.createdAt).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </div>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
                     registration.status === 'CONFIRMED'
@@ -133,10 +124,10 @@ export default async function EvenementsPage() {
                   </span>
                 </div>
 
-                {registration.numberOfParticipants && registration.numberOfParticipants > 1 && (
+                {(registration.numberOfAdults + registration.numberOfChildren) > 1 && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
                     <Users className="h-4 w-4" />
-                    {registration.numberOfParticipants} participant(s)
+                    {registration.numberOfAdults + registration.numberOfChildren} participant(s)
                   </div>
                 )}
 
@@ -197,24 +188,17 @@ export default async function EvenementsPage() {
                             <div className="font-medium text-gray-900 dark:text-white">
                               {registration.eventTitle}
                             </div>
-                            {registration.eventLocation && (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                {registration.eventLocation}
-                              </div>
-                            )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {registration.eventDate
-                            ? new Date(registration.eventDate).toLocaleDateString('fr-FR')
-                            : '-'}
+                          {new Date(registration.createdAt).toLocaleDateString('fr-FR')}
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {registration.numberOfParticipants || 1}
+                          {registration.numberOfAdults + registration.numberOfChildren}
                         </div>
                       </td>
                       <td className="px-6 py-4">

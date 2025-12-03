@@ -15,6 +15,7 @@ enum UserRole {
   IMAM
   TEACHER
   STAFF
+  MANAGER  // Gestionnaire d'activités/événements (peut gérer ses propres activités/événements)
   MEMBER
 }
 
@@ -66,6 +67,7 @@ enum EnrollmentStatus {
 
 enum RegistrationStatus {
   PENDING
+  PENDING_PAYMENT
   CONFIRMED
   CANCELLED
 }
@@ -81,6 +83,7 @@ enum PaymentStatus {
 
 enum NotificationType {
   EVENT_CONFIRMATION
+  EVENT_REGISTRATION_NEW          // Nouvelle inscription (pour responsables)
   EVENT_REMINDER
   EVENT_CANCELLED
   EVENT_WAITLIST_SPOT_AVAILABLE
@@ -125,6 +128,47 @@ enum ActivityCategory {
   WOMEN
   SUPPORT
   OTHER
+}
+
+// Permissions pour l'interface d'administration
+enum AdminPermission {
+  // Gestion des utilisateurs et membres
+  VIEW_MEMBERS            // Voir la liste des membres
+  MANAGE_MEMBERS          // Ajouter, modifier, supprimer des membres
+  MANAGE_ROLES            // Changer les rôles des utilisateurs
+
+  // Gestion des événements
+  VIEW_EVENTS             // Voir les événements
+  MANAGE_EVENTS           // Créer, modifier, supprimer des événements
+  VIEW_EVENT_REGISTRATIONS // Voir les inscriptions aux événements
+  MANAGE_EVENT_REGISTRATIONS // Gérer les inscriptions (confirmer, annuler)
+
+  // Gestion des activités
+  VIEW_ACTIVITIES         // Voir les activités
+  MANAGE_ACTIVITIES       // Créer, modifier, supprimer des activités
+  VIEW_ENROLLMENTS        // Voir les inscriptions aux activités
+  MANAGE_ENROLLMENTS      // Gérer les inscriptions (approuver, rejeter)
+
+  // Gestion financière
+  VIEW_DONATIONS          // Voir les dons
+  MANAGE_DONATIONS        // Gérer les dons
+  VIEW_MEMBERSHIPS        // Voir les cotisations
+  MANAGE_MEMBERSHIPS      // Gérer les cotisations
+
+  // Communication
+  VIEW_MESSAGES           // Voir les messages de contact
+  MANAGE_MESSAGES         // Répondre, marquer comme lu, supprimer
+  VIEW_SERVICES           // Voir les demandes de services
+  MANAGE_SERVICES         // Gérer les demandes de services
+
+  // Configuration
+  VIEW_PRAYER_TIMES       // Voir les horaires de prière
+  MANAGE_PRAYER_TIMES     // Modifier les horaires de prière
+  VIEW_SETTINGS           // Voir les paramètres
+  MANAGE_SETTINGS         // Modifier les paramètres
+
+  // Administration complète
+  ADMIN_ACCESS            // Accès complet à l'administration
 }
 
 model User {
@@ -481,16 +525,17 @@ model Notification {
 
 // Paiements Stripe
 model Payment {
-  id                  String        @id @default(uuid()) @db.Uuid
-  userId              String?       @db.Uuid
-  eventId             String?       // Référence à Directus event
-  enrollmentId        String?       @db.Uuid
-  amount              Float
-  currency            String        @default("CHF")
-  status              PaymentStatus @default(PENDING)
-  stripePaymentId     String?       @unique // payment_intent_id de Stripe
-  stripeCheckoutId    String?       // checkout_session_id de Stripe
-  metadata            Json?         // Données additionnelles
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String?       @db.Uuid
+  eventId              String?       // Référence à Directus event
+  enrollmentId         String?       @db.Uuid
+  amount               Float
+  currency             String        @default("CHF")
+  status               PaymentStatus @default(PENDING)
+  stripePaymentId      String?       @unique // payment_intent_id de Stripe
+  stripeCheckoutId     String?       // checkout_session_id de Stripe
+  stripeSubscriptionId String?       // subscription_id de Stripe (pour abonnements)
+  metadata             Json?         // Données additionnelles
   paidAt              DateTime?
   failedAt            DateTime?
   failureReason       String?
@@ -532,4 +577,17 @@ model WaitingList {
   @@index([eventId, notified])
   @@index([activityId, notified])
   @@index([userId])
+}
+
+// Permissions par rôle pour l'administration
+model RolePermission {
+  id         String          @id @default(uuid()) @db.Uuid
+  role       UserRole
+  permission AdminPermission
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([role, permission])
+  @@map("role_permissions")
+  @@index([role])
 }
