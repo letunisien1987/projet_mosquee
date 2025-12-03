@@ -927,7 +927,8 @@ export async function sendEventRegistrationConfirmation(data: {
 export async function sendMembershipApplicationReceived(data: {
   email: string
   firstName: string
-  membershipType: string
+  membershipType?: string
+  requestId?: string
 }) {
   const membershipTypeLabel = data.membershipType === 'ACTIF'
     ? 'Membre Actif (avec droit de vote)'

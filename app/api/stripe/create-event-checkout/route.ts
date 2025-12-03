@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Calculer le montant total
-    const adultPrice = event.price
-    const childPrice = event.child_price || event.price // Par défaut = prix adulte
+    const adultPrice = event.price as number
+    const childPrice = (typeof event.child_price === 'number' ? event.child_price : adultPrice) // Par défaut = prix adulte
 
     let totalAmount = 0
     let description = ''
@@ -91,6 +91,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Créer la session Stripe Checkout
+    const eventId = String(event.id)
+    const eventTitle = String(event.title)
+    const eventDate = event.date_start ? String(event.date_start) : ''
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -98,12 +102,8 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: 'chf',
             product_data: {
-              name: `Inscription - ${event.title}`,
+              name: `Inscription - ${eventTitle}`,
               description: description,
-              metadata: {
-                eventId: event.id,
-                eventTitle: event.title,
-              }
             },
             unit_amount: Math.round(totalAmount * 100), // Convertir en centimes
           },
@@ -115,9 +115,9 @@ export async function POST(req: NextRequest) {
       cancel_url: `${process.env.NEXTAUTH_URL}/evenements/${data.eventId}`,
       metadata: {
         type: 'EVENT_REGISTRATION',
-        eventId: event.id,
-        eventTitle: event.title,
-        eventDate: event.date_start || '',
+        eventId: eventId,
+        eventTitle: eventTitle,
+        eventDate: eventDate,
         participationType: data.participationType,
         numberOfAdults: data.numberOfAdults.toString(),
         numberOfChildren: data.numberOfChildren.toString(),
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       payment_intent_data: {
         metadata: {
           type: 'EVENT_REGISTRATION',
-          eventId: event.id,
+          eventId: eventId,
         }
       }
     })

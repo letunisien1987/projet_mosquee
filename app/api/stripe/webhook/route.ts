@@ -228,7 +228,6 @@ async function handleEventRegistrationPayment(
       amount: payment.amount,
       registrationId: registration.id,
       hasAccount: !!userId,
-      isSubscription,
     })
 
     console.log('📧 Email de confirmation envoyé à:', email)

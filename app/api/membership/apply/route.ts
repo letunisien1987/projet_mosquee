@@ -88,11 +88,13 @@ export async function POST(req: NextRequest) {
 
     // Notifier l'admin (optionnel)
     try {
-      const { sendAdminNotification } = await import('@/lib/email')
-      await sendAdminNotification({
+      const { sendEmail } = await import('@/lib/email')
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@mosquee.ch'
+      await sendEmail({
+        to: adminEmail,
         subject: 'Nouvelle demande d\'adhésion',
-        message: `${data.firstName} ${data.lastName} (${data.email}) - Type: ${data.membershipType}`,
-        link: `${process.env.NEXTAUTH_URL}/admin/demandes-adhesion`
+        html: `<p>${data.firstName} ${data.lastName} (${data.email}) - Type: ${data.membershipType}</p>
+               <p><a href="${process.env.NEXTAUTH_URL}/admin/demandes-adhesion">Voir les demandes</a></p>`,
       })
     } catch (error) {
       console.log('⚠️  Notification admin non envoyée:', error)

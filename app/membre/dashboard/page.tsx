@@ -59,13 +59,13 @@ async function getDashboardData(userId: string) {
       by: ['status'],
       where: { userId },
       _count: true,
-    })
+    }) as { status: string; _count: number }[]
 
     const eventStats = await prisma.eventRegistration.groupBy({
       by: ['status'],
       where: { userId },
       _count: true,
-    })
+    }) as { status: string; _count: number }[]
 
     const unreadCount = await prisma.notification.count({
       where: { userId, read: false },
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
           Tableau de bord
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Bienvenue {session.user.firstName} {session.user.lastName}
+          Bienvenue {session.user.name}
         </p>
       </div>
 

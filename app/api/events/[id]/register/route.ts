@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEventById } from '@/lib/directus'
 import { sendEventRegistrationEmail, sendEventPaymentRequest } from '@/lib/email'
-import { validateRestrictions, type EventRegistrationFormData } from '@/types/restrictions'
+import { validateRestrictions, type EventRegistrationFormData, type EventRestrictions } from '@/types/restrictions'
 
 const registerSchema = z.object({
   // Type de participation
@@ -84,7 +84,7 @@ export async function POST(
 
     // VALIDATION DES RESTRICTIONS
     if (event.restrictions?.enabled) {
-      const validationResult = validateRestrictions(event.restrictions, formData)
+      const validationResult = validateRestrictions(event.restrictions as EventRestrictions, formData)
       if (!validationResult.valid) {
         return NextResponse.json(
           { error: validationResult.error, code: validationResult.errorCode },
@@ -164,8 +164,8 @@ export async function POST(
     }
 
     // Déterminer si l'événement est payant
-    const isPaidEvent = event.payment_type && event.payment_type !== 'FREE' && event.price && parseFloat(event.price) > 0
-    const paymentAmount = isPaidEvent ? parseFloat(event.price) * totalAttendees : null
+    const isPaidEvent = event.payment_type && event.payment_type !== 'FREE' && event.price && event.price > 0
+    const paymentAmount = isPaidEvent && event.price ? event.price * totalAttendees : null
 
     // Créer l'inscription - statut PENDING_PAYMENT si paiement requis
     let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT' = event.requires_approval ? 'PENDING' : 'CONFIRMED'

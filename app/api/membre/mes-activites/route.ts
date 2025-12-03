@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
           by: ['status'],
           where: { activityId: activity.id.toString() },
           _count: { status: true },
-        })
+        }) as { status: string; _count: { status: number } }[]
 
         const statsMap: Record<string, number> = {}
         stats.forEach((s) => {

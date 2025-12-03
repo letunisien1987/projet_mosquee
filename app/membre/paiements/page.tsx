@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CreditCard, Calendar, BookOpen, Users, AlertCircle, Clock, Loader2 } from 'lucide-react'
@@ -42,7 +42,7 @@ interface PendingPaymentsData {
   }>
 }
 
-export default function PaiementsPage() {
+function PaiementsContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -424,5 +424,17 @@ export default function PaiementsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PaiementsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+      </div>
+    }>
+      <PaiementsContent />
+    </Suspense>
   )
 }

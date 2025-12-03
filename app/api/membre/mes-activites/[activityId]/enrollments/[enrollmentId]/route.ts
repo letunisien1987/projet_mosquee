@@ -283,7 +283,7 @@ export async function PATCH(
         updatedEnrollment = await prisma.enrollment.update({
           where: { id: enrollmentId },
           data: {
-            status: 'CANCELLED',
+            status: 'REJECTED',
           },
         })
 

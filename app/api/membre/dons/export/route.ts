@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       // Générer le PDF pour un seul don
       const pdfBuffer = await generateDonationReceipt(donation, session.user)
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="recu-don-${donation.id}.pdf"`,
@@ -43,7 +43,6 @@ export async function POST(request: Request) {
       const donations = await prisma.donation.findMany({
         where: {
           userId: session.user.id,
-          status: 'COMPLETED',
           createdAt: {
             gte: new Date(`${currentYear}-01-01`),
             lte: new Date(`${currentYear}-12-31`),
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
 
       const pdfBuffer = await generateAnnualReceipt(donations, session.user, currentYear)
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="recu-fiscal-${currentYear}.pdf"`,

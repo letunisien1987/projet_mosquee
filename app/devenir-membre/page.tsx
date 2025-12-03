@@ -15,7 +15,7 @@ const schema = z.object({
   address: z.string().min(5, 'Adresse requise'),
   city: z.string().min(2, 'Ville requise'),
   postalCode: z.string().min(4, 'Code postal requis'),
-  country: z.string().default('Suisse'),
+  country: z.string().min(1, 'Pays requis'),
   membershipType: z.enum(['ACTIF', 'PASSIF']),
   desiredStartDate: z.string().min(1, 'Date de début requise'),
   motivation: z.string().optional(),

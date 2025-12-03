@@ -76,10 +76,10 @@ export default async function AdhesionPage() {
   }
 
   // Récupérer la demande d'adhésion la plus récente
-  const membershipRequest = await prisma.membershipRequest.findFirst({
+  const membershipRequest = session.user.email ? await prisma.membershipRequest.findFirst({
     where: { email: session.user.email },
     orderBy: { createdAt: 'desc' },
-  })
+  }) : null
 
   // Récupérer la cotisation active si elle existe
   const activeMembership = await prisma.membership.findFirst({

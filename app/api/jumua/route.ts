@@ -21,10 +21,10 @@ const sanitizeJumuaMessage = (message: any) => {
   let cleanTimes: string[] | null = null
   if (message.times) {
     if (Array.isArray(message.times)) {
-      cleanTimes = message.times.filter((t: any) =>
+      const filtered = message.times.filter((t: any) =>
         typeof t === 'string' && t.trim() !== ''
       )
-      if (cleanTimes.length === 0) cleanTimes = null
+      cleanTimes = filtered.length === 0 ? null : filtered
     } else if (isEmptyObject(message.times)) {
       cleanTimes = null
     }

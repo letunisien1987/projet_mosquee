@@ -452,8 +452,8 @@ export async function getJumuaMessages() {
       let cleanTimes: string[] | null = null
       if (msg.times) {
         if (Array.isArray(msg.times)) {
-          cleanTimes = msg.times.filter((t: any) => typeof t === 'string' && t.trim() !== '')
-          if (cleanTimes.length === 0) cleanTimes = null
+          const filtered = msg.times.filter((t: any) => typeof t === 'string' && t.trim() !== '')
+          cleanTimes = filtered.length === 0 ? null : filtered
         }
       }
       return {

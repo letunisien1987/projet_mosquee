@@ -36,23 +36,18 @@ export default function ProfilPage() {
 
   const loadUserProfile = async () => {
     try {
-      // Charger les données de base de l'utilisateur
-      setFormData(prev => ({
-        ...prev,
-        firstName: session?.user?.firstName || '',
-        lastName: session?.user?.lastName || '',
-        email: session?.user?.email || '',
-        phone: session?.user?.phone || '',
-        address: session?.user?.address || '',
-      }))
-
-      // Charger le profil étendu depuis l'API
+      // Charger le profil depuis l'API
       const response = await fetch('/api/membre/profil')
       if (response.ok) {
         const profile = await response.json()
         if (profile) {
           setFormData(prev => ({
             ...prev,
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            address: profile.address || '',
             city: profile.city || '',
             postalCode: profile.postal_code || '',
             country: profile.country || 'France',
@@ -107,11 +102,8 @@ export default function ProfilPage() {
 
       setSuccess(true)
 
-      // Mettre à jour la session si les données de base ont changé
-      if (formData.firstName !== session?.user?.firstName ||
-          formData.lastName !== session?.user?.lastName) {
-        await update()
-      }
+      // Mettre à jour la session
+      await update()
 
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {

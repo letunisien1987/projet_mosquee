@@ -50,10 +50,10 @@ export default async function CotisationPage() {
   })
 
   // Récupérer les demandes d'adhésion
-  const membershipRequests = await prisma.membershipRequest.findMany({
+  const membershipRequests = session.user.email ? await prisma.membershipRequest.findMany({
     where: { email: session.user.email },
     orderBy: { createdAt: 'desc' },
-  })
+  }) : []
 
   const currentMembership = memberships.find(m => m.status === 'ACTIVE')
   const pendingRequest = membershipRequests.find(r => r.status === 'PENDING')
