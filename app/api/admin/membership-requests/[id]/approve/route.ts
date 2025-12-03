@@ -15,7 +15,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !['ADMIN', 'IMAM', 'STAFF'].includes(session.user.role)) {
+    if (!session?.user?.role || !['ADMIN', 'IMAM', 'STAFF'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 

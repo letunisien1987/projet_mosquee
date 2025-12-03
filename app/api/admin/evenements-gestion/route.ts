@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
       ...validatedData,
       manager_id: finalManagerId,
       manager_email: finalManagerEmail,
-    })
+    } as Parameters<typeof createEvent>[0])
 
     if (!event) {
       return NextResponse.json({ error: 'Erreur lors de la création' }, { status: 500 })

@@ -139,14 +139,19 @@ export async function GET(
     const registrationStats = await prisma.eventRegistration.groupBy({
       by: ['status'],
       where: { eventId: id },
-      _count: true,
+      _count: { _all: true },
+    })
+
+    // Compter le total des inscriptions
+    const totalRegistrations = await prisma.eventRegistration.count({
+      where: { eventId: id },
     })
 
     return NextResponse.json({
       event,
       stats: {
         registrations: registrationStats,
-        total: registrationStats.reduce((acc, curr) => acc + curr._count, 0),
+        total: totalRegistrations,
       },
       isManager: rawEvent.manager_id === session.user.id,
     })

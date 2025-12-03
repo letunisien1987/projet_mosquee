@@ -126,14 +126,19 @@ export async function GET(
     const enrollmentStats = await prisma.enrollment.groupBy({
       by: ['status'],
       where: { activityId: id },
-      _count: true,
+      _count: { _all: true },
+    })
+
+    // Compter le total des inscriptions
+    const totalEnrollments = await prisma.enrollment.count({
+      where: { activityId: id },
     })
 
     return NextResponse.json({
       activity,
       stats: {
         enrollments: enrollmentStats,
-        total: enrollmentStats.reduce((acc, curr) => acc + curr._count, 0),
+        total: totalEnrollments,
       },
       isManager: rawActivity.manager_id === session.user.id,
     })
@@ -188,7 +193,8 @@ export async function PATCH(
     const body = await request.json()
     const validatedData = updateActivitySchema.parse(body)
 
-    const activity = await updateActivity(id, validatedData)
+    // Cast pour compatibilité avec le type Directus
+    const activity = await updateActivity(id, validatedData as Parameters<typeof updateActivity>[1])
 
     if (!activity) {
       return NextResponse.json({ error: 'Erreur lors de la mise à jour' }, { status: 500 })
@@ -237,7 +243,7 @@ export async function DELETE(
     const activeEnrollments = await prisma.enrollment.count({
       where: {
         activityId: id,
-        status: { in: ['PENDING', 'CONFIRMED'] },
+        status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] },
       },
     })
 

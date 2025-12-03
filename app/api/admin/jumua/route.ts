@@ -53,10 +53,10 @@ const sanitizeJumuaMessage = (message: any) => {
   if (message.times) {
     if (Array.isArray(message.times)) {
       // Filtrer les valeurs non-string et les objets vides
-      cleanTimes = message.times.filter((t: any) =>
+      const filtered = message.times.filter((t: any) =>
         typeof t === 'string' && t.trim() !== ''
       )
-      if (cleanTimes.length === 0) cleanTimes = null
+      cleanTimes = filtered.length === 0 ? null : filtered
     } else if (isEmptyObject(message.times)) {
       cleanTimes = null
     }
@@ -129,10 +129,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = jumuaMessageSchema.parse(body)
 
-    // Convertir les chaînes vides en null pour les champs UUID (image)
+    // Convertir les chaînes vides en undefined pour les champs UUID (image)
     const sanitizedData = {
       ...validatedData,
-      image: validatedData.image && validatedData.image.trim() !== '' ? validatedData.image : null,
+      image: validatedData.image && validatedData.image.trim() !== '' ? validatedData.image : undefined,
     }
 
     const message = await createJumuaMessage(sanitizedData)

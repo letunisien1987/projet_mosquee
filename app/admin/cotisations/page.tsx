@@ -95,7 +95,9 @@ export default function CotisationsPage() {
   }
 
   const getTypeLabel = (type: MembershipType) => {
-    const labels = {
+    const labels: Record<MembershipType, string> = {
+      ACTIF: 'Membre actif',
+      PASSIF: 'Membre passif',
       INDIVIDUAL: 'Individuel',
       FAMILY: 'Famille',
       STUDENT: 'Étudiant',

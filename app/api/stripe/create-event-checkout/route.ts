@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { stripe } from '@/lib/stripe'
-import { directus } from '@/lib/directus'
+import { directusClient } from '@/lib/directus'
 import { readItem } from '@directus/sdk'
 
 // Validation du body
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const data = schema.parse(body)
 
     // 1. Récupérer l'événement depuis Directus
-    const event = await directus.request(
+    const event = await directusClient.request(
       readItem('events', data.eventId, {
         fields: ['id', 'title', 'date_start', 'price', 'child_price', 'requires_payment']
       })
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
