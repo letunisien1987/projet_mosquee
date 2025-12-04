@@ -212,7 +212,7 @@ async function handleEventRegistrationPayment(
     console.log('📬 Notification de paiement créée pour:', email)
   }
 
-  // 5. Envoyer email de confirmation
+  // 5. Envoyer email de confirmation au participant
   try {
     const { sendEventRegistrationConfirmation } = await import('@/lib/email')
 
@@ -233,6 +233,50 @@ async function handleEventRegistrationPayment(
     console.log('📧 Email de confirmation envoyé à:', email)
   } catch (emailError) {
     console.error('⚠️  Erreur envoi email (non bloquant):', emailError)
+  }
+
+  // 6. Notifier le responsable de l'événement que le paiement a été reçu
+  try {
+    const { getEventById } = await import('@/lib/directus')
+    const event = await getEventById(metadata.eventId)
+
+    if (event?.manager_email) {
+      const { sendPaymentReceivedToManager } = await import('@/lib/email')
+
+      await sendPaymentReceivedToManager({
+        managerEmail: event.manager_email,
+        eventTitle: metadata.eventTitle,
+        eventId: metadata.eventId,
+        participantName: `${registration.firstName} ${registration.lastName}`,
+        participantEmail: registration.email,
+        amount: payment.amount,
+        registrationId: registration.id,
+      })
+
+      // Créer une notification pour le responsable s'il a un compte
+      const managerUser = await prisma.user.findFirst({
+        where: { email: event.manager_email },
+        select: { id: true }
+      })
+
+      if (managerUser) {
+        await prisma.notification.create({
+          data: {
+            userId: managerUser.id,
+            type: 'EVENT_PAYMENT_RECEIVED',
+            title: 'Paiement reçu',
+            message: `${registration.firstName} ${registration.lastName} a payé ${payment.amount} CHF pour "${metadata.eventTitle}".`,
+            link: `/admin/evenements-gestion/${metadata.eventId}`,
+            read: false,
+            emailSent: true,
+          }
+        })
+      }
+
+      console.log('📧 Notification de paiement envoyée au responsable:', event.manager_email)
+    }
+  } catch (managerError) {
+    console.error('⚠️  Erreur notification responsable (non bloquant):', managerError)
   }
 }
 

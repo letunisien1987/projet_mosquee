@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Bell, CreditCard, Heart, Calendar, BookOpen, CheckCircle, XCircle, Trash2 } from 'lucide-react'
+import { Bell, CreditCard, Heart, Calendar, BookOpen, CheckCircle, XCircle, Trash2, RefreshCcw, DollarSign } from 'lucide-react'
 import { NotificationType } from '@prisma/client'
 
 interface Notification {
@@ -48,6 +48,11 @@ const notificationConfig: Record<
   MEMBERSHIP_REFUNDED: { icon: CreditCard, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   MEMBERSHIP_EXPIRING_SOON: { icon: Bell, color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
   DONATION_CONFIRMED: { icon: Heart, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  EVENT_PAYMENT_RECEIVED: { icon: CreditCard, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  REFUND_REQUEST: { icon: RefreshCcw, color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-50 dark:bg-amber-900/20' },
+  REFUND_APPROVED: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  REFUND_REJECTED: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
+  EVENT_CANCELLATION: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   SYSTEM: { icon: Bell, color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-900/20' },
   REMINDER: { icon: Bell, color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
 }

@@ -208,7 +208,7 @@ export default function ActivityDetailPage() {
         backLabel="Retour aux activités"
         accentColor="bg-emerald-600 hover:bg-emerald-700"
         showMyRegistrations={!!session}
-        myRegistrationsHref="/membre/inscriptions"
+        myRegistrationsHref="/membre/mes-inscriptions?type=activities"
         myRegistrationsLabel="Voir mes inscriptions"
       />
     )

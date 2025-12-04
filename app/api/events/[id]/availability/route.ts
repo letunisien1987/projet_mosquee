@@ -40,8 +40,8 @@ export async function GET(
     const isFull = maxCapacity ? registeredCount >= maxCapacity : false
 
     // Vérifier si l'événement est passé
-    const eventDate = new Date(event.date)
-    const isPast = eventDate < new Date()
+    const eventDate = event.date ? new Date(event.date) : null
+    const isPast = eventDate ? eventDate < new Date() : false
 
     // Vérifier la deadline
     let isDeadlinePassed = false

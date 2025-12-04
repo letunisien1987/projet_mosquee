@@ -15,6 +15,7 @@ import {
   Percent,
   Gift,
   Clock,
+  RefreshCcw,
 } from 'lucide-react'
 
 const categories = [
@@ -50,6 +51,7 @@ export default function NouvelEvenementPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorDetails, setErrorDetails] = useState<string[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
 
@@ -87,6 +89,9 @@ export default function NouvelEvenementPage() {
       early_bird_until_date: '',
       early_bird_discount_percent: '15',
     },
+    // Politique de remboursement
+    allow_refund: true,
+    cancellation_deadline_days: '7',
     // Responsable
     manager_id: '',
     restrictions: {
@@ -170,6 +175,11 @@ export default function NouvelEvenementPage() {
         manager_id: formData.manager_id || undefined,
         subscription_interval: formData.payment_type === 'SUBSCRIPTION' ? formData.subscription_interval : undefined,
         pricing: pricingPayload,
+        // Politique de remboursement (seulement pour événements payants)
+        allow_refund: formData.payment_type !== 'FREE' ? formData.allow_refund : undefined,
+        cancellation_deadline_days: formData.payment_type !== 'FREE' && formData.allow_refund
+          ? parseInt(formData.cancellation_deadline_days) || 7
+          : undefined,
         restrictions: formData.restrictions.enabled ? {
           ...formData.restrictions,
           min_age: formData.restrictions.min_age ? parseInt(formData.restrictions.min_age) : null,
@@ -186,14 +196,32 @@ export default function NouvelEvenementPage() {
         body: JSON.stringify(payload),
       })
 
+      const data = await res.json()
+
       if (res.ok) {
         router.push('/admin/evenements-gestion')
       } else {
-        const data = await res.json()
-        setError(data.error || 'Erreur lors de la création')
+        // Afficher l'erreur principale
+        setError(data.error || 'Une erreur est survenue')
+
+        // Extraire les détails des erreurs de validation Zod
+        if (data.details && Array.isArray(data.details)) {
+          const detailMessages = data.details.map((detail: { path?: string[]; message?: string }) => {
+            const fieldName = detail.path?.join('.') || 'Champ inconnu'
+            return `${fieldName}: ${detail.message || 'Erreur de validation'}`
+          })
+          setErrorDetails(detailMessages)
+        } else {
+          setErrorDetails([])
+        }
+
+        // Scroll vers le haut pour voir l'erreur
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       }
-    } catch {
-      setError('Erreur de connexion')
+    } catch (err) {
+      console.error('Erreur réseau:', err)
+      setError('Impossible de contacter le serveur. Vérifiez votre connexion internet.')
+      setErrorDetails([])
     } finally {
       setLoading(false)
     }
@@ -228,8 +256,33 @@ export default function NouvelEvenementPage() {
       </div>
 
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-          {error}
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-red-500 text-xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-800">{error}</h3>
+              {errorDetails.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm text-red-700 font-medium">Détails des erreurs :</p>
+                  <ul className="list-none space-y-1">
+                    {errorDetails.map((detail, index) => (
+                      <li key={index} className="text-sm text-red-700 flex items-start gap-2">
+                        <span className="text-red-400">→</span>
+                        {detail}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => { setError(''); setErrorDetails([]); }}
+                className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+              >
+                Fermer ce message
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -248,9 +301,16 @@ export default function NouvelEvenementPage() {
                 value={formData.title}
                 onChange={handleTitleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                  !formData.title ? 'border-amber-300 bg-amber-50/50' : 'border-gray-300'
+                }`}
                 placeholder="Conférence islamique"
               />
+              {!formData.title && (
+                <p className="mt-1 text-xs text-amber-600">
+                  💡 Donnez un nom clair et accrocheur à votre événement
+                </p>
+              )}
             </div>
 
             <div>
@@ -262,9 +322,13 @@ export default function NouvelEvenementPage() {
                 value={formData.slug}
                 onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary bg-gray-50"
                 placeholder="conference-islamique"
+                readOnly
               />
+              <p className="mt-1 text-xs text-gray-500">
+                🔗 Généré automatiquement pour l&apos;URL de l&apos;événement
+              </p>
             </div>
 
             <div>
@@ -282,6 +346,9 @@ export default function NouvelEvenementPage() {
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-gray-500">
+                📂 Aide les visiteurs à trouver votre événement
+              </p>
             </div>
 
             <div>
@@ -290,9 +357,16 @@ export default function NouvelEvenementPage() {
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                  !formData.location ? 'border-amber-200' : 'border-gray-300'
+                }`}
                 placeholder="Salle de prière principale"
               />
+              {!formData.location && (
+                <p className="mt-1 text-xs text-amber-600">
+                  📍 Recommandé: Précisez le lieu pour faciliter la venue
+                </p>
+              )}
             </div>
           </div>
 
@@ -302,9 +376,24 @@ export default function NouvelEvenementPage() {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                !formData.description ? 'border-amber-200' : 'border-gray-300'
+              }`}
               placeholder="Brève description de l'événement"
             />
+            {!formData.description ? (
+              <p className="mt-1 text-xs text-amber-600">
+                📝 Recommandé: Une courte description attire plus de participants
+              </p>
+            ) : formData.description.length < 20 ? (
+              <p className="mt-1 text-xs text-amber-600">
+                💡 Astuce: Ajoutez plus de détails ({formData.description.length}/20 caractères min.)
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-green-600">
+                ✓ Bonne description ({formData.description.length} caractères)
+              </p>
+            )}
           </div>
 
           <div className="mt-6">
@@ -316,6 +405,9 @@ export default function NouvelEvenementPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
               placeholder="Description complète, programme, intervenants..."
             />
+            <p className="mt-1 text-xs text-gray-500">
+              📄 Programme détaillé, liste des intervenants, informations pratiques...
+            </p>
           </div>
         </div>
 
@@ -333,8 +425,24 @@ export default function NouvelEvenementPage() {
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                min={new Date().toISOString().split('T')[0]}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                  !formData.date ? 'border-amber-300 bg-amber-50/50' : 'border-gray-300'
+                }`}
               />
+              {!formData.date ? (
+                <p className="mt-1 text-xs text-amber-600">
+                  📅 Obligatoire: Quand aura lieu votre événement?
+                </p>
+              ) : new Date(formData.date) < new Date(new Date().setHours(0,0,0,0)) ? (
+                <p className="mt-1 text-xs text-red-600">
+                  ⚠️ La date ne peut pas être dans le passé
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-green-600">
+                  ✓ {new Date(formData.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
             </div>
 
             <div>
@@ -343,8 +451,15 @@ export default function NouvelEvenementPage() {
                 type="time"
                 value={formData.start_time}
                 onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                  !formData.start_time ? 'border-amber-200' : 'border-gray-300'
+                }`}
               />
+              {!formData.start_time && (
+                <p className="mt-1 text-xs text-amber-600">
+                  🕐 Recommandé: Précisez l&apos;heure de début
+                </p>
+              )}
             </div>
 
             <div>
@@ -353,8 +468,20 @@ export default function NouvelEvenementPage() {
                 type="time"
                 value={formData.end_time}
                 onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                  formData.start_time && !formData.end_time ? 'border-amber-200' : 'border-gray-300'
+                }`}
               />
+              {formData.start_time && !formData.end_time && (
+                <p className="mt-1 text-xs text-amber-600">
+                  🕐 Recommandé: Indiquez aussi la fin
+                </p>
+              )}
+              {formData.start_time && formData.end_time && formData.end_time <= formData.start_time && (
+                <p className="mt-1 text-xs text-red-600">
+                  ⚠️ L&apos;heure de fin doit être après l&apos;heure de début
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -364,15 +491,22 @@ export default function NouvelEvenementPage() {
           <h2 className="text-lg font-semibold mb-4">Inscriptions</h2>
 
           <div className="space-y-4">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.registration_required}
-                onChange={(e) => setFormData({ ...formData, registration_required: e.target.checked })}
-                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <span>Inscription obligatoire</span>
-            </label>
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.registration_required}
+                  onChange={(e) => setFormData({ ...formData, registration_required: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Inscription obligatoire</span>
+              </label>
+              {!formData.registration_required && (
+                <p className="ml-8 mt-1 text-xs text-gray-500">
+                  💡 Sans inscription, vous ne pourrez pas limiter le nombre de participants ni collecter les informations de contact
+                </p>
+              )}
+            </div>
 
             {formData.registration_required && (
               <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
@@ -380,11 +514,27 @@ export default function NouvelEvenementPage() {
                   <label className="block text-sm font-medium mb-2">Capacité max</label>
                   <input
                     type="number"
+                    min="1"
                     value={formData.max_capacity}
                     onChange={(e) => setFormData({ ...formData, max_capacity: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                      !formData.max_capacity ? 'border-amber-200' : 'border-gray-300'
+                    }`}
                     placeholder="50"
                   />
+                  {!formData.max_capacity ? (
+                    <p className="mt-1 text-xs text-amber-600">
+                      👥 Recommandé: Limitez les places pour une meilleure organisation
+                    </p>
+                  ) : parseInt(formData.max_capacity) > 500 ? (
+                    <p className="mt-1 text-xs text-amber-600">
+                      ⚠️ Grande capacité: Assurez-vous que le lieu peut accueillir {formData.max_capacity} personnes
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-green-600">
+                      ✓ {formData.max_capacity} places disponibles
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -393,19 +543,42 @@ export default function NouvelEvenementPage() {
                     type="date"
                     value={formData.registration_deadline}
                     onChange={(e) => setFormData({ ...formData, registration_deadline: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                    max={formData.date}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                      !formData.registration_deadline ? 'border-amber-200' : 'border-gray-300'
+                    }`}
                   />
+                  {!formData.registration_deadline ? (
+                    <p className="mt-1 text-xs text-amber-600">
+                      📅 Recommandé: Définissez une date limite pour mieux planifier
+                    </p>
+                  ) : formData.date && formData.registration_deadline > formData.date ? (
+                    <p className="mt-1 text-xs text-red-600">
+                      ⚠️ La date limite ne peut pas être après l&apos;événement
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-green-600">
+                      ✓ Inscriptions jusqu&apos;au {new Date(formData.registration_deadline).toLocaleDateString('fr-FR')}
+                    </p>
+                  )}
                 </div>
 
-                <label className="flex items-center gap-3 cursor-pointer md:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.requires_approval}
-                    onChange={(e) => setFormData({ ...formData, requires_approval: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span>Validation manuelle des inscriptions requise</span>
-                </label>
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.requires_approval}
+                      onChange={(e) => setFormData({ ...formData, requires_approval: e.target.checked })}
+                      className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span>Validation manuelle des inscriptions requise</span>
+                  </label>
+                  <p className="ml-8 mt-1 text-xs text-gray-500">
+                    {formData.requires_approval
+                      ? '🔒 Chaque inscription devra être approuvée manuellement avant confirmation'
+                      : '✓ Les inscriptions seront confirmées automatiquement'}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -441,7 +614,7 @@ export default function NouvelEvenementPage() {
             {formData.payment_type !== 'FREE' && (
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Prix (CHF) <span className="text-red-500">*</span>
+                  Prix de base (CHF) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -450,9 +623,24 @@ export default function NouvelEvenementPage() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary ${
+                    !formData.price ? 'border-amber-300 bg-amber-50/50' : 'border-gray-300'
+                  }`}
                   placeholder="25.00"
                 />
+                {!formData.price ? (
+                  <p className="mt-1 text-xs text-amber-600">
+                    💰 Obligatoire: Entrez le prix par personne (ou activez la tarification avancée ci-dessous)
+                  </p>
+                ) : parseFloat(formData.price) === 0 ? (
+                  <p className="mt-1 text-xs text-amber-600">
+                    💡 Prix à 0 CHF? Considérez de mettre l&apos;événement en &quot;Gratuit&quot; plutôt
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-green-600">
+                    ✓ {formData.price} CHF par personne
+                  </p>
+                )}
               </div>
             )}
 
@@ -731,6 +919,71 @@ export default function NouvelEvenementPage() {
                 Activez la tarification avancée pour configurer des prix différenciés (adultes/enfants), des réductions groupe, un plafond famille, etc.
               </p>
             )}
+          </div>
+        )}
+
+        {/* Politique de remboursement */}
+        {formData.payment_type !== 'FREE' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <RefreshCcw className="h-5 w-5 text-primary" />
+              Politique de remboursement
+            </h2>
+
+            <div className="space-y-6">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allow_refund}
+                  onChange={(e) => setFormData({ ...formData, allow_refund: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Autoriser les remboursements</span>
+              </label>
+
+              {formData.allow_refund && (
+                <div className="ml-8 pt-4 border-t space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Délai de remboursement sans raison valable (jours avant l&apos;événement)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="365"
+                      value={formData.cancellation_deadline_days}
+                      onChange={(e) => setFormData({ ...formData, cancellation_deadline_days: e.target.value })}
+                      className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                      placeholder="7"
+                    />
+                    <p className="mt-2 text-sm text-gray-500">
+                      Si un participant annule au moins <strong>{formData.cancellation_deadline_days || 7} jours</strong> avant l&apos;événement,
+                      il sera automatiquement remboursé via Stripe, sans avoir à justifier son annulation.
+                    </p>
+                  </div>
+
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                      Après ce délai
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Si un participant annule moins de {formData.cancellation_deadline_days || 7} jours avant l&apos;événement,
+                      il devra fournir une raison valable et sa demande de remboursement devra être approuvée par l&apos;organisateur.
+                      Vous recevrez une notification pour valider ou refuser la demande.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!formData.allow_refund && (
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Les participants ne pourront pas demander de remboursement pour cet événement.
+                    Ils pourront toujours annuler leur inscription, mais aucun remboursement ne sera effectué.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

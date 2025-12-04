@@ -72,13 +72,18 @@ enum RegistrationStatus {
   CANCELLED
 }
 
+// Statuts de paiement:
+// - PENDING: En attente de paiement
+// - PAID: Paiement reçu (utilisé pour Membership.paymentStatus)
+// - COMPLETED: Traitement terminé (paiement + email + mise à jour = utilisé pour Payment.status)
+// - FAILED/REFUNDED/CANCELLED: États finaux
 enum PaymentStatus {
-  PENDING
-  PAID
-  COMPLETED
-  FAILED
-  REFUNDED
-  CANCELLED
+  PENDING     // En attente de paiement
+  PAID        // Paiement reçu par Stripe
+  COMPLETED   // Paiement traité et confirmé (email envoyé, etc.)
+  FAILED      // Paiement échoué
+  REFUNDED    // Remboursé
+  CANCELLED   // Annulé
 }
 
 enum NotificationType {
@@ -88,6 +93,7 @@ enum NotificationType {
   EVENT_CANCELLED
   EVENT_WAITLIST_SPOT_AVAILABLE
   EVENT_PAYMENT_PENDING           // Paiement événement en attente
+  EVENT_PAYMENT_RECEIVED          // Paiement événement reçu (pour responsables)
   ENROLLMENT_CONFIRMATION
   ENROLLMENT_APPROVED
   ENROLLMENT_REJECTED
@@ -101,6 +107,10 @@ enum NotificationType {
   MEMBERSHIP_REFUNDED
   MEMBERSHIP_EXPIRING_SOON
   DONATION_CONFIRMED
+  REFUND_REQUEST              // Nouvelle demande de remboursement (pour responsables)
+  REFUND_APPROVED             // Demande de remboursement approuvée
+  REFUND_REJECTED             // Demande de remboursement rejetée
+  EVENT_CANCELLATION          // Annulation d'inscription
   SYSTEM
   REMINDER
 }
@@ -114,21 +124,8 @@ enum MembershipRequestStatus {
   EXPIRED         // Lien de paiement expiré (> 7 jours)
 }
 
-enum ActivityStatus {
-  ACTIVE
-  INACTIVE
-  ARCHIVED
-}
-
-enum ActivityCategory {
-  QURAN
-  ARABIC
-  SUNDAY_SCHOOL
-  HALAQAT
-  WOMEN
-  SUPPORT
-  OTHER
-}
+// NOTE: Les enums ActivityStatus et ActivityCategory ont été supprimés car non utilisés
+// Les catégories d'activités sont gérées dans Directus comme strings
 
 // Permissions pour l'interface d'administration
 enum AdminPermission {
@@ -195,6 +192,8 @@ model User {
   notifications      Notification[]
   payments           Payment[]
   waitingLists       WaitingList[]
+  refundRequests     RefundRequest[]
+  processedRefunds   RefundRequest[]  @relation("RefundProcessor")
 
   @@map("users")
 }
@@ -299,14 +298,13 @@ model MembershipRequest {
 }
 
 // NOTE: Activity and ActivityLevel are managed by Directus, not Prisma
-// Enrollments reference Directus activities via activityIdOld string field
+// Enrollments reference Directus activities via activityId string field
 
 model Enrollment {
   id            String           @id @default(uuid()) @db.Uuid
   userId        String?          @db.Uuid
   childId       String?          @db.Uuid
   activityId    String?          // Directus activity reference (String ID)
-  activityIdOld String?          // Legacy Directus/Sanity reference
   levelId       String?          // Directus level reference (String ID)
   activityTitle String
   status        EnrollmentStatus @default(PENDING)
@@ -339,7 +337,7 @@ model Donation {
   phone             String?
   amount            Float
   type              DonationType
-  projectId         String?      // Référence à Sanity si PROJECT
+  projectId         String?      // Référence à Directus si PROJECT
   projectName       String?
   message           String?
   anonymous         Boolean      @default(false)
@@ -395,6 +393,7 @@ model EventRegistration {
   user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
   child             Child?             @relation(fields: [childId], references: [id], onDelete: Cascade)
   payment           Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refundRequests    RefundRequest[]
 
   @@map("event_registrations")
 }
@@ -489,7 +488,7 @@ model UserProfile {
   userId            String   @unique @db.Uuid
   city              String?
   postalCode        String?
-  country           String?  @default("France")
+  country           String?  @default("Suisse")
   dateOfBirth       DateTime?
   profilePicture    String?  // URL de l'image
   bio               String?
@@ -547,6 +546,7 @@ model Payment {
   user                User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   eventRegistrations  EventRegistration[]
   enrollments         Enrollment[]
+  refundRequests      RefundRequest[]
 
   @@map("payments")
   @@index([userId])
@@ -590,4 +590,48 @@ model RolePermission {
   @@unique([role, permission])
   @@map("role_permissions")
   @@index([role])
+}
+
+// Statuts pour les demandes de remboursement
+enum RefundRequestStatus {
+  PENDING   // En attente d'approbation
+  APPROVED  // Approuvé - remboursement en cours
+  REJECTED  // Rejeté par l'organisateur
+  COMPLETED // Remboursement effectué
+  CANCELLED // Demande annulée par le participant
+}
+
+// Demandes de remboursement
+model RefundRequest {
+  id                String              @id @default(uuid()) @db.Uuid
+  userId            String?             @db.Uuid
+  registrationId    String              @db.Uuid
+  paymentId         String              @db.Uuid
+  eventId           String              // Référence à Directus event
+  eventTitle        String
+  amount            Float               // Montant à rembourser
+  reason            String?             // Raison de la demande
+  status            RefundRequestStatus @default(PENDING)
+
+  // Réponse de l'organisateur
+  processedBy       String?             @db.Uuid // ID de l'utilisateur qui a traité
+  processedAt       DateTime?
+  rejectionReason   String?             // Raison du refus
+
+  // Informations Stripe
+  stripeRefundId    String?             // ID du remboursement Stripe
+  refundedAt        DateTime?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  user              User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  registration      EventRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  payment           Payment             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  processedByUser   User?               @relation("RefundProcessor", fields: [processedBy], references: [id], onDelete: SetNull)
+
+  @@map("refund_requests")
+  @@index([userId])
+  @@index([registrationId])
+  @@index([status])
 }

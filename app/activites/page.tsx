@@ -7,8 +7,168 @@ import { CategoryFilter, activityCategoryStyles } from '@/components/CategoryFil
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemCard, activityCategoryColors } from '@/components/ItemCard'
+import type { ScheduleRule } from '@/components/forms/ScheduleBuilder'
 
 type ActivityCategory = 'Tous' | 'Coran' | 'Arabe' | 'École' | 'Autres'
+
+// Types pour les horaires de prière
+interface PrayerTimes {
+  Fajr: string
+  Sunrise: string
+  Dhuhr: string
+  Asr: string
+  Maghrib: string
+  Isha: string
+}
+
+// Mapping des prières
+const PRAYER_API_KEYS: Record<string, keyof PrayerTimes> = {
+  fajr: 'Fajr',
+  sunrise: 'Sunrise',
+  dhuhr: 'Dhuhr',
+  asr: 'Asr',
+  maghreb: 'Maghrib',
+  isha: 'Isha',
+}
+
+const PRAYER_LABELS: Record<string, string> = {
+  fajr: 'Fajr',
+  dhuhr: 'Dhuhr',
+  asr: 'Asr',
+  maghreb: 'Maghreb',
+  isha: 'Isha',
+}
+
+const MONTHLY_POSITIONS: Record<string, string> = {
+  first: 'Premier',
+  second: 'Deuxième',
+  third: 'Troisième',
+  fourth: 'Quatrième',
+  last: 'Dernier',
+}
+
+// Fonction pour ajouter des minutes à une heure
+function addMinutesToTime(timeStr: string, minutes: number): string {
+  const [hours, mins] = timeStr.split(':').map(Number)
+  const date = new Date()
+  date.setHours(hours, mins + minutes, 0, 0)
+  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+}
+
+// Calculer la durée entre deux heures
+function getDurationBetweenTimes(startTime: string, endTime: string): number {
+  const [startH, startM] = startTime.split(':').map(Number)
+  const [endH, endM] = endTime.split(':').map(Number)
+  return (endH * 60 + endM) - (startH * 60 + startM)
+}
+
+// Formater une durée
+function formatDuration(minutes: number): string {
+  if (minutes < 0) return ''
+  if (minutes < 60) return `${minutes}min`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return mins > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${hours}h`
+}
+
+// Générer le texte d'horaire enrichi avec les heures de prière
+function formatScheduleWithPrayerTimes(rules: ScheduleRule[], prayerTimes: PrayerTimes | null): string {
+  if (!rules || rules.length === 0) return ''
+
+  return rules.map(rule => {
+    let dayText = ''
+    let timeText = ''
+
+    // Format des jours
+    switch (rule.dayPattern.type) {
+      case 'daily':
+        dayText = 'Tous les jours'
+        break
+      case 'specific_days':
+        if (rule.dayPattern.days?.length === 1) {
+          dayText = `Chaque ${rule.dayPattern.days[0]}`
+        } else {
+          dayText = `Les ${rule.dayPattern.days?.join(' et ')}`
+        }
+        break
+      case 'monthly_position':
+        const posLabel = MONTHLY_POSITIONS[rule.dayPattern.monthlyPosition || 'first']
+        dayText = `${posLabel} ${rule.dayPattern.monthlyDay} du mois`
+        break
+    }
+
+    // Format de l'horaire
+    switch (rule.timePattern.type) {
+      case 'fixed':
+        timeText = `à ${rule.timePattern.fixedTime}`
+        break
+      case 'after_prayer':
+        const prayerAfter = PRAYER_LABELS[rule.timePattern.prayer || 'maghreb']
+        const offsetAfter = rule.timePattern.offset || 0
+        if (prayerTimes) {
+          const prayerKey = PRAYER_API_KEYS[rule.timePattern.prayer || 'maghreb']
+          const prayerTime = prayerTimes[prayerKey]
+          const calculatedTime = addMinutesToTime(prayerTime, offsetAfter)
+          timeText = offsetAfter > 0
+            ? `${offsetAfter} min après ${prayerAfter} ${prayerTime} → ${calculatedTime}`
+            : `après ${prayerAfter} ${prayerTime}`
+        } else {
+          timeText = offsetAfter > 0
+            ? `${offsetAfter} min après ${prayerAfter}`
+            : `après ${prayerAfter}`
+        }
+        break
+      case 'before_prayer':
+        const prayerBefore = PRAYER_LABELS[rule.timePattern.prayer || 'maghreb']
+        const offsetBefore = rule.timePattern.offset || 0
+        if (prayerTimes) {
+          const prayerKeyBefore = PRAYER_API_KEYS[rule.timePattern.prayer || 'maghreb']
+          const prayerTimeBefore = prayerTimes[prayerKeyBefore]
+          const calculatedTimeBefore = addMinutesToTime(prayerTimeBefore, -offsetBefore)
+          timeText = offsetBefore > 0
+            ? `${offsetBefore} min avant ${prayerBefore} ${prayerTimeBefore} → ${calculatedTimeBefore}`
+            : `avant ${prayerBefore} ${prayerTimeBefore}`
+        } else {
+          timeText = offsetBefore > 0
+            ? `${offsetBefore} min avant ${prayerBefore}`
+            : `avant ${prayerBefore}`
+        }
+        break
+      case 'between_prayers':
+        const prayerStart = PRAYER_LABELS[rule.timePattern.prayer || 'maghreb']
+        const prayerEnd = PRAYER_LABELS[rule.timePattern.prayerEnd || 'isha']
+        const offsetStart = rule.timePattern.offsetStart || 0
+        const offsetEnd = rule.timePattern.offsetEnd || 0
+
+        if (prayerTimes) {
+          const startKey = PRAYER_API_KEYS[rule.timePattern.prayer || 'maghreb']
+          const endKey = PRAYER_API_KEYS[rule.timePattern.prayerEnd || 'isha']
+          const startPrayerTime = prayerTimes[startKey]
+          const endPrayerTime = prayerTimes[endKey]
+          const startTime = addMinutesToTime(startPrayerTime, offsetStart)
+          const endTime = addMinutesToTime(endPrayerTime, -offsetEnd)
+          const duration = getDurationBetweenTimes(startTime, endTime)
+          const durationText = formatDuration(duration)
+
+          const startText = offsetStart > 0
+            ? `${prayerStart} ${startPrayerTime} (+${offsetStart}min) → ${startTime}`
+            : `${prayerStart} ${startPrayerTime}`
+          const endText = offsetEnd > 0
+            ? `${prayerEnd} ${endPrayerTime} (-${offsetEnd}min) → ${endTime}`
+            : `${prayerEnd} ${endPrayerTime}`
+
+          timeText = `entre ${startText} et ${endText}${durationText ? ` (${durationText})` : ''}`
+        } else {
+          const startOffsetText = offsetStart > 0 ? ` (+${offsetStart})` : ''
+          const endOffsetText = offsetEnd > 0 ? ` (-${offsetEnd})` : ''
+          timeText = `entre ${prayerStart}${startOffsetText} et ${prayerEnd}${endOffsetText}`
+        }
+        break
+    }
+
+    return `${dayText} ${timeText}`
+  }).join(' | ')
+}
 
 // Mapping des catégories vers les icônes
 const categoryIcons: Record<string, any> = {
@@ -37,6 +197,7 @@ interface Activity {
   title: string
   category: string
   schedule?: string
+  schedule_rules?: ScheduleRule[]
   instructor?: string
   age_group?: string
   description?: string
@@ -50,12 +211,26 @@ export default function ActivitesPage() {
   const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>('Tous')
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
+  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null)
 
   const categories: ActivityCategory[] = ['Tous', 'Coran', 'Arabe', 'École', 'Autres']
 
   useEffect(() => {
     fetchActivities()
+    fetchPrayerTimes()
   }, [])
+
+  const fetchPrayerTimes = async () => {
+    try {
+      const res = await fetch('/api/prayer-times')
+      if (res.ok) {
+        const data = await res.json()
+        setPrayerTimes(data)
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des horaires de prière:', error)
+    }
+  }
 
   const fetchActivities = async () => {
     try {
@@ -109,6 +284,11 @@ export default function ActivitesPage() {
             const categoryConfig = activityCategoryColors[activity.category] || activityCategoryColors.autre
             const Icon = categoryIcons[activity.category] || BookOpen
 
+            // Utiliser le texte enrichi avec horaires de prière si schedule_rules existe
+            const scheduleText = activity.schedule_rules && activity.schedule_rules.length > 0
+              ? formatScheduleWithPrayerTimes(activity.schedule_rules, prayerTimes)
+              : activity.schedule
+
             return (
               <ItemCard
                 key={activity.id}
@@ -119,7 +299,7 @@ export default function ActivitesPage() {
                 categoryConfig={categoryConfig}
                 icon={Icon}
                 infos={[
-                  ...(activity.schedule ? [{ icon: 'clock' as const, label: 'Horaire', value: activity.schedule }] : []),
+                  ...(scheduleText ? [{ icon: 'clock' as const, label: 'Horaire', value: scheduleText }] : []),
                   ...(activity.instructor ? [{ icon: 'instructor' as const, label: 'Enseignant', value: activity.instructor }] : []),
                   ...(activity.age_group ? [{ icon: 'users' as const, label: 'Participants', value: activity.age_group }] : []),
                 ]}

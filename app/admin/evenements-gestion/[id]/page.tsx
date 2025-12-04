@@ -183,6 +183,43 @@ export default function EvenementDetailPage() {
     }
   }
 
+  // Fonction pour approuver une inscription (declenche le workflow complet)
+  const handleApprove = async (registrationId: string) => {
+    setUpdatingStatus(registrationId)
+    try {
+      const res = await fetch(`/api/admin/event-registrations/${registrationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'APPROVE' }),
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        // Le statut sera soit CONFIRMED (gratuit) soit PENDING_PAYMENT (payant)
+        const newStatus = data.requiresPayment ? 'PENDING_PAYMENT' : 'CONFIRMED'
+        setRegistrations(prev =>
+          prev.map(r =>
+            r.id === registrationId ? { ...r, status: newStatus as Registration['status'] } : r
+          )
+        )
+
+        // Afficher un message de succes
+        if (data.requiresPayment) {
+          alert('Inscription approuvee ! Un email avec le lien de paiement a ete envoye au participant.')
+        } else {
+          alert('Inscription approuvee et confirmee ! Un email de confirmation a ete envoye au participant.')
+        }
+      } else {
+        alert(data.error || 'Erreur lors de l\'approbation')
+      }
+    } catch {
+      alert('Erreur de connexion')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('fr-FR', {
@@ -518,19 +555,23 @@ export default function EvenementDetailPage() {
                     </div>
 
                     {/* Actions */}
-                    {event.requires_approval && registration.status === 'PENDING' && (
+                    {registration.status === 'PENDING' && (
                       <div className="flex items-center gap-2 ml-4">
                         <button
-                          onClick={() => handleStatusChange(registration.id, 'CONFIRMED')}
+                          onClick={() => handleApprove(registration.id)}
                           disabled={updatingStatus === registration.id}
                           className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg disabled:opacity-50"
+                          title={registration.requiresPayment ? 'Approuver et envoyer le lien de paiement' : 'Approuver et confirmer'}
                         >
                           {updatingStatus === registration.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <>
                               <UserCheck className="h-4 w-4" />
-                              Confirmer
+                              Approuver
+                              {registration.requiresPayment && (
+                                <CreditCard className="h-3 w-3 ml-1" />
+                              )}
                             </>
                           )}
                         </button>

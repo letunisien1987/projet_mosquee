@@ -12,6 +12,7 @@ export async function GET() {
       title: activity.title,
       category: activity.category,
       schedule: activity.schedule || '',
+      schedule_rules: activity.schedule_rules || [],
       instructor: activity.instructor || '',
       age_group: activity.age_group || '',
       description: activity.description || '',

@@ -332,20 +332,32 @@ export default function EventDetailPage() {
   const config = categoryConfigs[event.category] || categoryConfigs.religieux
 
   if (success) {
-    const successMessage = isPaidEvent
-      ? 'Redirection vers la page de paiement...'
-      : event.requires_approval
-        ? 'Votre demande d\'inscription a été envoyée. Nous vous contacterons après validation.'
-        : 'Vous recevrez un email de confirmation.'
+    // Déterminer le message en fonction du statut
+    let successTitle = 'Inscription confirmée !'
+    let successMessage = 'Vous recevrez un email de confirmation.'
+
+    if (event.requires_approval) {
+      // Événement avec approbation requise
+      successTitle = 'Demande envoyée !'
+      if (isPaidEvent) {
+        successMessage = 'Votre demande d\'inscription a été envoyée. Après approbation par l\'organisateur, vous recevrez un email avec le lien de paiement.'
+      } else {
+        successMessage = 'Votre demande d\'inscription a été envoyée. Vous serez contacté après validation par l\'organisateur.'
+      }
+    } else if (isPaidEvent) {
+      // Événement payant sans approbation → redirection vers paiement
+      successTitle = 'Inscription enregistrée !'
+      successMessage = 'Redirection vers la page de paiement...'
+    }
 
     return (
       <RegistrationSuccess
-        title={isPaidEvent ? 'Inscription enregistrée !' : 'Inscription confirmée !'}
+        title={successTitle}
         message={successMessage}
         backHref="/evenements"
         backLabel="Retour aux événements"
         showMyRegistrations={!!session}
-        myRegistrationsHref="/membre/evenements"
+        myRegistrationsHref="/membre/mes-inscriptions?type=events"
         myRegistrationsLabel="Voir mes inscriptions"
       />
     )
@@ -692,7 +704,17 @@ export default function EventDetailPage() {
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Inscription en cours...
                   </>
+                ) : event.requires_approval ? (
+                  // Événement avec approbation requise - pas de paiement immédiat
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    Envoyer ma demande d'inscription
+                    {isPaidEvent && (
+                      <span className="text-sm ml-1">({priceResult.total} CHF après approbation)</span>
+                    )}
+                  </>
                 ) : isPaidEvent ? (
+                  // Événement payant sans approbation - paiement immédiat
                   <>
                     <CreditCard className="h-5 w-5" />
                     Payer {priceResult.total} CHF
@@ -701,9 +723,10 @@ export default function EventDetailPage() {
                     )}
                   </>
                 ) : (
+                  // Événement gratuit sans approbation
                   <>
                     <CheckCircle className="h-5 w-5" />
-                    {event.requires_approval ? 'Envoyer ma demande' : 'Confirmer l\'inscription'}
+                    Confirmer l'inscription
                   </>
                 )}
               </button>

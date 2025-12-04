@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getUserProfile, createUserProfile, updateUserProfile } from '@/lib/directus'
 
 export async function GET() {
   try {
@@ -12,10 +11,27 @@ export async function GET() {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    // Récupérer le profil depuis Directus
-    const profile = await getUserProfile(session.user.id)
+    // Récupérer le profil depuis Prisma
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+    })
 
-    return NextResponse.json(profile)
+    // Récupérer aussi les données de base de l'utilisateur
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        address: true,
+      },
+    })
+
+    return NextResponse.json({
+      ...user,
+      ...profile,
+    })
   } catch (error) {
     console.error('Erreur lors de la récupération du profil:', error)
     return NextResponse.json(
@@ -63,29 +79,33 @@ export async function PUT(request: Request) {
       },
     })
 
-    // Récupérer ou créer le profil Directus
-    let profile = await getUserProfile(session.user.id)
-
-    const profileData = {
-      user_id: session.user.id,
-      city: city || '',
-      postal_code: postalCode || '',
-      country: country || 'France',
-      date_of_birth: dateOfBirth || null,
-      bio: bio || '',
-      preferred_language: preferredLanguage || 'fr',
-      notification_email: notificationEmail ?? true,
-      notification_sms: notificationSms ?? false,
-      newsletter: newsletter ?? true,
-    }
-
-    if (!profile) {
-      // Créer le profil
-      profile = await createUserProfile(profileData)
-    } else {
-      // Mettre à jour le profil
-      profile = await updateUserProfile(profile.id, profileData)
-    }
+    // Upsert le profil dans Prisma (créer ou mettre à jour)
+    const profile = await prisma.userProfile.upsert({
+      where: { userId: session.user.id },
+      update: {
+        city: city || null,
+        postalCode: postalCode || null,
+        country: country || 'Suisse',
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        bio: bio || null,
+        preferredLanguage: preferredLanguage || 'fr',
+        notificationEmail: notificationEmail ?? true,
+        notificationSms: notificationSms ?? false,
+        newsletter: newsletter ?? true,
+      },
+      create: {
+        userId: session.user.id,
+        city: city || null,
+        postalCode: postalCode || null,
+        country: country || 'Suisse',
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        bio: bio || null,
+        preferredLanguage: preferredLanguage || 'fr',
+        notificationEmail: notificationEmail ?? true,
+        notificationSms: notificationSms ?? false,
+        newsletter: newsletter ?? true,
+      },
+    })
 
     return NextResponse.json({
       message: 'Profil mis à jour avec succès',

@@ -59,6 +59,9 @@ const updateEventSchema = z.object({
   price: z.number().optional(),
   payment_type: z.enum(['FREE', 'ONE_TIME', 'SUBSCRIPTION']).optional(),
   subscription_interval: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
+  // Politique de remboursement
+  allow_refund: z.boolean().optional(),
+  cancellation_deadline_days: z.number().min(0).max(365).optional(),
   // Tarification avancée
   pricing: z.object({
     adult_price: z.number(),

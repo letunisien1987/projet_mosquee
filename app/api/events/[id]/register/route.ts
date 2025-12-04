@@ -6,25 +6,61 @@ import { prisma } from '@/lib/prisma'
 import { getEventById } from '@/lib/directus'
 import { sendEventRegistrationEmail, sendEventPaymentRequest } from '@/lib/email'
 import { validateRestrictions, type EventRegistrationFormData, type EventRestrictions } from '@/types/restrictions'
+import { calculatePrice, isPaidItem, type PricingConfig } from '@/lib/pricing'
 
 const registerSchema = z.object({
-  // Type de participation
-  participationType: z.enum(['INDIVIDUAL', 'FAMILY']).default('INDIVIDUAL'),
-  // Contact
-  contactFirstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
-  contactLastName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
-  contactEmail: z.string().email('Adresse email invalide (ex: nom@exemple.com)'),
-  contactPhone: z.string().min(8, 'Le numéro de téléphone doit contenir au moins 8 chiffres'),
-  notes: z.string().optional(),
-  // Pour INDIVIDUAL
-  participantGender: z.enum(['MALE', 'FEMALE', 'CHILD']).optional(),
-  participantBirthDate: z.string().optional(),
-  // Pour CHILD - Parent/Tuteur
-  parentRelation: z.enum(['PERE', 'MERE', 'TUTEUR', 'AUTRE']).optional(),
-  // Pour FAMILY
-  numberOfAdults: z.number().min(1).optional(),
-  numberOfChildren: z.number().min(0).optional(),
-  // Ancienne API (rétrocompatibilité)
+  // === TYPE DE PARTICIPATION ===
+  participationType: z.enum(['INDIVIDUAL', 'FAMILY'], {
+    message: '⚠️ Choisissez votre type de participation: Individuel ou Famille'
+  }).default('INDIVIDUAL'),
+
+  // === INFORMATIONS DE CONTACT ===
+  contactFirstName: z.string()
+    .min(1, '⚠️ Votre prénom est requis pour l\'inscription')
+    .min(2, '⚠️ Le prénom doit contenir au moins 2 caractères'),
+  contactLastName: z.string()
+    .min(1, '⚠️ Votre nom de famille est requis pour l\'inscription')
+    .min(2, '⚠️ Le nom doit contenir au moins 2 caractères'),
+  contactEmail: z.string()
+    .min(1, '⚠️ Votre email est requis - nous l\'utiliserons pour vous envoyer la confirmation')
+    .email('⚠️ Adresse email invalide - vérifiez le format (ex: prenom.nom@email.com)'),
+  contactPhone: z.string()
+    .min(1, '⚠️ Votre numéro de téléphone est requis pour vous contacter en cas de changement')
+    .min(8, '⚠️ Le numéro de téléphone doit contenir au moins 8 chiffres (ex: 079 123 45 67)'),
+  notes: z.string()
+    .optional()
+    .refine(val => !val || val.length <= 500, {
+      message: '💡 Les notes sont limitées à 500 caractères'
+    }),
+
+  // === POUR INSCRIPTION INDIVIDUELLE ===
+  participantGender: z.enum(['MALE', 'FEMALE', 'CHILD'], {
+    message: '⚠️ Indiquez si vous êtes un homme, une femme ou un enfant'
+  }).optional(),
+  participantBirthDate: z.string()
+    .optional()
+    .refine(val => {
+      if (!val) return true
+      const date = new Date(val)
+      return date <= new Date()
+    }, { message: '⚠️ La date de naissance ne peut pas être dans le futur' }),
+
+  // === POUR INSCRIPTION ENFANT - Parent/Tuteur ===
+  parentRelation: z.enum(['PERE', 'MERE', 'TUTEUR', 'AUTRE'], {
+    message: '⚠️ Précisez votre relation avec l\'enfant (Père, Mère, Tuteur légal ou Autre)'
+  }).optional(),
+
+  // === POUR INSCRIPTION FAMILLE ===
+  numberOfAdults: z.number()
+    .min(1, '⚠️ Il faut au moins 1 adulte pour une inscription famille')
+    .max(20, '⚠️ Maximum 20 adultes par inscription - pour un groupe plus grand, contactez-nous')
+    .optional(),
+  numberOfChildren: z.number()
+    .min(0, '⚠️ Le nombre d\'enfants ne peut pas être négatif')
+    .max(20, '⚠️ Maximum 20 enfants par inscription - pour un groupe plus grand, contactez-nous')
+    .optional(),
+
+  // === ANCIENNE API (rétrocompatibilité) ===
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   email: z.string().optional(),
@@ -94,12 +130,14 @@ export async function POST(
     }
 
     // Vérifier si l'événement est passé
-    const eventDate = new Date(event.date)
-    if (eventDate < new Date()) {
-      return NextResponse.json(
-        { error: 'Cet événement est terminé' },
-        { status: 400 }
-      )
+    if (event.date) {
+      const eventDate = new Date(event.date)
+      if (eventDate < new Date()) {
+        return NextResponse.json(
+          { error: 'Cet événement est terminé' },
+          { status: 400 }
+        )
+      }
     }
 
     // Vérifier la deadline d'inscription
@@ -163,14 +201,39 @@ export async function POST(
       }
     }
 
-    // Déterminer si l'événement est payant
-    const isPaidEvent = event.payment_type && event.payment_type !== 'FREE' && event.price && event.price > 0
-    const paymentAmount = isPaidEvent && event.price ? event.price * totalAttendees : null
+    // Déterminer si l'événement est payant en utilisant le système de pricing avancé
+    const isPaidEvent = isPaidItem(event.payment_type, event.price, event.pricing as PricingConfig | null)
 
-    // Créer l'inscription - statut PENDING_PAYMENT si paiement requis
-    let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT' = event.requires_approval ? 'PENDING' : 'CONFIRMED'
+    // Calculer le montant avec le système de tarification avancée
+    let paymentAmount: number | null = null
+    let pricingBreakdown: string[] = []
+
     if (isPaidEvent) {
-      status = 'PENDING_PAYMENT'
+      const pricingResult = calculatePrice(
+        event.pricing as PricingConfig | null,
+        {
+          numberOfAdults: formData.numberOfAdults || 1,
+          numberOfChildren: formData.numberOfChildren || 0,
+          registrationDate: new Date(),
+        },
+        event.price // Fallback au prix simple
+      )
+      paymentAmount = pricingResult.total
+      pricingBreakdown = pricingResult.breakdown
+      console.log('💰 Calcul pricing:', pricingBreakdown.join(' | '))
+    }
+
+    // Créer l'inscription avec la logique de statut correcte:
+    // 1. Si approbation requise → PENDING (même si payant, on attend l'approbation d'abord)
+    // 2. Si pas d'approbation mais payant → PENDING_PAYMENT
+    // 3. Si ni approbation ni paiement → CONFIRMED
+    let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT'
+    if (event.requires_approval) {
+      status = 'PENDING' // Toujours PENDING si approbation requise, même si payant
+    } else if (isPaidEvent) {
+      status = 'PENDING_PAYMENT' // Seulement si payant SANS approbation
+    } else {
+      status = 'CONFIRMED'
     }
 
     // Ajouter la relation parent aux notes si c'est un enfant
@@ -230,14 +293,14 @@ export async function POST(
     console.log('📝 Inscription créée:', registration.id, 'userId:', userId || 'invité')
 
     // Envoyer l'email à l'inscrit selon le statut
-    const eventDateFormatted = new Date(event.date).toLocaleDateString('fr-FR', {
+    const eventDateFormatted = event.date ? new Date(event.date).toLocaleDateString('fr-FR', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    })
+    }) : ''
 
     try {
       if (status === 'CONFIRMED') {
@@ -365,13 +428,19 @@ export async function POST(
 
     // Construire le message et la réponse
     let message = 'Votre inscription a été confirmée avec succès'
-    let checkoutUrl = null
+    let checkoutUrl: string | null = null
 
     if (status === 'PENDING_PAYMENT') {
+      // Seulement si paiement direct sans approbation
       message = `Votre inscription a été enregistrée. Montant à payer: ${paymentAmount} CHF`
       checkoutUrl = `/api/events/${eventId}/checkout?registrationId=${registration.id}`
     } else if (status === 'PENDING') {
-      message = 'Votre inscription a été enregistrée et sera confirmée par un administrateur'
+      // En attente d'approbation - PAS de redirection vers le paiement
+      if (isPaidEvent) {
+        message = 'Votre demande d\'inscription a été enregistrée. Après approbation par l\'organisateur, vous recevrez un email avec le lien de paiement.'
+      } else {
+        message = 'Votre demande d\'inscription a été enregistrée et sera confirmée par l\'organisateur.'
+      }
     }
 
     return NextResponse.json({
@@ -380,9 +449,13 @@ export async function POST(
         id: registration.id,
         status: registration.status,
         message,
-        requiresPayment: isPaidEvent,
-        paymentAmount,
-        checkoutUrl,
+        // IMPORTANT: requiresPayment est FALSE si l'événement nécessite une approbation
+        // Le paiement sera demandé après l'approbation
+        requiresPayment: status === 'PENDING_PAYMENT', // Seulement si paiement immédiat
+        requiresApproval: event.requires_approval,
+        paymentAmount: isPaidEvent ? paymentAmount : null,
+        pricingBreakdown: isPaidEvent ? pricingBreakdown : null, // Détail du calcul
+        checkoutUrl, // Sera null si status === 'PENDING'
         paymentType: event.payment_type,
       },
     })

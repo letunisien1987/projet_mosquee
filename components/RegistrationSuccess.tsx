@@ -22,7 +22,7 @@ export function RegistrationSuccess({
   backHref,
   backLabel,
   showMyRegistrations = false,
-  myRegistrationsHref = '/membre/inscriptions',
+  myRegistrationsHref = '/membre/mes-inscriptions',
   myRegistrationsLabel = 'Voir mes inscriptions',
   accentColor = 'bg-red-600 hover:bg-red-700'
 }: RegistrationSuccessProps) {

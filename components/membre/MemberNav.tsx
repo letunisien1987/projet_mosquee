@@ -31,18 +31,21 @@ interface MemberNavProps {
   }
 }
 
-const navigation = [
+// Navigation principale pour tous les membres
+const memberNavigation = [
   { name: 'Tableau de bord', href: '/membre/dashboard', icon: Home },
   { name: 'Mon Profil', href: '/membre/profil', icon: User },
   { name: 'Mes Enfants', href: '/membre/dashboard/enfants', icon: Users },
-  { name: 'Mes Inscriptions', href: '/membre/inscriptions', icon: BookOpen },
+  { name: 'Mes Inscriptions', href: '/membre/mes-inscriptions', icon: BookOpen },
   { name: 'Mes Dons', href: '/membre/dons', icon: Heart },
-  { name: 'Événements', href: '/membre/evenements', icon: Calendar },
   { name: 'Cotisation', href: '/membre/cotisation', icon: CreditCard },
-  { name: 'Paiements', href: '/membre/paiements', icon: CreditCard },
-  { name: 'Mes Activités', href: '/membre/mes-activites', icon: BookOpen, managerOnly: true },
   { name: 'Documents', href: '/membre/documents', icon: FileText },
   { name: 'Paramètres', href: '/membre/parametres', icon: Settings },
+]
+
+// Navigation pour les organisateurs/responsables
+const organizerNavigation = [
+  { name: 'Espace Organisateur', href: '/membre/organisateur', icon: Calendar },
 ]
 
 export default function MemberNav({ user }: MemberNavProps) {
@@ -137,9 +140,9 @@ export default function MemberNav({ user }: MemberNavProps) {
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto px-2 py-4">
               <div className="space-y-1">
-                {navigation.map((item) => {
+                {memberNavigation.map((item) => {
                   const Icon = item.icon
-                  const isActive = pathname === item.href
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                   return (
                     <Link
                       key={item.name}
@@ -156,6 +159,34 @@ export default function MemberNav({ user }: MemberNavProps) {
                     </Link>
                   )
                 })}
+              </div>
+
+              {/* Section Organisateur */}
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                  Organisateur
+                </p>
+                <div className="space-y-1">
+                  {organizerNavigation.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                        }`}
+                      >
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span>{item.name}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
             </nav>
 
@@ -225,9 +256,9 @@ export default function MemberNav({ user }: MemberNavProps) {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-2 py-4">
             <div className="space-y-1">
-              {navigation.map((item) => {
+              {memberNavigation.map((item) => {
                 const Icon = item.icon
-                const isActive = pathname === item.href
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                 return (
                   <Link
                     key={item.name}
@@ -243,6 +274,33 @@ export default function MemberNav({ user }: MemberNavProps) {
                   </Link>
                 )
               })}
+            </div>
+
+            {/* Section Organisateur */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                Organisateur
+              </p>
+              <div className="space-y-1">
+                {organizerNavigation.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </nav>
 

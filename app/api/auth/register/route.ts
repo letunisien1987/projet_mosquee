@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { createUserProfile, createNotification } from '@/lib/directus'
 import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
@@ -52,24 +51,28 @@ export async function POST(request: Request) {
       },
     })
 
-    // Créer le profil utilisateur dans Directus
-    await createUserProfile({
-      user_id: user.id,
-      preferred_language: 'fr',
-      notification_email: true,
-      notification_sms: false,
-      newsletter: true,
-      country: 'France',
+    // Créer le profil utilisateur dans Prisma
+    await prisma.userProfile.create({
+      data: {
+        userId: user.id,
+        preferredLanguage: 'fr',
+        notificationEmail: true,
+        notificationSms: false,
+        newsletter: true,
+        country: 'Suisse',
+      },
     })
 
-    // Créer une notification de bienvenue
-    await createNotification({
-      user_id: user.id,
-      type: 'SYSTEM',
-      title: 'Bienvenue à la Mosquée Al-Nour !',
-      message: 'Votre compte a été créé avec succès. Explorez votre espace membre pour découvrir toutes les fonctionnalités disponibles.',
-      link: '/membre/dashboard',
-      read: false,
+    // Créer une notification de bienvenue dans Prisma
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: 'SYSTEM',
+        title: 'Bienvenue à la Mosquée Madretsch !',
+        message: 'Votre compte a été créé avec succès. Explorez votre espace membre pour découvrir toutes les fonctionnalités disponibles.',
+        link: '/membre/dashboard',
+        read: false,
+      },
     })
 
     // Envoyer l'email de bienvenue

@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { stripe } from '@/lib/stripe'
 import { directusClient } from '@/lib/directus'
 import { readItem } from '@directus/sdk'
+import { calculatePrice, type PricingConfig } from '@/lib/pricing'
 
 // Validation du body
 const schema = z.object({
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     // 1. Récupérer l'événement depuis Directus
     const event = await directusClient.request(
       readItem('events', data.eventId, {
-        fields: ['id', 'title', 'date_start', 'price', 'child_price', 'requires_payment']
+        fields: ['id', 'title', 'date', 'price', 'payment_type', 'pricing']
       })
     )
 
@@ -49,39 +50,42 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Vérifier que l'événement nécessite un paiement
-    if (!event.requires_payment) {
+    if (event.payment_type === 'FREE') {
       return NextResponse.json(
         { error: 'Cet événement ne nécessite pas de paiement' },
         { status: 400 }
       )
     }
 
-    if (!event.price || event.price <= 0) {
+    // Récupérer les prix depuis l'objet pricing ou le champ price simple
+    const pricing = event.pricing as PricingConfig | null
+    const basePrice = event.price as number | undefined
+
+    if ((!pricing || !pricing.adult_price) && (!basePrice || basePrice <= 0)) {
       return NextResponse.json(
         { error: 'Prix de l\'événement non configuré' },
         { status: 400 }
       )
     }
 
-    // 3. Calculer le montant total
-    const adultPrice = event.price as number
-    const childPrice = (typeof event.child_price === 'number' ? event.child_price : adultPrice) // Par défaut = prix adulte
+    // 3. Calculer le montant total avec le système de tarification avancée
+    const numberOfAdults = data.participationType === 'CHILD' ? 0 : (data.numberOfAdults || 1)
+    const numberOfChildren = data.participationType === 'CHILD' ? 1 : (data.numberOfChildren || 0)
 
-    let totalAmount = 0
-    let description = ''
+    const pricingResult = calculatePrice(
+      pricing,
+      {
+        numberOfAdults,
+        numberOfChildren,
+        registrationDate: new Date(),
+      },
+      basePrice
+    )
 
-    if (data.participationType === 'INDIVIDUAL') {
-      totalAmount = adultPrice
-      description = '1 participant adulte'
-    } else if (data.participationType === 'CHILD') {
-      totalAmount = childPrice
-      description = '1 participant enfant'
-    } else if (data.participationType === 'FAMILY') {
-      const adultsTotal = data.numberOfAdults * adultPrice
-      const childrenTotal = data.numberOfChildren * childPrice
-      totalAmount = adultsTotal + childrenTotal
-      description = `${data.numberOfAdults} adulte(s) + ${data.numberOfChildren} enfant(s)`
-    }
+    const totalAmount = pricingResult.total
+    const description = pricingResult.breakdown.slice(0, -1).join(', ') // Sans le "Total: X CHF"
+
+    console.log('💰 Calcul pricing Stripe:', pricingResult.breakdown.join(' | '))
 
     if (totalAmount <= 0) {
       return NextResponse.json(
@@ -93,7 +97,7 @@ export async function POST(req: NextRequest) {
     // 4. Créer la session Stripe Checkout
     const eventId = String(event.id)
     const eventTitle = String(event.title)
-    const eventDate = event.date_start ? String(event.date_start) : ''
+    const eventDate = event.date ? String(event.date) : ''
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -119,15 +123,18 @@ export async function POST(req: NextRequest) {
         eventTitle: eventTitle,
         eventDate: eventDate,
         participationType: data.participationType,
-        numberOfAdults: data.numberOfAdults.toString(),
-        numberOfChildren: data.numberOfChildren.toString(),
-        totalAttendees: (data.numberOfAdults + data.numberOfChildren).toString(),
+        numberOfAdults: numberOfAdults.toString(),
+        numberOfChildren: numberOfChildren.toString(),
+        totalAttendees: (numberOfAdults + numberOfChildren).toString(),
         contactName: data.contactName,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
         userId: data.userId || '',
         childId: data.childId || '',
         participants: data.participants ? JSON.stringify(data.participants) : '',
+        pricingBreakdown: pricingResult.breakdown.join(' | '),
+        discountAmount: pricingResult.discountAmount.toString(),
+        discountReason: pricingResult.discountReason || '',
       },
       payment_intent_data: {
         metadata: {

@@ -30,6 +30,7 @@ import {
   HandHeart,
   Shield,
   Settings,
+  LayoutGrid,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -54,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Membres', 'Activités', 'Événements'])
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Gestion unifiée', 'Membres', 'Activités', 'Événements'])
   const { hasAnyPermission, isAdmin, loading: permissionsLoading } = usePermissions()
 
   // Si on est sur la page de login, ne pas afficher le layout
@@ -72,6 +73,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { name: 'Liste des membres', href: '/admin/membres', icon: Users, permissions: ['VIEW_MEMBERS'] },
         { name: 'Demandes d\'adhésion', href: '/admin/demandes-adhesion', icon: UserPlus, permissions: ['VIEW_MEMBERSHIPS'] },
         { name: 'Cotisations', href: '/admin/cotisations', icon: CreditCard, permissions: ['VIEW_MEMBERSHIPS'] },
+      ],
+    },
+    {
+      name: 'Gestion unifiée',
+      icon: LayoutGrid,
+      permissions: ['VIEW_EVENTS', 'MANAGE_EVENTS', 'VIEW_ACTIVITIES', 'MANAGE_ACTIVITIES'],
+      items: [
+        { name: 'Événements & Activités', href: '/admin/gestion', icon: LayoutGrid, permissions: ['VIEW_EVENTS', 'VIEW_ACTIVITIES'] },
       ],
     },
     {

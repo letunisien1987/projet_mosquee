@@ -150,7 +150,7 @@ export default async function DashboardPage() {
 
         {/* Inscriptions actives */}
         <Link
-          href="/membre/inscriptions"
+          href="/membre/mes-inscriptions"
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
 
         {/* Événements */}
         <Link
-          href="/membre/evenements"
+          href="/membre/mes-inscriptions?type=events"
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">

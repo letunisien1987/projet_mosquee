@@ -5,32 +5,115 @@ const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://localhost:8055'
 const DIRECTUS_TOKEN = process.env.DIRECTUS_TOKEN || ''
 
 // Types pour les collections Directus
-export interface DirectusEvent {
+
+// Type de base pour les éléments unifiés (événements et activités)
+export type ItemType = 'EVENT' | 'ACTIVITY'
+export type EventCategory = 'religieux' | 'communaute' | 'education' | 'charite'
+export type ActivityCategory = 'coran' | 'arabe' | 'ecole' | 'tajweed' | 'hifz' | 'halaqat' | 'autre'
+
+// Interface unifiée pour événements ET activités
+export interface DirectusOffering {
   id: string
+  item_type: ItemType // Discriminateur principal
   title: string
   slug: string
   description?: string
   content?: string
-  category: 'religieux' | 'communaute' | 'education' | 'charite'
-  date: string
-  start_time: string
-  end_time: string
+
+  // Catégories (selon item_type)
+  category: EventCategory // Catégorie générale
+  activity_category?: ActivityCategory // Catégorie spécifique activité
+
+  // Champs pour ÉVÉNEMENTS
+  date?: string
+  start_time?: string
+  end_time?: string
   location?: string
   image?: string
   attendees?: string
-  registration_required: boolean
-  max_capacity?: number
-  requires_approval: boolean
   registration_deadline?: string
   featured: boolean
-  published: boolean
-  manager_id?: string // UUID du responsable (référence User PostgreSQL)
-  manager_email?: string // Email du responsable pour affichage
-  // Champs de paiement
-  price?: number // Prix en CHF (0 ou undefined = gratuit)
-  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION' // Type de paiement
-  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY' // Intervalle pour abonnement
-  stripe_price_id?: string // ID du prix Stripe pour abonnements
+
+  // Champs pour ACTIVITÉS
+  level?: string
+  age_group?: string
+  schedule?: string // Horaire récurrent (ex: "Samedi 10h-12h")
+  instructor?: string | DirectusTeamMember
+  enrollment_open?: boolean // Inscriptions ouvertes
+
+  // Champs communs
+  registration_required: boolean
+  max_capacity?: number // Capacité max (ex-max_participants pour activités)
+  requires_approval: boolean
+  published: boolean // Pour événements = published, pour activités = active
+  manager_id?: string
+  manager_email?: string
+
+  // Paiement (commun)
+  price?: number
+  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  stripe_price_id?: string
+
+  // Restrictions (commun)
+  restrictions?: {
+    enabled: boolean
+    participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
+    allowed_gender?: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
+    min_age?: number | null
+    max_age?: number | null
+  }
+
+  // Remboursement
+  allow_refund?: boolean
+  cancellation_deadline_days?: number
+
+  // Tarification avancée
+  pricing?: {
+    adult_price: number
+    child_price: number
+    child_free_until_age: number
+    group_discount: {
+      enabled: boolean
+      from_persons: number
+      discount_percent: number
+    }
+    family_max_price: number | null
+    early_bird: {
+      enabled: boolean
+      until_date: string | null
+      discount_percent: number
+    }
+  }
+
+  date_created?: string
+  date_updated?: string
+}
+
+// Alias pour compatibilité avec le code existant
+// Note: DirectusEvent représente tous les items de la collection "events" (événements ET activités)
+export interface DirectusEvent extends DirectusOffering {
+  item_type: ItemType // Peut être 'EVENT' ou 'ACTIVITY'
+}
+
+export interface DirectusActivity {
+  id: string
+  title: string
+  slug: string
+  category: ActivityCategory
+  description?: string
+  content?: string
+  level?: string
+  age_group?: string
+  schedule?: string
+  instructor?: string | DirectusTeamMember
+  max_participants?: number
+  requires_approval: boolean
+  price?: number
+  active: boolean
+  enrollment_open: boolean
+  manager_id?: string
+  manager_email?: string
   restrictions?: {
     enabled: boolean
     participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
@@ -42,33 +125,31 @@ export interface DirectusEvent {
   date_updated?: string
 }
 
-export interface DirectusActivity {
-  id: string
-  title: string
-  slug: string
-  category: 'coran' | 'arabe' | 'ecole' | 'tajweed' | 'hifz' | 'halaqat' | 'autre'
-  description?: string
-  content?: string
-  level?: string
-  age_group?: string
-  schedule?: string
-  instructor?: string | DirectusTeamMember // ID ou objet complet
-  max_participants?: number
-  requires_approval: boolean
-  price?: number
-  active: boolean
-  enrollment_open: boolean
-  manager_id?: string // UUID du responsable (référence User PostgreSQL)
-  manager_email?: string // Email du responsable pour affichage
-  restrictions?: {
-    enabled: boolean
-    participation_type?: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
-    allowed_gender?: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
-    min_age?: number | null
-    max_age?: number | null
+// Helper pour convertir une DirectusOffering en DirectusActivity (compatibilité)
+export function offeringToActivity(offering: DirectusOffering): DirectusActivity | null {
+  if (offering.item_type !== 'ACTIVITY') return null
+  return {
+    id: offering.id,
+    title: offering.title,
+    slug: offering.slug,
+    category: offering.activity_category || 'autre',
+    description: offering.description,
+    content: offering.content,
+    level: offering.level,
+    age_group: offering.age_group,
+    schedule: offering.schedule,
+    instructor: offering.instructor,
+    max_participants: offering.max_capacity,
+    requires_approval: offering.requires_approval,
+    price: offering.price,
+    active: offering.published,
+    enrollment_open: offering.enrollment_open ?? true,
+    manager_id: offering.manager_id,
+    manager_email: offering.manager_email,
+    restrictions: offering.restrictions,
+    date_created: offering.date_created,
+    date_updated: offering.date_updated,
   }
-  date_created?: string
-  date_updated?: string
 }
 
 export interface DirectusArticle {
@@ -569,7 +650,7 @@ export async function getUserNotifications(userId: string, unreadOnly = false): 
     const notifications = await directusClient.request(
       readItems('notifications', {
         filter,
-        sort: ['-date_created'],
+        sort: ['-id'], // Trier par ID (plus récent en premier)
         limit: -1,
       })
     )
@@ -936,16 +1017,23 @@ export async function deleteActivity(id: string): Promise<boolean> {
 
 /**
  * Crée un nouvel événement
+ * @throws {Error} Si la création échoue (l'erreur est propagée pour être gérée par l'appelant)
  */
-export async function createEvent(data: Omit<DirectusEvent, 'id' | 'date_created' | 'date_updated'>): Promise<DirectusEvent | null> {
+export async function createEvent(data: Omit<DirectusEvent, 'id' | 'date_created' | 'date_updated'>): Promise<DirectusEvent> {
   try {
     const event = await directusClient.request(
       createItem('events', data)
     )
     return event as DirectusEvent
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la création de l\'événement:', error)
-    return null
+    // Propager l'erreur avec plus de contexte
+    const err = error as { errors?: Array<{ message?: string }>; message?: string }
+    if (err.errors && Array.isArray(err.errors)) {
+      const messages = err.errors.map(e => e.message).filter(Boolean).join(', ')
+      throw new Error(`Directus: ${messages || 'Erreur inconnue'}`)
+    }
+    throw new Error(err.message || 'Impossible de créer l\'événement dans Directus')
   }
 }
 
@@ -1132,5 +1220,337 @@ export async function getAllEvents(): Promise<DirectusEvent[]> {
   } catch (error) {
     console.error('Erreur lors de la récupération de tous les événements:', error)
     return []
+  }
+}
+
+// ==================== OFFERINGS UNIFIÉES (ÉVÉNEMENTS + ACTIVITÉS) ====================
+
+/**
+ * Récupère toutes les offres (événements + activités) pour l'admin
+ */
+export async function getAllOfferings(itemType?: ItemType): Promise<DirectusOffering[]> {
+  try {
+    const results: DirectusOffering[] = []
+
+    // Récupérer les événements si pas de filtre ou filtre EVENT
+    if (!itemType || itemType === 'EVENT') {
+      const events = await directusClient.request(
+        readItems('events', {
+          sort: ['-date'], // Trier par date d'événement
+          limit: -1,
+          fields: ['*']
+        })
+      )
+      // Ajouter item_type pour les événements
+      results.push(...(events as any[]).map(e => ({
+        ...e,
+        item_type: 'EVENT' as const
+      })))
+    }
+
+    // Récupérer les activités si pas de filtre ou filtre ACTIVITY
+    if (!itemType || itemType === 'ACTIVITY') {
+      const activities = await directusClient.request(
+        readItems('activities', {
+          sort: ['-id'], // Trier par ID (plus récent en premier)
+          limit: -1,
+          fields: ['*']
+        })
+      )
+      // Ajouter item_type pour les activités
+      // Mapper les champs spécifiques aux activités
+      results.push(...(activities as any[]).map(a => ({
+        ...a,
+        item_type: 'ACTIVITY' as const,
+        // Mapper max_participants vers max_capacity pour uniformité
+        max_capacity: a.max_participants || a.max_capacity,
+        // Mapper active vers published pour uniformité
+        published: a.active ?? a.published ?? false
+      })))
+    }
+
+    return results as DirectusOffering[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération des offres:', error)
+    return []
+  }
+}
+
+/**
+ * Récupère les offres filtrées par type avec options
+ */
+export async function getOfferings(options: {
+  itemType?: ItemType
+  published?: boolean
+  managerId?: string
+}): Promise<DirectusOffering[]> {
+  try {
+    const filter: any = {}
+
+    if (options.itemType) {
+      filter.item_type = { _eq: options.itemType }
+    }
+
+    if (options.published !== undefined) {
+      filter.published = { _eq: options.published }
+    }
+
+    if (options.managerId) {
+      filter.manager_id = { _eq: options.managerId }
+    }
+
+    const offerings = await directusClient.request(
+      readItems('events', {
+        filter: Object.keys(filter).length > 0 ? filter : undefined,
+        sort: options.itemType === 'ACTIVITY' ? ['category', 'title'] : ['-date'],
+        limit: -1,
+        fields: ['*']
+      })
+    )
+
+    return (offerings as any[]).map(o => ({
+      ...o,
+      item_type: o.item_type || 'EVENT'
+    })) as DirectusOffering[]
+  } catch (error) {
+    console.error('Erreur lors de la récupération des offres filtrées:', error)
+    return []
+  }
+}
+
+/**
+ * Récupère une offre par son ID (cherche dans events puis activities)
+ */
+export async function getOfferingById(id: string): Promise<DirectusOffering | null> {
+  try {
+    // Essayer d'abord dans events
+    try {
+      const event = await directusClient.request(
+        readItem('events', id, { fields: ['*'] })
+      )
+      return { ...event, item_type: 'EVENT' as const } as unknown as DirectusOffering
+    } catch {
+      // Si pas trouvé dans events, chercher dans activities
+      const activity = await directusClient.request(
+        readItem('activities', id, { fields: ['*'] })
+      )
+      return { ...activity, item_type: 'ACTIVITY' as const } as unknown as DirectusOffering
+    }
+  } catch (error) {
+    console.error(`Erreur lors de la récupération de l'offre ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Récupère une offre par son slug
+ */
+export async function getOfferingBySlug(slug: string): Promise<DirectusOffering | null> {
+  try {
+    const offerings = await directusClient.request(
+      readItems('events', {
+        filter: { slug: { _eq: slug } },
+        limit: 1,
+        fields: ['*']
+      })
+    )
+
+    if (offerings.length === 0) return null
+
+    return {
+      ...offerings[0],
+      item_type: (offerings[0] as any).item_type || 'EVENT'
+    } as DirectusOffering
+  } catch (error) {
+    console.error(`Erreur lors de la récupération de l'offre par slug ${slug}:`, error)
+    return null
+  }
+}
+
+/**
+ * Crée une nouvelle offre (événement ou activité)
+ */
+export async function createOffering(
+  data: Omit<DirectusOffering, 'id' | 'date_created' | 'date_updated'>
+): Promise<DirectusOffering | null> {
+  try {
+    // Déterminer la collection en fonction du type
+    const itemType = data.item_type || 'EVENT'
+    const collection = itemType === 'ACTIVITY' ? 'activities' : 'events'
+
+    // Préparer les données selon le type
+    const offeringData = {
+      ...data,
+      item_type: itemType
+    }
+
+    const offering = await directusClient.request(
+      createItem(collection, offeringData)
+    )
+
+    return offering as DirectusOffering
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'offre:', error)
+    return null
+  }
+}
+
+/**
+ * Met à jour une offre
+ */
+export async function updateOffering(
+  id: string,
+  data: Partial<DirectusOffering>
+): Promise<DirectusOffering | null> {
+  try {
+    // Essayer de mettre à jour dans events d'abord
+    try {
+      const offering = await directusClient.request(
+        updateItem('events', id, data)
+      )
+      return { ...offering, item_type: 'EVENT' as const } as unknown as DirectusOffering
+    } catch {
+      // Si pas trouvé dans events, essayer activities
+      const offering = await directusClient.request(
+        updateItem('activities', id, data)
+      )
+      return { ...offering, item_type: 'ACTIVITY' as const } as unknown as DirectusOffering
+    }
+  } catch (error) {
+    console.error(`Erreur lors de la mise à jour de l'offre ${id}:`, error)
+    return null
+  }
+}
+
+/**
+ * Supprime une offre
+ */
+export async function deleteOffering(id: string): Promise<boolean> {
+  try {
+    // Essayer de supprimer dans events d'abord
+    try {
+      await directusClient.request(
+        deleteItem('events', id)
+      )
+      return true
+    } catch {
+      // Si pas trouvé dans events, essayer activities
+      await directusClient.request(
+        deleteItem('activities', id)
+      )
+      return true
+    }
+  } catch (error) {
+    console.error(`Erreur lors de la suppression de l'offre ${id}:`, error)
+    return false
+  }
+}
+
+/**
+ * Récupère les offres par responsable (events + activities)
+ */
+export async function getOfferingsByManager(
+  managerId: string,
+  itemType?: ItemType
+): Promise<DirectusOffering[]> {
+  try {
+    const results: DirectusOffering[] = []
+    const filter = { manager_id: { _eq: managerId } }
+
+    // Récupérer les événements si pas de filtre ou filtre EVENT
+    if (!itemType || itemType === 'EVENT') {
+      const events = await directusClient.request(
+        readItems('events', {
+          filter,
+          sort: ['-date'], // Trier par date d'événement
+          limit: -1,
+          fields: ['*']
+        })
+      )
+      results.push(...(events as any[]).map(e => ({
+        ...e,
+        item_type: 'EVENT' as const
+      })))
+    }
+
+    // Récupérer les activités si pas de filtre ou filtre ACTIVITY
+    if (!itemType || itemType === 'ACTIVITY') {
+      const activities = await directusClient.request(
+        readItems('activities', {
+          filter,
+          sort: ['-id'], // Trier par ID
+          limit: -1,
+          fields: ['*']
+        })
+      )
+      results.push(...(activities as any[]).map(a => ({
+        ...a,
+        item_type: 'ACTIVITY' as const,
+        // Mapper les champs pour uniformité
+        max_capacity: a.max_participants || a.max_capacity,
+        published: a.active ?? a.published ?? false
+      })))
+    }
+
+    return results as DirectusOffering[]
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des offres du responsable ${managerId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Assigne un responsable à une offre
+ */
+export async function assignOfferingManager(
+  offeringId: string,
+  managerId: string,
+  managerEmail: string
+): Promise<DirectusOffering | null> {
+  return updateOffering(offeringId, {
+    manager_id: managerId,
+    manager_email: managerEmail,
+  })
+}
+
+/**
+ * Retire le responsable d'une offre
+ */
+export async function removeOfferingManager(offeringId: string): Promise<boolean> {
+  try {
+    // Essayer events d'abord
+    try {
+      await directusClient.request(
+        updateItem('events', offeringId, {
+          manager_id: null,
+          manager_email: null,
+        })
+      )
+      return true
+    } catch {
+      // Si pas trouvé dans events, essayer activities
+      await directusClient.request(
+        updateItem('activities', offeringId, {
+          manager_id: null,
+          manager_email: null,
+        })
+      )
+      return true
+    }
+  } catch (error) {
+    console.error(`Erreur lors du retrait du responsable de l'offre ${offeringId}:`, error)
+    return false
+  }
+}
+
+/**
+ * Vérifie si un utilisateur est responsable d'une offre
+ */
+export async function isOfferingManager(offeringId: string, userId: string): Promise<boolean> {
+  try {
+    const offering = await getOfferingById(offeringId)
+    return offering?.manager_id === userId
+  } catch (error) {
+    return false
   }
 }

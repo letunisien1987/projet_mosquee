@@ -32,35 +32,131 @@ const sanitizeEvent = (event: any) => {
 }
 
 const eventSchema = z.object({
-  title: z.string().min(1, 'Le titre est requis'),
-  slug: z.string().min(1, 'Le slug est requis'),
-  description: z.string().optional(),
+  // === INFORMATIONS DE BASE ===
+  title: z.string()
+    .min(1, '⚠️ Le titre est obligatoire - Donnez un nom clair à votre événement (ex: "Conférence sur le Ramadan")')
+    .min(3, '⚠️ Le titre doit contenir au moins 3 caractères pour être explicite'),
+  slug: z.string()
+    .min(1, '⚠️ Le slug est obligatoire - Il sera généré automatiquement à partir du titre')
+    .regex(/^[a-z0-9-]+$/, '⚠️ Le slug ne peut contenir que des lettres minuscules, chiffres et tirets (ex: conference-ramadan)'),
+  description: z.string()
+    .optional()
+    .refine(val => !val || val.length >= 10, {
+      message: '💡 Astuce: Une description d\'au moins 10 caractères aide les participants à comprendre l\'événement'
+    }),
   content: z.string().optional(),
-  category: z.enum(['religieux', 'communaute', 'education', 'charite']),
-  date: z.string().min(1, 'La date est requise'),
+  category: z.enum(['religieux', 'communaute', 'education', 'charite'], {
+    message: '⚠️ Choisissez une catégorie: religieux, communauté, éducation ou charité'
+  }),
+
+  // === DATE ET HORAIRES ===
+  date: z.string()
+    .min(1, '⚠️ La date est obligatoire - Quand aura lieu l\'événement?')
+    .refine(val => {
+      const eventDate = new Date(val)
+      return eventDate >= new Date(new Date().setHours(0, 0, 0, 0))
+    }, { message: '⚠️ La date ne peut pas être dans le passé' }),
   start_time: z.string().optional(),
   end_time: z.string().optional(),
-  location: z.string().optional(),
+  location: z.string()
+    .optional()
+    .refine(val => !val || val.length >= 3, {
+      message: '💡 Précisez le lieu (ex: "Salle de prière principale", "En ligne via Zoom")'
+    }),
   image: z.string().optional(),
+
+  // === INSCRIPTIONS ===
   registration_required: z.boolean().default(false),
-  max_capacity: z.number().optional(),
+  max_capacity: z.number()
+    .optional()
+    .refine(val => !val || val >= 1, {
+      message: '⚠️ La capacité doit être d\'au moins 1 personne'
+    }),
   requires_approval: z.boolean().default(false),
   registration_deadline: z.string().optional(),
   featured: z.boolean().default(false),
   published: z.boolean().default(false),
-  // Champs de paiement
-  price: z.number().optional(),
-  payment_type: z.enum(['FREE', 'ONE_TIME', 'SUBSCRIPTION']).default('FREE'),
+
+  // === PAIEMENT ===
+  price: z.number()
+    .optional()
+    .refine(val => !val || val >= 0, {
+      message: '⚠️ Le prix ne peut pas être négatif'
+    }),
+  payment_type: z.enum(['FREE', 'ONE_TIME', 'SUBSCRIPTION'], {
+    message: '⚠️ Choisissez: Gratuit, Paiement unique ou Abonnement'
+  }).default('FREE'),
   subscription_interval: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
-  // Responsable
-  manager_id: z.string().uuid().optional(),
-  manager_email: z.string().email().optional(),
+  stripe_price_id: z.string().optional(),
+
+  // === POLITIQUE DE REMBOURSEMENT ===
+  allow_refund: z.boolean().default(true),
+  cancellation_deadline_days: z.number()
+    .min(0, '⚠️ Le délai ne peut pas être négatif')
+    .max(365, '⚠️ Le délai ne peut pas dépasser 365 jours')
+    .default(7),
+
+  // === TARIFICATION AVANCÉE (multi-prix famille, groupe, etc.) ===
+  pricing: z.object({
+    adult_price: z.number()
+      .min(0, '⚠️ Le prix adulte ne peut pas être négatif'),
+    child_price: z.number()
+      .min(0, '⚠️ Le prix enfant ne peut pas être négatif'),
+    child_free_until_age: z.number()
+      .min(0, '⚠️ L\'âge minimum est 0')
+      .max(18, '⚠️ L\'âge maximum pour enfant gratuit est 18 ans')
+      .default(0),
+    group_discount: z.object({
+      enabled: z.boolean().default(false),
+      from_persons: z.number()
+        .min(2, '⚠️ La réduction groupe doit s\'appliquer à partir de 2 personnes minimum')
+        .default(4),
+      discount_percent: z.number()
+        .min(0, '⚠️ La réduction ne peut pas être négative')
+        .max(100, '⚠️ La réduction ne peut pas dépasser 100%')
+        .default(10),
+    }),
+    family_max_price: z.number()
+      .nullable()
+      .optional()
+      .refine(val => !val || val > 0, {
+        message: '💡 Le plafond famille doit être supérieur à 0 CHF pour être utile'
+      }),
+    early_bird: z.object({
+      enabled: z.boolean().default(false),
+      until_date: z.string().nullable().optional(),
+      discount_percent: z.number()
+        .min(0, '⚠️ La réduction ne peut pas être négative')
+        .max(100, '⚠️ La réduction ne peut pas dépasser 100%')
+        .default(15),
+    }),
+  }).nullable().optional(),
+
+  // === RESPONSABLE ===
+  manager_id: z.string()
+    .uuid('⚠️ L\'identifiant du responsable n\'est pas valide')
+    .optional(),
+  manager_email: z.string()
+    .email('⚠️ L\'adresse email du responsable n\'est pas valide (ex: nom@exemple.com)')
+    .optional(),
+
+  // === RESTRICTIONS ===
   restrictions: z.object({
     enabled: z.boolean().default(false),
-    participation_type: z.enum(['INDIVIDUAL', 'FAMILY', 'MIXED']).optional(),
-    allowed_gender: z.enum(['MALE', 'FEMALE', 'CHILD', 'ALL']).optional(),
-    min_age: z.number().nullable().optional(),
-    max_age: z.number().nullable().optional(),
+    participation_type: z.enum(['INDIVIDUAL', 'FAMILY', 'MIXED'], {
+      message: '⚠️ Choisissez: Individuel, Famille ou Mixte'
+    }).optional(),
+    allowed_gender: z.enum(['MALE', 'FEMALE', 'CHILD', 'ALL'], {
+      message: '⚠️ Choisissez: Hommes, Femmes, Enfants ou Tous'
+    }).optional(),
+    min_age: z.number()
+      .nullable()
+      .optional()
+      .refine(val => !val || val >= 0, { message: '⚠️ L\'âge minimum ne peut pas être négatif' }),
+    max_age: z.number()
+      .nullable()
+      .optional()
+      .refine(val => !val || val <= 120, { message: '⚠️ L\'âge maximum semble trop élevé' }),
   }).optional(),
 })
 
@@ -169,29 +265,49 @@ export async function POST(request: NextRequest) {
       finalManagerEmail = adminUser.email || undefined
     }
 
-    // Créer l'événement dans Directus
+    // Créer l'événement dans Directus (lance une erreur si échec)
     const event = await createEvent({
       ...validatedData,
       manager_id: finalManagerId,
       manager_email: finalManagerEmail,
     } as Parameters<typeof createEvent>[0])
 
-    if (!event) {
-      return NextResponse.json({ error: 'Erreur lors de la création' }, { status: 500 })
-    }
-
     return NextResponse.json({
       success: true,
       message: `Événement "${event.title}" créé avec succès`,
       event,
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Erreur POST /api/admin/evenements-gestion:', error)
 
+    // Erreurs de validation Zod
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Données invalides', details: error.issues }, { status: 400 })
+      return NextResponse.json({
+        error: 'Veuillez corriger les champs suivants',
+        details: error.issues.map(issue => ({
+          path: issue.path,
+          message: issue.message
+        }))
+      }, { status: 400 })
     }
 
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    // Erreurs Directus
+    const err = error as { errors?: Array<{ message?: string }>; message?: string }
+    if (err.errors && Array.isArray(err.errors)) {
+      return NextResponse.json({
+        error: 'Erreur Directus',
+        details: err.errors.map((e: { message?: string }) => ({
+          path: ['directus'],
+          message: e.message || 'Erreur inconnue'
+        }))
+      }, { status: 500 })
+    }
+
+    // Erreur générique avec message
+    const errorMessage = err.message || 'Une erreur inattendue est survenue'
+    return NextResponse.json({
+      error: 'Erreur serveur',
+      details: [{ path: ['serveur'], message: errorMessage }]
+    }, { status: 500 })
   }
 }

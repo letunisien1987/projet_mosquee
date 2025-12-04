@@ -13,7 +13,8 @@ export async function GET(
 
     // Si pas trouvé par slug, essayer par ID (pour compatibilité)
     if (!event) {
-      event = await getEventById(slug)
+      const eventById = await getEventById(slug)
+      event = eventById as typeof event
     }
 
     if (!event) {

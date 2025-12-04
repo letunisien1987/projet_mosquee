@@ -201,7 +201,7 @@ export async function sendEnrollmentConfirmationEmail(
     `}
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXTAUTH_URL}/membre/inscriptions"
+      <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
          style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
         Voir mes inscriptions
       </a>
@@ -251,7 +251,7 @@ export async function sendEventRegistrationEmail(
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXTAUTH_URL}/membre/evenements"
+      <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
          style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
         Voir mes événements
       </a>
@@ -335,7 +335,7 @@ export async function sendEventPendingApprovalEmail(data: {
     </p>
 
     <div style="text-align: center; margin: 25px 0;">
-      <a href="${process.env.NEXTAUTH_URL}/membre/evenements"
+      <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
          style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
         Voir mes inscriptions
       </a>
@@ -870,7 +870,7 @@ export async function sendEventRegistrationConfirmation(data: {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.NEXTAUTH_URL}/membre/evenements"
+        <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
            style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
           Voir mes inscriptions
         </a>
@@ -1477,7 +1477,7 @@ export async function sendEnrollmentPaymentConfirmation(data: {
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXTAUTH_URL}/membre/inscriptions"
+      <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
          style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
         Voir mes inscriptions
       </a>
@@ -1637,7 +1637,7 @@ export async function sendEnrollmentApprovalEmail(
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXTAUTH_URL}/membre/inscriptions"
+      <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
          style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #047857 100%);
                 color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px;
                 font-weight: bold; font-size: 16px;">
@@ -1717,6 +1717,80 @@ export async function sendEnrollmentRejectionEmail(
 /**
  * Email au responsable d'événement pour une nouvelle inscription
  */
+/**
+ * Envoie une notification au responsable quand un paiement est reçu
+ */
+export async function sendPaymentReceivedToManager(data: {
+  managerEmail: string
+  eventTitle: string
+  eventId: string
+  participantName: string
+  participantEmail: string
+  amount: number
+  registrationId: string
+}) {
+  const content = `
+    <div style="background-color: #D1FAE5; border-left: 4px solid #059669; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
+      <h3 style="color: #065F46; margin: 0 0 10px 0; font-size: 18px;">
+        ✅ Paiement reçu
+      </h3>
+      <p style="color: #065F46; margin: 0; font-size: 14px;">
+        Un participant a effectué son paiement pour votre événement.
+      </p>
+    </div>
+
+    <h2 style="color: #DC2626; margin: 0 0 20px 0;">
+      ${data.eventTitle}
+    </h2>
+
+    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
+      <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">💰 Détails du paiement</h3>
+
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 40%;">👤 Participant</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${data.participantName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📧 Email</td>
+          <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">
+            <a href="mailto:${data.participantEmail}" style="color: #3b82f6;">${data.participantEmail}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">💰 Montant</td>
+          <td style="padding: 8px 0; color: #059669; font-weight: 700; font-size: 18px;">${data.amount.toFixed(2)} CHF</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📊 Statut</td>
+          <td style="padding: 8px 0;">
+            <span style="background-color: #D1FAE5; color: #065F46; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+              ✓ Paiement confirmé
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.NEXTAUTH_URL}/admin/evenements-gestion/${data.eventId}"
+         style="background-color: #059669; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Voir les inscriptions
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Vous recevez cet email car vous êtes responsable de cet événement.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.managerEmail,
+    subject: `✅ Paiement reçu - ${data.eventTitle} - ${data.participantName}`,
+    html: getEmailTemplate(content),
+  })
+}
+
 export async function sendNewRegistrationToManager(data: {
   managerEmail: string
   eventTitle: string
