@@ -3,8 +3,15 @@
 import { useState } from 'react'
 import { DollarSign } from 'lucide-react'
 
+interface Project {
+  id?: string
+  _id?: string // Legacy Sanity format
+  title: string
+  description?: string
+}
+
 interface DonationFormProps {
-  projects?: any[]
+  projects?: Project[]
 }
 
 export default function DonationForm({ projects = [] }: DonationFormProps) {
@@ -146,7 +153,7 @@ export default function DonationForm({ projects = [] }: DonationFormProps) {
             <select
               value={formData.projectId}
               onChange={(e) => {
-                const project = projects.find((p) => p._id === e.target.value)
+                const project = projects.find((p) => (p.id || p._id) === e.target.value)
                 setFormData({
                   ...formData,
                   projectId: e.target.value,
@@ -157,7 +164,7 @@ export default function DonationForm({ projects = [] }: DonationFormProps) {
             >
               <option value="">Sélectionner un projet</option>
               {projects.map((project) => (
-                <option key={project._id} value={project._id}>
+                <option key={project.id || project._id} value={project.id || project._id}>
                   {project.title}
                 </option>
               ))}
@@ -166,7 +173,7 @@ export default function DonationForm({ projects = [] }: DonationFormProps) {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-2">Montant (€) *</label>
+          <label className="block text-sm font-medium mb-2">Montant (CHF) *</label>
           <input
             type="number"
             required

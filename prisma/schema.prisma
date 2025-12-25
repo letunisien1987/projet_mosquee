@@ -22,10 +22,11 @@ enum UserRole {
 enum MembershipType {
   ACTIF       // Membre actif avec droit de vote
   PASSIF      // Membre passif sans droit de vote
-  INDIVIDUAL  // Ancien: membre individuel
-  FAMILY      // Ancien: membre famille
-  STUDENT     // Ancien: étudiant
-  SENIOR      // Ancien: senior
+  // Types obsolètes conservés pour compatibilité avec données existantes:
+  INDIVIDUAL  // @deprecated - Utiliser PASSIF
+  FAMILY      // @deprecated - Utiliser ACTIF
+  STUDENT     // @deprecated - Utiliser PASSIF
+  SENIOR      // @deprecated - Utiliser PASSIF
 }
 
 enum MembershipStatus {
@@ -326,6 +327,8 @@ model Enrollment {
 
   @@map("enrollments")
   @@index([paymentToken])
+  @@index([activityId])
+  @@index([createdAt])
 }
 
 model Donation {
@@ -350,6 +353,7 @@ model Donation {
 
   @@map("donations")
   @@index([email])
+  @@index([createdAt])
 }
 
 model EventRegistration {
@@ -396,6 +400,8 @@ model EventRegistration {
   refundRequests    RefundRequest[]
 
   @@map("event_registrations")
+  @@index([eventId])
+  @@index([createdAt])
 }
 
 model ContactMessage {

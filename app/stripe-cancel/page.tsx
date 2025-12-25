@@ -57,10 +57,10 @@ export default function StripeCancelPage() {
             Besoin d&apos;aide ?
           </p>
           <a
-            href="mailto:dons@mosquee-alnour.fr"
+            href="mailto:dons@mosque-madretsch.ch"
             className="text-primary hover:underline font-medium"
           >
-            dons@mosquee-alnour.fr
+            dons@mosque-madretsch.ch
           </a>
         </div>
       </div>

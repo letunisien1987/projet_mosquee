@@ -1,4 +1,4 @@
-# 🕌 Site Web Mosquée Al-Nour
+# 🕌 Site Web Mosquée Madretsch
 
 Site web complet pour une mosquée et association musulmane, développé avec Next.js 14, TypeScript et Tailwind CSS.
 

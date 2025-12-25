@@ -368,8 +368,8 @@ export default function ActivitesPage() {
               <strong>Tarifs :</strong>
             </p>
             <ul className="space-y-1 text-white/90">
-              <li>• Cours individuels : 30€/mois</li>
-              <li>• Plusieurs cours : 50€/mois par enfant</li>
+              <li>• Cours individuels : 30 CHF/mois</li>
+              <li>• Plusieurs cours : 50 CHF/mois par enfant</li>
               <li>• Réductions familiales disponibles (3 enfants ou plus)</li>
               <li>• Bourses disponibles sur demande pour les familles en difficulté</li>
             </ul>

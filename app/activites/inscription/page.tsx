@@ -180,7 +180,7 @@ export default function InscriptionPage() {
                 {selectedActivity.levels.map((level) => (
                   <option key={level.id} value={level.id}>
                     {level.name} - {level.schedule}
-                    {level.price ? ` (${level.price}€/mois)` : ' (Gratuit)'}
+                    {level.price ? ` (${level.price} CHF/mois)` : ' (Gratuit)'}
                   </option>
                 ))}
               </select>
@@ -334,7 +334,7 @@ export default function InscriptionPage() {
                 <li><strong>Niveau:</strong> {selectedLevel.name}</li>
                 <li><strong>Horaire:</strong> {selectedLevel.schedule}</li>
                 {selectedLevel.price && (
-                  <li><strong>Tarif:</strong> {selectedLevel.price}€/mois</li>
+                  <li><strong>Tarif:</strong> {selectedLevel.price} CHF/mois</li>
                 )}
               </ul>
             </div>

@@ -268,17 +268,6 @@ export interface DirectusUserProfile {
   date_updated?: string
 }
 
-export interface DirectusNotification {
-  id: string
-  user_id: string // UUID de l'utilisateur
-  type: 'EVENT' | 'COURSE' | 'DONATION' | 'SYSTEM' | 'REMINDER'
-  title: string
-  message: string
-  link?: string
-  read: boolean
-  date_created?: string
-}
-
 // Schema complet pour le typage du client
 interface DirectusSchema {
   events: DirectusEvent[]
@@ -290,13 +279,27 @@ interface DirectusSchema {
   galleries: DirectusGallery[]
   jumua_messages: DirectusJumuaMessage[]
   user_profiles: DirectusUserProfile[]
-  notifications: DirectusNotification[]
 }
 
-// Client Directus avec authentification
-export const directusClient = createDirectus<DirectusSchema>(DIRECTUS_URL)
-  .with(staticToken(DIRECTUS_TOKEN))
-  .with(rest())
+/**
+ * Client Directus singleton
+ * Pattern similaire à Prisma pour éviter les instances multiples en développement
+ */
+const createDirectusClient = () => {
+  return createDirectus<DirectusSchema>(DIRECTUS_URL)
+    .with(staticToken(DIRECTUS_TOKEN))
+    .with(rest())
+}
+
+declare global {
+  var directusClientGlobal: undefined | ReturnType<typeof createDirectusClient>
+}
+
+export const directusClient = globalThis.directusClientGlobal ?? createDirectusClient()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.directusClientGlobal = directusClient
+}
 
 // Helper functions pour remplacer les fonctions Sanity
 
@@ -632,113 +635,6 @@ export async function updateUserProfile(profileId: string, data: Partial<Directu
   } catch (error) {
     console.error(`Erreur lors de la mise à jour du profil ${profileId}:`, error)
     return null
-  }
-}
-
-// ==================== NOTIFICATIONS ====================
-
-/**
- * Récupère les notifications d'un utilisateur
- */
-export async function getUserNotifications(userId: string, unreadOnly = false): Promise<DirectusNotification[]> {
-  try {
-    const filter: any = { user_id: { _eq: userId } }
-    if (unreadOnly) {
-      filter.read = { _eq: false }
-    }
-
-    const notifications = await directusClient.request(
-      readItems('notifications', {
-        filter,
-        sort: ['-id'], // Trier par ID (plus récent en premier)
-        limit: -1,
-      })
-    )
-
-    return notifications
-  } catch (error) {
-    // Retourner un tableau vide si Directus n'est pas configuré ou a un problème de permissions
-    console.warn(`Impossible de récupérer les notifications pour l'utilisateur ${userId}. Directus peut ne pas être configuré correctement.`)
-    return []
-  }
-}
-
-/**
- * Crée une notification
- */
-export async function createNotification(data: Omit<DirectusNotification, 'id' | 'date_created'>): Promise<DirectusNotification | null> {
-  try {
-    const notification = await directusClient.request(
-      createItem('notifications', { ...data, read: false })
-    )
-
-    return notification as DirectusNotification
-  } catch (error) {
-    console.error('Erreur lors de la création de la notification:', error)
-    return null
-  }
-}
-
-/**
- * Marque une notification comme lue
- */
-export async function markNotificationAsRead(notificationId: string): Promise<boolean> {
-  try {
-    await directusClient.request(
-      updateItem('notifications', notificationId, { read: true })
-    )
-
-    return true
-  } catch (error) {
-    console.error(`Erreur lors du marquage de la notification ${notificationId} comme lue:`, error)
-    return false
-  }
-}
-
-/**
- * Marque toutes les notifications d'un utilisateur comme lues
- */
-export async function markAllNotificationsAsRead(userId: string): Promise<boolean> {
-  try {
-    const notifications = await getUserNotifications(userId, true)
-
-    await Promise.all(
-      notifications.map(notif => markNotificationAsRead(notif.id))
-    )
-
-    return true
-  } catch (error) {
-    console.error(`Erreur lors du marquage de toutes les notifications de l'utilisateur ${userId}:`, error)
-    return false
-  }
-}
-
-/**
- * Supprime une notification
- */
-export async function deleteNotification(notificationId: string): Promise<boolean> {
-  try {
-    await directusClient.request(
-      deleteItem('notifications', notificationId)
-    )
-
-    return true
-  } catch (error) {
-    console.error(`Erreur lors de la suppression de la notification ${notificationId}:`, error)
-    return false
-  }
-}
-
-/**
- * Compte les notifications non lues d'un utilisateur
- */
-export async function getUnreadNotificationsCount(userId: string): Promise<number> {
-  try {
-    const notifications = await getUserNotifications(userId, true)
-    return notifications.length
-  } catch (error) {
-    console.warn(`Impossible de compter les notifications non lues pour l'utilisateur ${userId}.`)
-    return 0
   }
 }
 
@@ -1337,7 +1233,11 @@ export async function getOfferingById(id: string): Promise<DirectusOffering | nu
       return { ...activity, item_type: 'ACTIVITY' as const } as unknown as DirectusOffering
     }
   } catch (error) {
-    console.error(`Erreur lors de la récupération de l'offre ${id}:`, error)
+    // Ne pas logger d'erreur si l'offre n'existe simplement pas
+    // C'est un comportement normal pour les offres supprimées ou inexistantes
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`Offre non trouvée: ${id}`)
+    }
     return null
   }
 }

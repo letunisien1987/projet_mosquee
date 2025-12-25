@@ -1,87 +1,63 @@
 /**
- * API Route: Get user notifications
+ * API Membre: Gestion des notifications
+ * GET /api/membre/notifications - Liste des notifications
+ * PATCH /api/membre/notifications - Actions groupées (mark-all-read)
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  apiHandler,
+  requireAuth,
+  successResponse,
+  ApiError,
+} from '@/lib/api/middleware'
 
-export async function GET(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    }
+// GET - Liste des notifications
+export const GET = apiHandler(async (req: NextRequest) => {
+  const session = await requireAuth()
 
-    const { searchParams } = new URL(req.url)
-    const unreadOnly = searchParams.get('unreadOnly') === 'true'
-    const limit = parseInt(searchParams.get('limit') || '20')
+  const { searchParams } = new URL(req.url)
+  const unreadOnly = searchParams.get('unreadOnly') === 'true'
+  const limit = parseInt(searchParams.get('limit') || '20')
 
-    const where = {
-      userId: session.user.id,
-      ...(unreadOnly ? { read: false } : {}),
-    }
+  const where = {
+    userId: session.user.id,
+    ...(unreadOnly ? { read: false } : {}),
+  }
 
-    const notifications = await prisma.notification.findMany({
+  const [notifications, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: limit,
+    }),
+    prisma.notification.count({
+      where: { userId: session.user.id, read: false },
+    }),
+  ])
+
+  return successResponse({ notifications, unreadCount })
+})
+
+// PATCH - Actions groupées
+export const PATCH = apiHandler(async (req: NextRequest) => {
+  const session = await requireAuth()
+
+  const body = await req.json()
+  const { action } = body
+
+  if (action === 'mark-all-read') {
+    await prisma.notification.updateMany({
+      where: { userId: session.user.id, read: false },
+      data: { read: true },
     })
 
-    const unreadCount = await prisma.notification.count({
-      where: {
-        userId: session.user.id,
-        read: false,
-      },
+    return successResponse({
+      success: true,
+      message: 'Toutes les notifications ont été marquées comme lues',
     })
-
-    return NextResponse.json({
-      notifications,
-      unreadCount,
-    })
-  } catch (error: any) {
-    console.error('❌ Erreur récupération notifications:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur', message: error.message },
-      { status: 500 }
-    )
   }
-}
 
-export async function PATCH(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    }
-
-    const body = await req.json()
-    const { action } = body // 'mark-all-read' ou autre action
-
-    if (action === 'mark-all-read') {
-      await prisma.notification.updateMany({
-        where: {
-          userId: session.user.id,
-          read: false,
-        },
-        data: {
-          read: true,
-        },
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: 'Toutes les notifications ont été marquées comme lues',
-      })
-    }
-
-    return NextResponse.json({ error: 'Action non reconnue' }, { status: 400 })
-  } catch (error: any) {
-    console.error('❌ Erreur mise à jour notifications:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur', message: error.message },
-      { status: 500 }
-    )
-  }
-}
+  throw new ApiError('Action non reconnue', 400, 'INVALID_ACTION')
+})

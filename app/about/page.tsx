@@ -31,7 +31,7 @@ export default async function AboutPage() {
     {
       icon: Users,
       title: 'Communauté',
-      description: 'Créer un espace accueillant pour tous les musulmans de Paris',
+      description: 'Créer un espace accueillant pour tous les musulmans de Biel/Bienne',
     },
   ]
 
@@ -40,7 +40,7 @@ export default async function AboutPage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary to-primary-dark text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">À Propos de la Mosquée Al-Nour</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-6">À Propos de la Mosquée Madretsch</h1>
           <p className="text-xl text-white/90 max-w-3xl mx-auto">
             Une communauté unie par la foi, l'apprentissage et le service
           </p>
@@ -57,23 +57,23 @@ export default async function AboutPage() {
             </h2>
             <div className="space-y-4 text-gray-700 dark:text-gray-300">
               <p>
-                La Mosquée Al-Nour a été fondée en 1995 par un groupe de musulmans dévoués
+                La Mosquée Madretsch a été fondée par un groupe de musulmans dévoués
                 cherchant à créer un lieu de culte et de rassemblement pour la communauté
-                musulmane grandissante de Paris.
+                musulmane de Biel/Bienne et de ses environs.
               </p>
               <p>
                 Depuis nos modestes débuts dans un petit local de prière, nous avons grandi
-                pour devenir l'un des centres islamiques les plus actifs de la région,
+                pour devenir l&apos;un des centres islamiques les plus actifs de la région,
                 accueillant des centaines de fidèles chaque semaine.
               </p>
               <p>
-                En 2010, grâce à la générosité de nos membres et de nos donateurs, nous avons
-                pu acquérir notre bâtiment actuel, nous permettant d'étendre considérablement
-                nos services et nos activités communautaires.
+                Grâce à la générosité de nos membres et de nos donateurs, nous avons
+                pu acquérir notre bâtiment actuel au Madretschstrasse 64, nous permettant
+                d&apos;étendre considérablement nos services et nos activités communautaires.
               </p>
               <p>
-                Aujourd'hui, la Mosquée Al-Nour est bien plus qu'un simple lieu de prière.
-                C'est un centre d'apprentissage, de culture et de solidarité qui sert la
+                Aujourd&apos;hui, la Mosquée Madretsch est bien plus qu&apos;un simple lieu de prière.
+                C&apos;est un centre d&apos;apprentissage, de culture et de solidarité qui sert la
                 communauté musulmane dans toute sa diversité.
               </p>
             </div>

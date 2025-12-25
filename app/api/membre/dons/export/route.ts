@@ -89,11 +89,11 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
     doc
       .fontSize(20)
       .font('Helvetica-Bold')
-      .text('Mosquée Al-Nour', { align: 'center' })
+      .text('Mosquée Madretsch', { align: 'center' })
       .fontSize(12)
       .font('Helvetica')
-      .text('Rue de Madretsch, 2503 Biel/Bienne', { align: 'center' })
-      .text('info@mosquee-alnour.ch', { align: 'center' })
+      .text('Madretschstrasse 64, 2503 Biel/Bienne', { align: 'center' })
+      .text('info@mosque-madretsch.ch', { align: 'center' })
       .moveDown(2)
 
     // Titre
@@ -147,7 +147,7 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
       .fontSize(12)
       .text(`Biel/Bienne, le ${new Date().toLocaleDateString('fr-FR')}`)
       .moveDown()
-      .text('Pour la Mosquée Al-Nour')
+      .text('Pour la Mosquée Madretsch')
 
     doc.end()
   })
@@ -170,11 +170,11 @@ async function generateAnnualReceipt(
     doc
       .fontSize(20)
       .font('Helvetica-Bold')
-      .text('Mosquée Al-Nour', { align: 'center' })
+      .text('Mosquée Madretsch', { align: 'center' })
       .fontSize(12)
       .font('Helvetica')
-      .text('Rue de Madretsch, 2503 Biel/Bienne', { align: 'center' })
-      .text('info@mosquee-alnour.ch', { align: 'center' })
+      .text('Madretschstrasse 64, 2503 Biel/Bienne', { align: 'center' })
+      .text('info@mosque-madretsch.ch', { align: 'center' })
       .moveDown(2)
 
     // Titre
@@ -262,7 +262,7 @@ async function generateAnnualReceipt(
       .fontSize(12)
       .text(`Biel/Bienne, le ${new Date().toLocaleDateString('fr-FR')}`)
       .moveDown()
-      .text('Pour la Mosquée Al-Nour')
+      .text('Pour la Mosquée Madretsch')
 
     doc.end()
   })

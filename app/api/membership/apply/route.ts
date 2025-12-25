@@ -12,6 +12,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getClientIp, getRateLimitHeaders } from '@/lib/rate-limit'
+
+// Rate limit: 3 demandes par minute par IP (plus strict car action critique)
+const RATE_LIMIT_CONFIG = { maxRequests: 3, windowMs: 60000 }
 
 const schema = z.object({
   membershipType: z.enum(['ACTIF', 'PASSIF', 'INDIVIDUAL', 'FAMILY', 'STUDENT', 'SENIOR']),
@@ -30,6 +34,20 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Vérifier le rate limiting
+    const clientIp = getClientIp(req)
+    const rateLimitResult = checkRateLimit(`membership:${clientIp}`, RATE_LIMIT_CONFIG)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Trop de requêtes. Veuillez réessayer dans une minute.' },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateLimitResult)
+        }
+      )
+    }
+
     const body = await req.json()
     const data = schema.parse(body)
 

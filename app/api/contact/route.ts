@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { checkRateLimit, getClientIp, getRateLimitHeaders } from '@/lib/rate-limit'
 
 const contactSchema = z.object({
   userId: z.string().optional(),
@@ -12,8 +13,25 @@ const contactSchema = z.object({
   message: z.string().min(10),
 })
 
+// Rate limit: 5 messages par minute par IP
+const RATE_LIMIT_CONFIG = { maxRequests: 5, windowMs: 60000 }
+
 export async function POST(request: NextRequest) {
   try {
+    // Vérifier le rate limiting
+    const clientIp = getClientIp(request)
+    const rateLimitResult = checkRateLimit(`contact:${clientIp}`, RATE_LIMIT_CONFIG)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Trop de requêtes. Veuillez réessayer dans une minute.' },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateLimitResult)
+        }
+      )
+    }
+
     const body = await request.json()
     const validatedData = contactSchema.parse(body)
 

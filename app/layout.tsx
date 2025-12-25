@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mosquée Al-Nour - Prière, Communauté, Spiritualité",
-  description: "Mosquée Al-Nour : horaires des prières, activités communautaires, cours d'arabe et de Coran, événements et services pour la communauté musulmane.",
-  keywords: ["mosquée", "islam", "prière", "coran", "communauté musulmane", "horaires salat"],
+  title: "Mosquée Madretsch - Prière, Communauté, Spiritualité",
+  description: "Mosquée Madretsch Biel/Bienne : horaires des prières, activités communautaires, cours d'arabe et de Coran, événements et services pour la communauté musulmane.",
+  keywords: ["mosquée", "islam", "prière", "coran", "communauté musulmane", "horaires salat", "biel", "bienne"],
 };
 
 export default function RootLayout({

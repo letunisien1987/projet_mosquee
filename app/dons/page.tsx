@@ -41,7 +41,7 @@ export default async function DonsPage() {
       color: 'primary',
       details: [
         'Soutien régulier de la mosquée',
-        '20€/mois ou 200€/an',
+        '20 CHF/mois ou 200 CHF/an',
         'Accès prioritaire aux événements',
         'Newsletter mensuelle',
       ],
@@ -142,7 +142,7 @@ export default async function DonsPage() {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Bénéficiaire</p>
-                <p className="font-semibold">Association Mosquée Al-Nour</p>
+                <p className="font-semibold">Association Mosquée Madretsch</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">IBAN</p>
@@ -172,7 +172,7 @@ export default async function DonsPage() {
           <TrendingUp className="h-12 w-12 text-accent mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-4">Avantages Fiscaux</h2>
           <p className="text-lg text-gray-700 dark:text-gray-300 mb-4">
-            Votre don à la Mosquée Al-Nour est déductible de vos impôts
+            Votre don à la Mosquée Madretsch est déductible de vos impôts
           </p>
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 inline-block">
             <p className="text-3xl font-bold text-primary mb-2">66%</p>
@@ -196,8 +196,8 @@ export default async function DonsPage() {
           <div className="space-y-2">
             <p>
               <strong>Email :</strong>{' '}
-              <a href="mailto:dons@mosquee-alnour.fr" className="text-primary hover:underline">
-                dons@mosquee-alnour.fr
+              <a href="mailto:dons@mosque-madretsch.ch" className="text-primary hover:underline">
+                dons@mosque-madretsch.ch
               </a>
             </p>
             <p>
