@@ -7,11 +7,15 @@ import AnnouncementsGallery from '@/components/AnnouncementsGallery'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
 import { getJumuaMessages } from '@/lib/directus'
+import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  const prayerData = await getPrayerTimes()
+  const [prayerData, settings] = await Promise.all([
+    getPrayerTimes(),
+    getSettings(),
+  ])
   const nextPrayer = getNextPrayer(prayerData.timings)
   const hijriDate = formatHijriDate(prayerData.date.hijri)
 
@@ -36,7 +40,7 @@ export default async function Home() {
     rawAnnouncements = []
   }
 
-  // Fetch Jumua messages from Sanity
+  // Fetch Jumua messages from Directus
   let jumuaMessages: any[] = []
   try {
     jumuaMessages = await getJumuaMessages()
@@ -105,6 +109,7 @@ export default async function Home() {
         imsak={specialInfo.imsak}
         iftar={specialInfo.iftar}
         isRamadan={isRamadanMonth}
+        mosqueName={settings.name}
       />
 
       {/* Prayer Times Section */}

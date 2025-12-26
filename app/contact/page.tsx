@@ -1,33 +1,45 @@
 import { MapPin, Phone, Mail, Clock } from 'lucide-react'
 import ContactForm from '@/components/ContactForm'
+import { getSettings, getOpeningHours, getTransportInfo, getMapCoordinates } from '@/lib/settings'
 
-export default function ContactPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function ContactPage() {
+  const settings = await getSettings()
+
+  // Formater l'adresse complète
+  const fullAddress = `${settings.address_street}, ${settings.address_postal_code} ${settings.address_city}`
+  const addressQuery = encodeURIComponent(fullAddress)
+
+  // Obtenir les coordonnées GPS pour la carte
+  const mapCoords = getMapCoordinates(settings)
+
+  // Obtenir les infos de transport
+  const transport = getTransportInfo(settings)
+
   const contactInfo = [
     {
       icon: MapPin,
       title: 'Adresse',
-      content: 'Rue de Madretsch 131, 2503 Bienne',
-      link: 'https://maps.google.com/?q=Rue+de+Madretsch+131+2503+Bienne',
+      content: fullAddress,
+      link: `https://maps.google.com/?q=${addressQuery}`,
     },
     {
       icon: Phone,
       title: 'Téléphone',
-      content: '+41 32 123 45 67',
-      link: 'tel:+41321234567',
+      content: settings.contact_phone || '',
+      link: `tel:${settings.contact_phone?.replace(/\s/g, '')}`,
     },
     {
       icon: Mail,
       title: 'Email',
-      content: 'contact@mosquee-madretsch.ch',
-      link: 'mailto:contact@mosquee-madretsch.ch',
+      content: settings.contact_email || '',
+      link: `mailto:${settings.contact_email}`,
     },
   ]
 
-  const openingHours = [
-    { day: 'Lundi - Jeudi', hours: '09:00 - 20:00' },
-    { day: 'Vendredi', hours: '09:00 - 22:00' },
-    { day: 'Samedi - Dimanche', hours: '08:00 - 21:00' },
-  ]
+  // Horaires depuis les settings
+  const openingHours = getOpeningHours(settings)
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -82,14 +94,14 @@ export default function ContactPage() {
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-primary/10">
                 <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-700">
                   <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2701.8976543210987!2d7.245678!3d47.14449!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDfCsDA4JzQwLjIiTiA3wrAxNCc0NC40IkU!5e0!3m2!1sfr!2sch!4v1234567890123!5m2!1sfr!2sch"
+                    src={`https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2701.8976543210987!2d${mapCoords.longitude}!3d${mapCoords.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDfCsDA4JzQwLjIiTiA3wrAxNCc0NC40IkU!5e0!3m2!1sfr!2sch!4v1234567890123!5m2!1sfr!2sch`}
                     width="100%"
                     height="100%"
                     style={{ border: 0 }}
                     allowFullScreen
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    title="Mosquée Madretsch Map"
+                    title={`${settings.name} Map`}
                   ></iframe>
                 </div>
                 <div className="p-4">
@@ -151,7 +163,7 @@ export default function ContactPage() {
                 </div>
                 <h3 className="font-semibold mb-1">Bus</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Lignes 1, 4, 5 - Arrêt Madretsch
+                  {transport.bus}
                 </p>
               </div>
               <div>
@@ -160,7 +172,7 @@ export default function ContactPage() {
                 </div>
                 <h3 className="font-semibold mb-1">Tram</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Ligne 2 - Arrêt Madretsch
+                  {transport.tram}
                 </p>
               </div>
               <div>
@@ -169,7 +181,7 @@ export default function ContactPage() {
                 </div>
                 <h3 className="font-semibold mb-1">Parking</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Places de stationnement disponibles
+                  {transport.parking}
                 </p>
               </div>
             </div>

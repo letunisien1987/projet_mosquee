@@ -59,11 +59,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier l'unicité du transactionId pour éviter les doublons
-    const existingDonation = await prisma.donation.findFirst({
+    const existingDonation = await prisma.donation.findUnique({
       where: {
-        // On utilise le message pour stocker le transactionId temporairement
-        // TODO: Ajouter un champ transactionId au modèle Donation
-        message: { contains: transactionId }
+        transactionId: transactionId
       }
     })
 
@@ -94,9 +92,8 @@ export async function POST(request: NextRequest) {
         lastName: lastName,
         email: email || 'anonyme@don.local', // Email technique pour les dons anonymes
         phone: customFields?.phone || null,
-        message: customFields?.message
-          ? `${customFields.message} [txn:${transactionId}]`
-          : `[txn:${transactionId}]`, // Stocker transactionId pour éviter doublons
+        message: customFields?.message || null,
+        transactionId: transactionId, // ID de transaction externe (RaiseNow/Tamaro)
         type: donationType,
         projectId: purpose || null,
         projectName: getPurposeLabel(purpose),

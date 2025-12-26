@@ -389,18 +389,22 @@ async function handleDonationPayment(
   session: Stripe.Checkout.Session,
   metadata: Record<string, string>
 ) {
-  console.log('💝 Traitement don:', metadata.projectId)
+  console.log('💝 Traitement don:', metadata.projectId || 'Général')
 
   const {
     projectId,
     projectTitle,
     donorName,
     donorEmail,
+    donationType, // ZAKAT, SADAQA, GENERAL, PROJECT
   } = metadata
 
+  // Déterminer le type de don (si projectId présent → PROJECT, sinon utiliser donationType)
+  const type = projectId ? 'PROJECT' : (donationType || 'GENERAL')
+
   // Vérifier les données obligatoires
-  if (!session.amount_total || !projectId || !projectTitle) {
-    console.error('❌ Données manquantes dans session Stripe:', session.id)
+  if (!session.amount_total) {
+    console.error('❌ Montant manquant dans session Stripe:', session.id)
     return
   }
 
@@ -436,9 +440,9 @@ async function handleDonationPayment(
       email,
       phone: session.customer_details?.phone || null,
       amount: session.amount_total / 100, // Convertir centimes en CHF
-      type: 'PROJECT',
-      projectId,
-      projectName: projectTitle,
+      type: type as any, // Type dynamique: ZAKAT, SADAQA, GENERAL, PROJECT
+      projectId: projectId || null,
+      projectName: projectTitle || null,
       message: null,
       anonymous: false,
       stripeSessionId: session.id, // Enregistrer l'ID de session Stripe
@@ -446,37 +450,10 @@ async function handleDonationPayment(
     },
   })
 
-  console.log('✅ Don enregistré:', donation.id, '-', donation.amount, 'CHF', userId ? '(lié au compte)' : '(email seul)')
+  console.log('✅ Don enregistré:', donation.id, '-', donation.amount, 'CHF', `(${type})`, userId ? '(lié au compte)' : '(email seul)')
 
-  // 📧 Envoyer l'email de confirmation avec reçu
-  try {
-    const { sendDonationReceipt } = await import('@/lib/email')
-
-    await sendDonationReceipt({
-      id: donation.id,
-      firstName: donation.firstName,
-      lastName: donation.lastName,
-      email: donation.email,
-      amount: donation.amount,
-      projectName: donation.projectName,
-      createdAt: donation.createdAt,
-      userId: donation.userId,
-    })
-
-    // Marquer le reçu comme envoyé
-    await prisma.donation.update({
-      where: { id: donation.id },
-      data: {
-        receiptSent: true,
-        receiptSentAt: new Date(),
-      },
-    })
-
-    console.log('📧 Email de confirmation envoyé à:', email)
-  } catch (emailError) {
-    console.error('⚠️  Erreur envoi email (non bloquant):', emailError)
-    // L'erreur d'email ne bloque pas le webhook
-  }
+  // 📧 Envoyer l'email de confirmation avec reçu (avec retry)
+  await sendDonationReceiptWithRetry(donation, email)
 }
 
 /**
@@ -488,6 +465,10 @@ async function handleMembershipPayment(
 ) {
   console.log('💳 Traitement cotisation:', metadata.requestId)
 
+  // Récupérer les settings pour le tarif dynamique
+  const { getSettings } = await import('@/lib/settings')
+  const settings = await getSettings()
+
   const request = await prisma.membershipRequest.findUnique({
     where: { id: metadata.requestId }
   })
@@ -496,6 +477,9 @@ async function handleMembershipPayment(
     console.error('❌ MembershipRequest not found:', metadata.requestId)
     return
   }
+
+  // Utiliser le montant réel de Stripe ou le tarif des settings
+  const membershipAmount = (session.amount_total || 0) / 100 || settings.membership_full_price || 120
 
   // 1. Rechercher ou créer l'utilisateur
   let user = await prisma.user.findUnique({
@@ -535,7 +519,7 @@ async function handleMembershipPayment(
       type: request.membershipType as any,
       status: 'ACTIVE',
       paymentStatus: 'PAID',
-      amount: 120,
+      amount: membershipAmount,
       startDate,
       endDate,
       stripeSessionId: session.id,
@@ -565,7 +549,7 @@ async function handleMembershipPayment(
   await prisma.payment.create({
     data: {
       userId: user.id,
-      amount: 120,
+      amount: membershipAmount,
       currency: 'CHF',
       status: 'COMPLETED',
       stripeCheckoutId: session.id,
@@ -617,5 +601,91 @@ async function handleMembershipPayment(
     console.log('📧 Email de bienvenue envoyé à:', user.email)
   } catch (emailError) {
     console.error('⚠️  Erreur envoi email (non bloquant):', emailError)
+  }
+}
+
+/**
+ * Helper: Envoyer le reçu de don avec retry (max 3 tentatives)
+ */
+async function sendDonationReceiptWithRetry(
+  donation: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    amount: number
+    projectName: string | null
+    createdAt: Date
+    userId: string | null
+  },
+  email: string,
+  maxRetries = 3
+): Promise<void> {
+  const { sendDonationReceipt } = await import('@/lib/email')
+
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await sendDonationReceipt({
+        id: donation.id,
+        firstName: donation.firstName,
+        lastName: donation.lastName,
+        email: donation.email,
+        amount: donation.amount,
+        projectName: donation.projectName,
+        createdAt: donation.createdAt,
+        userId: donation.userId,
+      })
+
+      // Marquer le reçu comme envoyé
+      await prisma.donation.update({
+        where: { id: donation.id },
+        data: {
+          receiptSent: true,
+          receiptSentAt: new Date(),
+        },
+      })
+
+      console.log(`📧 Email de confirmation envoyé à: ${email} (tentative ${attempt}/${maxRetries})`)
+      return // Succès, on sort de la fonction
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.warn(`⚠️  Tentative ${attempt}/${maxRetries} échouée pour envoi email à ${email}:`, lastError.message)
+
+      // Attendre avant retry (backoff exponentiel: 1s, 2s, 4s)
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)))
+      }
+    }
+  }
+
+  // Toutes les tentatives ont échoué
+  console.error(`❌ Échec définitif envoi email à ${email} après ${maxRetries} tentatives:`, lastError?.message)
+
+  // Créer une notification admin pour suivi manuel si le don est lié à un user
+  try {
+    // Trouver un admin pour notifier
+    const admin = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+      select: { id: true }
+    })
+
+    if (admin) {
+      await prisma.notification.create({
+        data: {
+          userId: admin.id,
+          type: 'SYSTEM',
+          title: 'Échec envoi reçu de don',
+          message: `Le reçu pour le don ${donation.id} (${donation.amount} CHF) n'a pas pu être envoyé à ${email}. Action manuelle requise.`,
+          link: '/admin/dons',
+          read: false,
+          emailSent: false
+        }
+      })
+      console.log('🔔 Notification admin créée pour suivi manuel du reçu')
+    }
+  } catch (notifError) {
+    console.error('⚠️  Erreur création notification admin:', notifError)
   }
 }

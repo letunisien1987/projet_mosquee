@@ -8,6 +8,7 @@ interface DonationCardModalProps {
   onClose: () => void
   projectId: string
   projectTitle: string
+  presetAmounts?: number[] // Montants prédéfinis en centimes (depuis settings)
 }
 
 export default function DonationCardModal({
@@ -15,6 +16,7 @@ export default function DonationCardModal({
   onClose,
   projectId,
   projectTitle,
+  presetAmounts,
 }: DonationCardModalProps) {
   if (!isOpen) return null
 
@@ -37,7 +39,11 @@ export default function DonationCardModal({
 
         {/* Stripe Form */}
         <div className="p-6">
-          <StripeDonationForm projectId={projectId} projectTitle={projectTitle} />
+          <StripeDonationForm
+            projectId={projectId}
+            projectTitle={projectTitle}
+            presetAmounts={presetAmounts}
+          />
         </div>
       </div>
     </div>

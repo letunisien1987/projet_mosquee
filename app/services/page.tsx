@@ -1,8 +1,12 @@
 import ServiceRequestForm from '@/components/ServiceRequestForm'
 import { Heart, Users, BookOpen, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getSettings } from '@/lib/settings'
 
-export default function ServicesPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function ServicesPage() {
+    const settings = await getSettings()
     const services = [
         {
             title: 'Mariage',
@@ -56,7 +60,7 @@ export default function ServicesPage() {
                 <div className="container text-center">
                     <h1 className="text-4xl md:text-5xl font-bold mb-6">Services Religieux</h1>
                     <p className="text-xl text-primary-foreground/90 max-w-3xl mx-auto">
-                        La Mosquée Madretsch vous accompagne dans les moments importants de votre vie
+                        {settings.name} vous accompagne dans les moments importants de votre vie
                     </p>
                 </div>
             </section>
@@ -110,14 +114,14 @@ export default function ServicesPage() {
                     <div className="space-y-2">
                         <p>
                             <strong>Email :</strong>{' '}
-                            <a href="mailto:services@mosquee-madretsch.ch" className="text-primary hover:underline">
-                                services@mosquee-madretsch.ch
+                            <a href={`mailto:${settings.contact_email}`} className="text-primary hover:underline">
+                                {settings.contact_email}
                             </a>
                         </p>
                         <p>
                             <strong>Téléphone :</strong>{' '}
-                            <a href="tel:+41123456789" className="text-primary hover:underline">
-                                +41 12 345 67 89
+                            <a href={`tel:${settings.contact_phone}`} className="text-primary hover:underline">
+                                {settings.contact_phone}
                             </a>
                         </p>
                     </div>

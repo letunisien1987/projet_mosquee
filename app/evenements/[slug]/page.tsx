@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
   Calendar, Clock, Loader2, CheckCircle,
-  AlertCircle, Info, CreditCard
+  AlertCircle, Info, CreditCard, User, Users
 } from 'lucide-react'
 import { EventRestrictions, getRestrictionsMessage } from '@/types/restrictions'
 import { PricingConfig, calculatePrice, isPaidItem } from '@/lib/pricing'
@@ -19,6 +19,8 @@ import {
 import { RegistrationInfoCard, InfoItem } from '@/components/RegistrationInfoCard'
 import { RegistrationSuccess } from '@/components/RegistrationSuccess'
 import { ContactFormFields, ContactFormData, NotesField } from '@/components/ContactFormFields'
+import { ChildSelector } from '@/components/ChildSelector'
+import { useChildren, type Child } from '@/hooks/useChildren'
 
 interface Event {
   id: string
@@ -40,6 +42,9 @@ interface Event {
   payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
   subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   pricing?: PricingConfig | null
+  min_age?: number
+  max_age?: number
+  gender_restriction?: 'MALE' | 'FEMALE'
 }
 
 interface EventAvailability {
@@ -88,6 +93,7 @@ export default function EventDetailPage() {
   const params = useParams()
   const { data: session } = useSession()
   const eventSlug = params.slug as string
+  const { children, calculateAge: calcChildAge, getChildById } = useChildren()
 
   const [event, setEvent] = useState<Event | null>(null)
   const [availability, setAvailability] = useState<EventAvailability | null>(null)
@@ -106,7 +112,18 @@ export default function EventDetailPage() {
   const requiresGender = restrictions?.enabled && restrictions.allowed_gender !== 'ALL'
   const requiresAge = restrictions?.enabled && (restrictions.min_age !== null || restrictions.max_age !== null)
 
-  const [participationType, setParticipationType] = useState<'INDIVIDUAL' | 'FAMILY'>('INDIVIDUAL')
+  // Type de participation: INDIVIDUAL (moi-même), FAMILY (groupe), CHILDREN (mes enfants)
+  const [participationType, setParticipationType] = useState<'INDIVIDUAL' | 'FAMILY' | 'CHILDREN'>('INDIVIDUAL')
+
+  // Enfants sélectionnés pour le mode CHILDREN
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([])
+
+  // Pour visiteurs non connectés - ajout enfant inline
+  const [inlineChild, setInlineChild] = useState({
+    firstName: '',
+    lastName: '',
+    birthDate: '',
+  })
 
   const [contactData, setContactData] = useState<ContactFormData>({
     firstName: '',
@@ -124,6 +141,13 @@ export default function EventDetailPage() {
     numberOfChildren: 0,
   })
 
+  // Enfants sélectionnés (objets complets)
+  const selectedChildren = useMemo(() => {
+    return selectedChildIds
+      .map(id => getChildById(id))
+      .filter((c): c is Child => c !== undefined)
+  }, [selectedChildIds, getChildById])
+
   // Prix
   const fallbackPrice = event?.price ? parseFloat(String(event.price)) : 0
   const isPaidEvent = event ? isPaidItem(event.payment_type, event.price, event.pricing) : false
@@ -131,14 +155,25 @@ export default function EventDetailPage() {
 
   const priceResult = useMemo(() => {
     if (!event) return { total: 0, breakdown: [], discountAmount: 0, discountReason: '' }
-    const numberOfAdults = participationType === 'FAMILY' ? formData.numberOfAdults : 1
-    const numberOfChildren = participationType === 'FAMILY' ? formData.numberOfChildren : 0
+
+    let numberOfAdults = 0
+    let numberOfChildren = 0
+
+    if (participationType === 'INDIVIDUAL') {
+      numberOfAdults = 1
+    } else if (participationType === 'FAMILY') {
+      numberOfAdults = formData.numberOfAdults
+      numberOfChildren = formData.numberOfChildren
+    } else if (participationType === 'CHILDREN') {
+      numberOfChildren = selectedChildIds.length
+    }
+
     return calculatePrice(event.pricing || null, {
       numberOfAdults,
       numberOfChildren,
       registrationDate: new Date(),
     }, fallbackPrice)
-  }, [event, participationType, formData.numberOfAdults, formData.numberOfChildren, fallbackPrice])
+  }, [event, participationType, formData.numberOfAdults, formData.numberOfChildren, selectedChildIds.length, fallbackPrice])
 
   useEffect(() => {
     fetchEvent()
@@ -256,16 +291,31 @@ export default function EventDetailPage() {
     })
   }
 
+  const handleNewChildAdded = (child: Child) => {
+    setSelectedChildIds(prev => [...prev, child.id])
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!event) return
+
+    // Validation pour le mode CHILDREN
+    if (participationType === 'CHILDREN') {
+      if (session && selectedChildIds.length === 0) {
+        setError('Veuillez sélectionner au moins un enfant')
+        return
+      }
+      if (!session && (!inlineChild.firstName || !inlineChild.lastName || !inlineChild.birthDate)) {
+        setError('Veuillez remplir les informations de l\'enfant')
+        return
+      }
+    }
 
     setSubmitting(true)
     setError('')
 
     try {
       const payload: any = {
-        participationType,
         contactFirstName: contactData.firstName,
         contactLastName: contactData.lastName,
         contactEmail: contactData.email,
@@ -273,7 +323,24 @@ export default function EventDetailPage() {
         notes: contactData.notes,
       }
 
-      if (participationType === 'INDIVIDUAL') {
+      if (participationType === 'CHILDREN') {
+        payload.participationType = 'CHILDREN'
+
+        if (session && selectedChildIds.length > 0) {
+          // Utilisateur connecté avec enfants sélectionnés
+          if (selectedChildIds.length === 1) {
+            payload.childId = selectedChildIds[0]
+          } else {
+            payload.childIds = selectedChildIds
+          }
+        } else if (!session) {
+          // Visiteur non connecté : nouvel enfant inline
+          payload.inlineChildFirstName = inlineChild.firstName
+          payload.inlineChildLastName = inlineChild.lastName
+          payload.inlineChildBirthDate = inlineChild.birthDate
+        }
+      } else if (participationType === 'INDIVIDUAL') {
+        payload.participationType = 'INDIVIDUAL'
         if (formData.participantGender) {
           payload.participantGender = formData.participantGender
         }
@@ -284,6 +351,8 @@ export default function EventDetailPage() {
           payload.parentRelation = formData.parentRelation
         }
       } else {
+        // FAMILY
+        payload.participationType = 'FAMILY'
         payload.numberOfAdults = formData.numberOfAdults
         payload.numberOfChildren = formData.numberOfChildren
       }
@@ -302,7 +371,12 @@ export default function EventDetailPage() {
 
       setSuccess(true)
 
-      if (data.registration?.requiresPayment && data.registration?.checkoutUrl) {
+      // Pour les inscriptions batch d'enfants avec paiement
+      if (data.checkoutUrl) {
+        setTimeout(() => {
+          router.push(data.checkoutUrl)
+        }, 1500)
+      } else if (data.registration?.requiresPayment && data.registration?.checkoutUrl) {
         setTimeout(() => {
           router.push(data.registration.checkoutUrl)
         }, 1500)
@@ -332,12 +406,10 @@ export default function EventDetailPage() {
   const config = categoryConfigs[event.category] || categoryConfigs.religieux
 
   if (success) {
-    // Déterminer le message en fonction du statut
     let successTitle = 'Inscription confirmée !'
     let successMessage = 'Vous recevrez un email de confirmation.'
 
     if (event.requires_approval) {
-      // Événement avec approbation requise
       successTitle = 'Demande envoyée !'
       if (isPaidEvent) {
         successMessage = 'Votre demande d\'inscription a été envoyée. Après approbation par l\'organisateur, vous recevrez un email avec le lien de paiement.'
@@ -345,7 +417,6 @@ export default function EventDetailPage() {
         successMessage = 'Votre demande d\'inscription a été envoyée. Vous serez contacté après validation par l\'organisateur.'
       }
     } else if (isPaidEvent) {
-      // Événement payant sans approbation → redirection vers paiement
       successTitle = 'Inscription enregistrée !'
       successMessage = 'Redirection vers la page de paiement...'
     }
@@ -357,7 +428,7 @@ export default function EventDetailPage() {
         backHref="/evenements"
         backLabel="Retour aux événements"
         showMyRegistrations={!!session}
-        myRegistrationsHref="/membre/mes-inscriptions?type=events"
+        myRegistrationsHref="/dashboard/evenements"
         myRegistrationsLabel="Voir mes inscriptions"
       />
     )
@@ -385,6 +456,17 @@ export default function EventDetailPage() {
       highlight: !!availability.availableSpots && availability.availableSpots <= 5
     })
   }
+
+  // Restrictions pour le ChildSelector
+  const childAgeRestriction = (event.min_age || event.max_age || restrictions?.min_age || restrictions?.max_age)
+    ? {
+        min: event.min_age || restrictions?.min_age || undefined,
+        max: event.max_age || restrictions?.max_age || undefined
+      }
+    : undefined
+
+  const childGenderRestriction = event.gender_restriction ||
+    (restrictions?.allowed_gender !== 'ALL' ? restrictions?.allowed_gender as 'MALE' | 'FEMALE' : undefined)
 
   return (
     <RegistrationLayout
@@ -461,52 +543,151 @@ export default function EventDetailPage() {
                 </div>
               )}
 
-              {/* Type de participation */}
-              {restrictions?.participation_type === 'MIXED' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-3">
-                    Type d'inscription <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="INDIVIDUAL"
-                        checked={participationType === 'INDIVIDUAL'}
-                        onChange={() => setParticipationType('INDIVIDUAL')}
-                        className="w-4 h-4 text-red-600"
-                      />
-                      <span>Individuel</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="FAMILY"
-                        checked={participationType === 'FAMILY'}
-                        onChange={() => setParticipationType('FAMILY')}
-                        className="w-4 h-4 text-red-600"
-                      />
-                      <span>Famille/Groupe</span>
-                    </label>
-                  </div>
+              {/* Type de participation - Avec option CHILDREN */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Cette inscription est pour :
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(!restrictions?.enabled || restrictions.participation_type !== 'FAMILY') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParticipationType('INDIVIDUAL')
+                        setSelectedChildIds([])
+                      }}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                        participationType === 'INDIVIDUAL'
+                          ? 'border-red-600 bg-red-50 text-red-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <User className="h-5 w-5" />
+                      <span className="font-medium text-sm">Moi-même</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setParticipationType('CHILDREN')
+                    }}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      participationType === 'CHILDREN'
+                        ? 'border-red-600 bg-red-50 text-red-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Users className="h-5 w-5" />
+                    <span className="font-medium text-sm">Mon/mes enfant(s)</span>
+                  </button>
+                  {(!restrictions?.enabled || restrictions.participation_type !== 'INDIVIDUAL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParticipationType('FAMILY')
+                        setSelectedChildIds([])
+                      }}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                        participationType === 'FAMILY'
+                          ? 'border-red-600 bg-red-50 text-red-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <Users className="h-5 w-5" />
+                      <span className="font-medium text-sm">Famille/Groupe</span>
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Contact principal */}
               <ContactFormFields
                 data={contactData}
                 onChange={setContactData}
                 title={
-                  participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD'
-                    ? 'Informations du parent/tuteur légal'
-                    : participationType === 'FAMILY'
-                      ? 'Informations du responsable du groupe'
-                      : 'Vos informations'
+                  participationType === 'CHILDREN'
+                    ? 'Vos informations (Parent/Tuteur)'
+                    : participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD'
+                      ? 'Informations du parent/tuteur légal'
+                      : participationType === 'FAMILY'
+                        ? 'Informations du responsable du groupe'
+                        : 'Vos informations'
                 }
                 showNotes={false}
               />
 
-              {/* Relation avec l'enfant */}
+              {/* MODE CHILDREN : Sélection des enfants */}
+              {participationType === 'CHILDREN' && (
+                <div className="mb-6">
+                  {session ? (
+                    <ChildSelector
+                      mode="multiple"
+                      selectedChildIds={selectedChildIds}
+                      onSelectionChange={setSelectedChildIds}
+                      onNewChildAdded={handleNewChildAdded}
+                      showInlineAdd={true}
+                      showModalLink={true}
+                      ageRestriction={childAgeRestriction}
+                      genderRestriction={childGenderRestriction}
+                      title="Sélectionnez vos enfants"
+                      description="Choisissez les enfants à inscrire à cet événement"
+                      className="mb-4"
+                    />
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                        <Users className="h-5 w-5 text-red-600" />
+                        Informations de l'enfant
+                      </h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Prénom de l'enfant *</label>
+                          <input
+                            type="text"
+                            required
+                            value={inlineChild.firstName}
+                            onChange={(e) => setInlineChild({ ...inlineChild, firstName: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            placeholder="Prénom"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Nom de l'enfant *</label>
+                          <input
+                            type="text"
+                            required
+                            value={inlineChild.lastName}
+                            onChange={(e) => setInlineChild({ ...inlineChild, lastName: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            placeholder="Nom"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium mb-2">Date de naissance *</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <input
+                              type="date"
+                              required
+                              value={inlineChild.birthDate}
+                              onChange={(e) => setInlineChild({ ...inlineChild, birthDate: e.target.value })}
+                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-3">
+                        <Link href="/connexion" className="text-red-600 hover:underline">
+                          Connectez-vous
+                        </Link>
+                        {' '}pour gérer vos enfants et les réutiliser pour d'autres inscriptions.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Relation avec l'enfant (mode INDIVIDUAL + gender CHILD) */}
               {participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD' && (
                 <div className="mb-6">
                   <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -624,37 +805,6 @@ export default function EventDetailPage() {
                       />
                     </div>
                   </div>
-
-                  {/* Récapitulatif groupe */}
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">
-                        Total: <strong>{formData.numberOfAdults + formData.numberOfChildren}</strong> personne(s)
-                      </span>
-                    </div>
-                    {isPaidEvent && (
-                      <div className="border-t pt-2 mt-2 space-y-1">
-                        {priceResult.breakdown.slice(0, -1).map((line, idx) => (
-                          <div key={idx} className="text-sm text-gray-600">{line}</div>
-                        ))}
-                        <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="font-medium">Total:</span>
-                          <span className="font-bold text-xl text-red-600">
-                            {priceResult.total} CHF
-                            {isSubscription && event.subscription_interval && (
-                              <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
-                            )}
-                          </span>
-                        </div>
-                        {priceResult.discountAmount > 0 && priceResult.discountReason && (
-                          <div className="text-sm text-green-600 flex items-center gap-1">
-                            <CheckCircle className="h-4 w-4" />
-                            <span>{priceResult.discountReason}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -665,38 +815,69 @@ export default function EventDetailPage() {
                 placeholder="Besoins spécifiques, allergies..."
               />
 
-              {/* Résumé prix INDIVIDUAL */}
-              {participationType === 'INDIVIDUAL' && isPaidEvent && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg space-y-2">
-                  {event.pricing && (
-                    <div className="text-sm text-gray-600 space-y-1">
+              {/* Résumé */}
+              <div className="mb-6 bg-gray-50 rounded-lg p-4 border">
+                <h4 className="font-bold mb-3">Résumé</h4>
+                <div className="text-sm space-y-2 text-gray-700">
+                  <p><strong>Événement:</strong> {event.title}</p>
+                  <p><strong>Date:</strong> {formatDate(event.date)}</p>
+
+                  {/* Participants */}
+                  <div className="pt-2 border-t border-gray-200">
+                    <strong>Participant(s):</strong>
+                    {participationType === 'INDIVIDUAL' ? (
+                      <span className="ml-2">{contactData.firstName} {contactData.lastName}</span>
+                    ) : participationType === 'CHILDREN' && session && selectedChildren.length > 0 ? (
+                      <ul className="mt-1 ml-4 list-disc">
+                        {selectedChildren.map(child => (
+                          <li key={child.id}>
+                            {child.firstName} {child.lastName} ({calcChildAge(child.birthDate)} ans)
+                          </li>
+                        ))}
+                      </ul>
+                    ) : participationType === 'CHILDREN' && !session && inlineChild.firstName ? (
+                      <span className="ml-2">{inlineChild.firstName} {inlineChild.lastName}</span>
+                    ) : participationType === 'FAMILY' ? (
+                      <span className="ml-2">{formData.numberOfAdults} adulte(s), {formData.numberOfChildren} enfant(s)</span>
+                    ) : (
+                      <span className="ml-2 text-gray-400 italic">Aucun participant sélectionné</span>
+                    )}
+                  </div>
+
+                  {/* Prix */}
+                  {isPaidEvent && (
+                    <div className="pt-2 border-t border-gray-200">
                       {priceResult.breakdown.slice(0, -1).map((line, idx) => (
-                        <div key={idx}>{line}</div>
+                        <div key={idx} className="text-sm text-gray-600">{line}</div>
                       ))}
+                      <div className="flex justify-between items-center pt-2">
+                        <strong>Total:</strong>
+                        <span className="text-lg font-bold text-red-600">
+                          {priceResult.total} CHF
+                          {isSubscription && event.subscription_interval && (
+                            <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
+                          )}
+                        </span>
+                      </div>
+                      {priceResult.discountAmount > 0 && priceResult.discountReason && (
+                        <div className="text-sm text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>{priceResult.discountReason}</span>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="flex justify-between items-center pt-2 border-t border-red-200">
-                    <span className="text-gray-700">Total à payer:</span>
-                    <span className="font-bold text-xl text-red-600">
-                      {priceResult.total} CHF
-                      {isSubscription && event.subscription_interval && (
-                        <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
-                      )}
-                    </span>
-                  </div>
-                  {priceResult.discountAmount > 0 && priceResult.discountReason && (
-                    <div className="text-sm text-green-600 flex items-center gap-1">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>{priceResult.discountReason}</span>
-                    </div>
+
+                  {event.requires_approval && (
+                    <p className="text-amber-600 pt-2"><strong>Note:</strong> Nécessite une validation</p>
                   )}
                 </div>
-              )}
+              </div>
 
               {/* Bouton de soumission */}
               <button
                 type="submit"
-                disabled={submitting || !!ageError}
+                disabled={submitting || !!ageError || (participationType === 'CHILDREN' && !!session && selectedChildIds.length === 0)}
                 className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
@@ -705,7 +886,6 @@ export default function EventDetailPage() {
                     Inscription en cours...
                   </>
                 ) : event.requires_approval ? (
-                  // Événement avec approbation requise - pas de paiement immédiat
                   <>
                     <CheckCircle className="h-5 w-5" />
                     Envoyer ma demande d'inscription
@@ -714,7 +894,6 @@ export default function EventDetailPage() {
                     )}
                   </>
                 ) : isPaidEvent ? (
-                  // Événement payant sans approbation - paiement immédiat
                   <>
                     <CreditCard className="h-5 w-5" />
                     Payer {priceResult.total} CHF
@@ -723,7 +902,6 @@ export default function EventDetailPage() {
                     )}
                   </>
                 ) : (
-                  // Événement gratuit sans approbation
                   <>
                     <CheckCircle className="h-5 w-5" />
                     Confirmer l'inscription

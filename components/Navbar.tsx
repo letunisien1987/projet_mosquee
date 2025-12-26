@@ -18,7 +18,11 @@ const navigation = [
   { name: 'Contact', href: '/contact' },
 ]
 
-export function Navbar() {
+interface NavbarProps {
+  mosqueName?: string
+}
+
+export function Navbar({ mosqueName = 'Mosquée Madretsch' }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { data: session } = useSession()
 
@@ -30,7 +34,7 @@ export function Navbar() {
           <Link href="/" className="flex items-center">
             <Image
               src="/mosque-madretsch-logo.png"
-              alt="Mosquée Madretsch"
+              alt={mosqueName}
               width={180}
               height={42}
               className="h-10 w-auto"

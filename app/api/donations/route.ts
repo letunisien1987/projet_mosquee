@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { checkRateLimit, getClientIp, getRateLimitHeaders } from '@/lib/rate-limit'
+import { donationSchema } from '@/lib/validations/donation'
 
-const donationSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email(),
-  phone: z.string().optional(),
-  amount: z.number().positive(),
-  type: z.enum(['ZAKAT', 'SADAQA', 'ZAKAT_AL_FITR', 'PROJECT', 'MEMBERSHIP']),
-  projectId: z.string().optional(),
-  projectName: z.string().optional(),
-  message: z.string().optional(),
-  anonymous: z.boolean().default(false),
-})
+// Rate limit: 5 dons par minute par IP (protection contre spam)
+const RATE_LIMIT_CONFIG = { maxRequests: 5, windowMs: 60000 }
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting - protection contre spam
+    const clientIp = getClientIp(request)
+    const rateLimitResult = checkRateLimit(`donation:${clientIp}`, RATE_LIMIT_CONFIG)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Trop de requêtes. Veuillez réessayer dans quelques instants.' },
+        { status: 429, headers: getRateLimitHeaders(rateLimitResult) }
+      )
+    }
+
     const body = await request.json()
     const validatedData = donationSchema.parse(body)
 

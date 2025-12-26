@@ -42,6 +42,7 @@ const roleColors: Record<UserRole, string> = {
   TEACHER: 'bg-blue-100 text-blue-800 border-blue-200',
   STAFF: 'bg-orange-100 text-orange-800 border-orange-200',
   MANAGER: 'bg-teal-100 text-teal-800 border-teal-200',
+  TRESORIER: 'bg-amber-100 text-amber-800 border-amber-200',
   MEMBER: 'bg-gray-100 text-gray-800 border-gray-200',
 }
 

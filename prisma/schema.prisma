@@ -15,7 +15,8 @@ enum UserRole {
   IMAM
   TEACHER
   STAFF
-  MANAGER  // Gestionnaire d'activités/événements (peut gérer ses propres activités/événements)
+  MANAGER    // Gestionnaire d'activités/événements (peut gérer ses propres activités/événements)
+  TRESORIER  // Trésorier - gestion financière, dons et remboursements
   MEMBER
 }
 
@@ -152,6 +153,7 @@ enum AdminPermission {
   MANAGE_DONATIONS        // Gérer les dons
   VIEW_MEMBERSHIPS        // Voir les cotisations
   MANAGE_MEMBERSHIPS      // Gérer les cotisations
+  REFUND_MEMBERSHIPS      // Rembourser les cotisations
 
   // Communication
   VIEW_MESSAGES           // Voir les messages de contact
@@ -345,6 +347,7 @@ model Donation {
   message           String?
   anonymous         Boolean      @default(false)
   stripeSessionId   String?      @unique // ID de la session Stripe Checkout
+  transactionId     String?      @unique // ID de transaction externe (RaiseNow, Tamaro, etc.)
   receiptSent       Boolean      @default(false) // Reçu envoyé par email
   receiptSentAt     DateTime?    // Date d'envoi du reçu
   createdAt         DateTime     @default(now())
@@ -486,6 +489,20 @@ model MosqueSettings {
   updatedBy     String?  // Email de l'admin qui a modifié
 
   @@map("mosque_settings")
+}
+
+// Historique des modifications des paramètres (Directus mosque_settings)
+model SettingsHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  settingKey  String   // Ex: "bank_iban", "contact_email", "membership_monthly_price"
+  oldValue    String?  // Ancienne valeur (null si création)
+  newValue    String?  // Nouvelle valeur (null si suppression)
+  changedBy   String   // Email de l'admin qui a modifié
+  changedAt   DateTime @default(now())
+
+  @@map("settings_history")
+  @@index([settingKey])
+  @@index([changedAt])
 }
 
 // Profil utilisateur étendu pour l'espace membre

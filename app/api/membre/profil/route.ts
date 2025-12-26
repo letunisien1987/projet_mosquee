@@ -4,13 +4,14 @@
  * PUT /api/membre/profil - Mettre à jour le profil
  */
 
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
   apiHandler,
   requireAuth,
   successResponse,
 } from '@/lib/api/middleware'
+import { updateProfileSchema } from '@/lib/validations/membre'
 
 // GET - Récupérer le profil
 export const GET = apiHandler(async () => {
@@ -40,6 +41,16 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   const session = await requireAuth()
 
   const body = await req.json()
+
+  // Validation Zod
+  const validation = updateProfileSchema.safeParse(body)
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: 'Données invalides', details: validation.error.flatten() },
+      { status: 400 }
+    )
+  }
+
   const {
     firstName,
     lastName,
@@ -55,7 +66,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
     notificationEmail,
     notificationSms,
     newsletter,
-  } = body
+  } = validation.data
 
   // Mettre à jour les données de base
   await prisma.user.update({

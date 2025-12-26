@@ -2,7 +2,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById } from '@/lib/directus'
+import { getOfferingsByIds } from '@/lib/directus'
+import type { EventRegistration, Enrollment } from '@prisma/client'
 import {
   Calendar,
   BookOpen,
@@ -48,45 +49,60 @@ export default async function InscriptionsPage() {
     redirect('/connexion')
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { email: true },
-  })
+  let user: { email: string | null } | null = null
+  let eventRegistrations: EventRegistration[] = []
+  let activityEnrollments: Enrollment[] = []
 
-  // Récupérer les inscriptions aux événements
-  const eventRegistrations = await prisma.eventRegistration.findMany({
-    where: {
-      OR: [{ userId: session.user.id }, { email: user?.email?.toLowerCase() }],
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  // Récupérer les inscriptions aux activités
-  const activityEnrollments = await prisma.enrollment.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  // Lier les inscriptions orphelines
-  const orphanRegistrations = eventRegistrations.filter(
-    (r) => !r.userId && r.email?.toLowerCase() === user?.email?.toLowerCase()
-  )
-  if (orphanRegistrations.length > 0) {
-    await prisma.eventRegistration.updateMany({
-      where: {
-        id: { in: orphanRegistrations.map((r) => r.id) },
-        userId: null,
-      },
-      data: { userId: session.user.id },
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true },
     })
+
+    // Récupérer les inscriptions aux événements
+    eventRegistrations = await prisma.eventRegistration.findMany({
+      where: {
+        OR: [{ userId: session.user.id }, { email: user?.email?.toLowerCase() }],
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    // Récupérer les inscriptions aux activités
+    activityEnrollments = await prisma.enrollment.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    // Lier les inscriptions orphelines
+    const orphanRegistrations = eventRegistrations.filter(
+      (r) => !r.userId && r.email?.toLowerCase() === user?.email?.toLowerCase()
+    )
+    if (orphanRegistrations.length > 0) {
+      await prisma.eventRegistration.updateMany({
+        where: {
+          id: { in: orphanRegistrations.map((r) => r.id) },
+          userId: null,
+        },
+        data: { userId: session.user.id },
+      })
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des inscriptions:', error)
   }
+
+  // Collecter tous les IDs pour batch fetch (fix N+1)
+  const allOfferingIds = [
+    ...eventRegistrations.map((r) => r.eventId),
+    ...activityEnrollments.filter((e) => e.activityId).map((e) => e.activityId!),
+  ]
+  const offeringsMap = await getOfferingsByIds(allOfferingIds)
 
   // Unifier les inscriptions
   const inscriptions: UnifiedInscription[] = []
 
   // Ajouter les événements
   for (const reg of eventRegistrations) {
-    const offering = await getOfferingById(reg.eventId)
+    const offering = offeringsMap.get(reg.eventId)
     inscriptions.push({
       id: reg.id,
       type: 'EVENT',
@@ -110,7 +126,7 @@ export default async function InscriptionsPage() {
     // Vérifier que l'activityId existe
     if (!enr.activityId) continue
 
-    const offering = await getOfferingById(enr.activityId)
+    const offering = offeringsMap.get(enr.activityId)
     inscriptions.push({
       id: enr.id,
       type: 'ACTIVITY',
@@ -290,7 +306,7 @@ export default async function InscriptionsPage() {
                   {inscription.date && (
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {new Date(inscription.date).toLocaleDateString('fr-FR', {
+                      {new Date(inscription.date).toLocaleDateString('fr-CH', {
                         weekday: 'long',
                         year: 'numeric',
                         month: 'long',
@@ -391,7 +407,7 @@ export default async function InscriptionsPage() {
                       {inscription.offeringTitle}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                      {new Date(inscription.createdAt).toLocaleDateString('fr-FR')}
+                      {new Date(inscription.createdAt).toLocaleDateString('fr-CH')}
                     </td>
                   </tr>
                 ))}

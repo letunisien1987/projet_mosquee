@@ -10,8 +10,8 @@ import { calculatePrice, isPaidItem, type PricingConfig } from '@/lib/pricing'
 
 const registerSchema = z.object({
   // === TYPE DE PARTICIPATION ===
-  participationType: z.enum(['INDIVIDUAL', 'FAMILY'], {
-    message: '⚠️ Choisissez votre type de participation: Individuel ou Famille'
+  participationType: z.enum(['INDIVIDUAL', 'FAMILY', 'CHILDREN'], {
+    message: '⚠️ Choisissez votre type de participation: Individuel, Famille ou Enfants'
   }).default('INDIVIDUAL'),
 
   // === INFORMATIONS DE CONTACT ===
@@ -60,6 +60,15 @@ const registerSchema = z.object({
     .max(20, '⚠️ Maximum 20 enfants par inscription - pour un groupe plus grand, contactez-nous')
     .optional(),
 
+  // === POUR INSCRIPTION ENFANTS ENREGISTRES ===
+  childIds: z.array(z.string().uuid()).optional(), // IDs des enfants du compte parent
+  childId: z.string().uuid().optional(), // Un seul enfant (mode single)
+
+  // === POUR NOUVEAU ENFANT INLINE (visiteur non connecte) ===
+  inlineChildFirstName: z.string().optional(),
+  inlineChildLastName: z.string().optional(),
+  inlineChildBirthDate: z.string().optional(),
+
   // === ANCIENNE API (rétrocompatibilité) ===
   firstName: z.string().optional(),
   lastName: z.string().optional(),
@@ -79,7 +88,7 @@ export async function POST(
 
     // Support ancien format (rétrocompatibilité)
     const formData: EventRegistrationFormData = {
-      participationType: validatedData.participationType,
+      participationType: validatedData.participationType === 'CHILDREN' ? 'INDIVIDUAL' : validatedData.participationType,
       contactFirstName: validatedData.contactFirstName || validatedData.firstName || '',
       contactLastName: validatedData.contactLastName || validatedData.lastName || '',
       contactEmail: validatedData.contactEmail || validatedData.email || '',
@@ -91,16 +100,6 @@ export async function POST(
       numberOfChildren: validatedData.numberOfChildren,
     }
 
-    // VALIDATION: Pour les enfants, la relation parent est OBLIGATOIRE
-    if (formData.participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD') {
-      if (!validatedData.parentRelation) {
-        return NextResponse.json(
-          { error: 'Pour les inscriptions d\'enfants, la relation avec le parent/tuteur est obligatoire' },
-          { status: 400 }
-        )
-      }
-    }
-
     // Récupérer les infos de l'événement depuis Directus
     const event = await getEventById(eventId)
 
@@ -109,6 +108,286 @@ export async function POST(
         { error: 'Événement introuvable' },
         { status: 404 }
       )
+    }
+
+    // ========== MODE CHILDREN : inscription batch d'enfants enregistrés ==========
+    if (validatedData.participationType === 'CHILDREN' && (validatedData.childIds?.length || validatedData.childId)) {
+      const session = await getServerSession(authOptions)
+
+      // Vérifier que l'utilisateur est connecté
+      if (!session?.user?.id) {
+        return NextResponse.json(
+          { error: 'Vous devez être connecté pour inscrire vos enfants' },
+          { status: 401 }
+        )
+      }
+
+      const childIdsToProcess = validatedData.childIds || (validatedData.childId ? [validatedData.childId] : [])
+
+      // Vérifier que tous les enfants appartiennent à l'utilisateur
+      const children = await prisma.child.findMany({
+        where: {
+          id: { in: childIdsToProcess },
+          parentId: session.user.id,
+        },
+      })
+
+      if (children.length !== childIdsToProcess.length) {
+        return NextResponse.json(
+          { error: 'Un ou plusieurs enfants non trouvés ou non autorisés' },
+          { status: 400 }
+        )
+      }
+
+      // Vérifier qu'aucun enfant n'est déjà inscrit
+      const existingRegistrations = await prisma.eventRegistration.findMany({
+        where: {
+          eventId,
+          childId: { in: childIdsToProcess },
+          status: { notIn: ['CANCELLED'] },
+        },
+      })
+
+      if (existingRegistrations.length > 0) {
+        const alreadyRegistered = children.filter(c =>
+          existingRegistrations.some(r => r.childId === c.id)
+        )
+        return NextResponse.json(
+          {
+            error: 'Certains enfants sont déjà inscrits',
+            alreadyRegistered: alreadyRegistered.map(c => `${c.firstName} ${c.lastName}`),
+          },
+          { status: 400 }
+        )
+      }
+
+      // Vérifier les places disponibles
+      if (event.max_capacity) {
+        const registrations = await prisma.eventRegistration.findMany({
+          where: {
+            eventId,
+            status: { not: 'CANCELLED' },
+          },
+          select: {
+            numberOfAdults: true,
+            numberOfChildren: true,
+          },
+        })
+
+        const currentAttendees = registrations.reduce(
+          (total, r) => total + r.numberOfAdults + r.numberOfChildren,
+          0
+        )
+        const availableSpots = event.max_capacity - currentAttendees
+
+        if (availableSpots < children.length) {
+          return NextResponse.json(
+            {
+              error: `Places insuffisantes. Il reste ${availableSpots} place(s) disponible(s) pour ${children.length} enfant(s)`,
+            },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Calculer le prix (par enfant)
+      const isPaidEvent = isPaidItem(event.payment_type, event.price, event.pricing as PricingConfig | null)
+      let pricePerChild: number | null = null
+      let totalAmount: number | null = null
+
+      if (isPaidEvent) {
+        const pricingResult = calculatePrice(
+          event.pricing as PricingConfig | null,
+          {
+            numberOfAdults: 0,
+            numberOfChildren: 1,
+            registrationDate: new Date(),
+          },
+          event.price
+        )
+        pricePerChild = pricingResult.total
+        totalAmount = pricePerChild * children.length
+      }
+
+      // Déterminer le statut initial
+      let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT'
+      if (event.requires_approval) {
+        status = 'PENDING'
+      } else if (isPaidEvent) {
+        status = 'PENDING_PAYMENT'
+      } else {
+        status = 'CONFIRMED'
+      }
+
+      // Créer une inscription par enfant
+      const registrations = await Promise.all(
+        children.map(child =>
+          prisma.eventRegistration.create({
+            data: {
+              eventId,
+              eventTitle: event.title,
+              participationType: 'CHILD',
+              firstName: formData.contactFirstName,
+              lastName: formData.contactLastName,
+              email: formData.contactEmail,
+              phone: formData.contactPhone,
+              attendees: 1,
+              numberOfAdults: 0,
+              numberOfChildren: 1,
+              participantGender: child.gender || undefined,
+              notes: formData.notes,
+              status,
+              requiresPayment: isPaidEvent || false,
+              paymentAmount: pricePerChild,
+              userId: session.user.id,
+              childId: child.id,
+            },
+          })
+        )
+      )
+
+      console.log('📝 Inscriptions enfants batch créées:', registrations.length)
+
+      // Envoyer email de confirmation groupé
+      try {
+        const eventDateFormatted = event.date ? new Date(event.date).toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }) : ''
+
+        if (status === 'CONFIRMED') {
+          await sendEventRegistrationEmail(
+            formData.contactEmail,
+            formData.contactFirstName,
+            event.title,
+            eventDateFormatted
+          )
+        } else if (status === 'PENDING_PAYMENT') {
+          const paymentUrl = `${process.env.NEXTAUTH_URL}/api/events/${eventId}/checkout?registrationIds=${registrations.map(r => r.id).join(',')}`
+          await sendEventPaymentRequest({
+            email: formData.contactEmail,
+            firstName: formData.contactFirstName,
+            eventTitle: event.title,
+            eventDate: event.date,
+            participationType: 'CHILDREN',
+            numberOfAdults: 0,
+            numberOfChildren: children.length,
+            amount: totalAmount || 0,
+            paymentUrl,
+            registrationId: registrations[0].id,
+          })
+        } else if (status === 'PENDING') {
+          const { sendEventPendingApprovalEmail } = await import('@/lib/email')
+          await sendEventPendingApprovalEmail({
+            email: formData.contactEmail,
+            firstName: formData.contactFirstName,
+            eventTitle: event.title,
+            eventDate: event.date,
+          })
+        }
+      } catch (emailError) {
+        console.error('⚠️ Erreur envoi email batch (non bloquant):', emailError)
+      }
+
+      // Créer une notification groupée
+      try {
+        const childNames = children.map(c => `${c.firstName} ${c.lastName}`).join(', ')
+        await prisma.notification.create({
+          data: {
+            userId: session.user.id,
+            type: status === 'CONFIRMED' ? 'EVENT_CONFIRMATION' : 'EVENT_REGISTRATION_NEW',
+            title: status === 'CONFIRMED' ? 'Inscriptions confirmées' : 'Inscriptions reçues',
+            message: `${children.length} inscription(s) à "${event.title}" pour: ${childNames}`,
+            link: '/dashboard/evenements',
+            read: false,
+            emailSent: true,
+          },
+        })
+      } catch (notifError) {
+        console.error('⚠️ Erreur notification batch:', notifError)
+      }
+
+      // Construire la réponse
+      let message = `${children.length} inscription(s) confirmée(s) avec succès`
+      let checkoutUrl: string | null = null
+
+      if (status === 'PENDING_PAYMENT') {
+        message = `${children.length} inscription(s) enregistrée(s). Montant total: ${totalAmount} CHF`
+        checkoutUrl = `/api/events/${eventId}/checkout?registrationIds=${registrations.map(r => r.id).join(',')}`
+      } else if (status === 'PENDING') {
+        message = isPaidEvent
+          ? `${children.length} demande(s) d\'inscription enregistrée(s). Après approbation, vous recevrez un lien de paiement.`
+          : `${children.length} demande(s) d\'inscription enregistrée(s), en attente de confirmation.`
+      }
+
+      return NextResponse.json({
+        success: true,
+        registrations: registrations.map(r => ({
+          id: r.id,
+          status: r.status,
+          childId: r.childId,
+        })),
+        message,
+        requiresPayment: status === 'PENDING_PAYMENT',
+        requiresApproval: event.requires_approval,
+        paymentAmount: totalAmount,
+        checkoutUrl,
+        totalChildren: children.length,
+      })
+    }
+
+    // ========== NOUVEAU ENFANT INLINE (visiteur non connecté) ==========
+    if (validatedData.participationType === 'CHILDREN' && validatedData.inlineChildFirstName) {
+      // Trouver ou créer l'utilisateur par email
+      let user = await prisma.user.findUnique({
+        where: { email: formData.contactEmail },
+      })
+
+      if (!user) {
+        const bcrypt = await import('bcryptjs')
+        const tempPassword = Math.random().toString(36).slice(-10)
+        const hashedPassword = await bcrypt.hash(tempPassword, 10)
+
+        user = await prisma.user.create({
+          data: {
+            email: formData.contactEmail,
+            firstName: formData.contactFirstName,
+            lastName: formData.contactLastName,
+            phone: formData.contactPhone,
+            password: hashedPassword,
+            role: 'MEMBER',
+          },
+        })
+      }
+
+      // Créer l'enfant
+      const newChild = await prisma.child.create({
+        data: {
+          firstName: validatedData.inlineChildFirstName,
+          lastName: validatedData.inlineChildLastName || formData.contactLastName,
+          birthDate: new Date(validatedData.inlineChildBirthDate || new Date()),
+          parentId: user.id,
+        },
+      })
+
+      // Continuer avec childId = newChild.id
+      validatedData.childId = newChild.id
+      validatedData.participationType = 'INDIVIDUAL'
+      formData.participantGender = 'CHILD'
+    }
+
+    // VALIDATION: Pour les enfants, la relation parent est OBLIGATOIRE
+    if (formData.participationType === 'INDIVIDUAL' && formData.participantGender === 'CHILD') {
+      if (!validatedData.parentRelation && !validatedData.childId) {
+        return NextResponse.json(
+          { error: 'Pour les inscriptions d\'enfants, la relation avec le parent/tuteur est obligatoire' },
+          { status: 400 }
+        )
+      }
     }
 
     if (!event.registration_required) {

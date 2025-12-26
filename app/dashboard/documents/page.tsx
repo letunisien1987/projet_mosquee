@@ -3,6 +3,8 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { FileText, Download, Calendar, CreditCard, BookOpen, Heart } from 'lucide-react'
+import type { Donation, Membership, Enrollment } from '@prisma/client'
+import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,22 +16,31 @@ export default async function DocumentsPage() {
   }
 
   // Récupérer les données pour générer les documents
-  const [donations, memberships, enrollments] = await Promise.all([
-    prisma.donation.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }),
-    prisma.membership.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    }),
-    prisma.enrollment.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: 'desc' },
-    }),
-  ])
+  let donations: Donation[] = []
+  let memberships: Membership[] = []
+  let enrollments: Enrollment[] = []
+  const settings = await getSettings()
+
+  try {
+    [donations, memberships, enrollments] = await Promise.all([
+      prisma.donation.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      prisma.membership.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      prisma.enrollment.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+  } catch (error) {
+    console.error('Erreur lors de la récupération des documents:', error)
+  }
 
   const currentYear = new Date().getFullYear()
   const donationsThisYear = donations.filter(d =>
@@ -105,7 +116,7 @@ export default async function DocumentsPage() {
                       Reçu de don
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {new Date(donation.createdAt).toLocaleDateString('fr-FR')}
+                      {new Date(donation.createdAt).toLocaleDateString('fr-CH')}
                     </p>
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       {donation.amount.toFixed(2)} CHF - {donation.type}
@@ -147,7 +158,7 @@ export default async function DocumentsPage() {
                         Attestation {membership.type}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {new Date(membership.startDate).toLocaleDateString('fr-FR')} - {new Date(membership.endDate).toLocaleDateString('fr-FR')}
+                        {new Date(membership.startDate).toLocaleDateString('fr-CH')} - {new Date(membership.endDate).toLocaleDateString('fr-CH')}
                       </p>
                       <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
                         {membership.amount.toFixed(2)} CHF - {membership.status}
@@ -193,7 +204,7 @@ export default async function DocumentsPage() {
                         Inscription active
                       </p>
                       <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                        Depuis le {new Date(enrollment.createdAt).toLocaleDateString('fr-FR')}
+                        Depuis le {new Date(enrollment.createdAt).toLocaleDateString('fr-CH')}
                       </p>
                     </div>
                   </div>
@@ -255,7 +266,7 @@ export default async function DocumentsPage() {
               <li>• Tous les documents sont générés au format PDF</li>
               <li>• Les reçus fiscaux sont disponibles uniquement pour les dons payés</li>
               <li>• Conservez précieusement ces documents pour votre déclaration fiscale</li>
-              <li>• En cas de problème, contactez-nous à info@mosquee-madretsch.ch</li>
+              <li>• En cas de problème, contactez-nous à {settings.contact_email}</li>
             </ul>
           </div>
         </div>

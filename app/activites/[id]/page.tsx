@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
-  BookOpen, Calendar, Loader2, CheckCircle, CreditCard
+  BookOpen, Calendar, Loader2, CheckCircle, CreditCard, Users, User
 } from 'lucide-react'
 import {
   RegistrationLayout,
@@ -16,6 +16,8 @@ import {
 import { RegistrationInfoCard, InfoItem } from '@/components/RegistrationInfoCard'
 import { RegistrationSuccess } from '@/components/RegistrationSuccess'
 import { ContactFormFields, ContactFormData, NotesField } from '@/components/ContactFormFields'
+import { ChildSelector } from '@/components/ChildSelector'
+import { useChildren, type Child } from '@/hooks/useChildren'
 
 interface Activity {
   id: string
@@ -33,13 +35,9 @@ interface Activity {
   price?: number
   active: boolean
   enrollment_open: boolean
-}
-
-interface Child {
-  id: string
-  firstName: string
-  lastName: string
-  birthDate: string
+  min_age?: number
+  max_age?: number
+  gender_restriction?: 'MALE' | 'FEMALE'
 }
 
 // Configuration de couleur par défaut pour les activités
@@ -55,9 +53,9 @@ export default function ActivityDetailPage() {
   const params = useParams()
   const { data: session } = useSession()
   const activityId = params.id as string
+  const { children, calculateAge, refetch: refetchChildren, getChildById } = useChildren()
 
   const [activity, setActivity] = useState<Activity | null>(null)
-  const [children, setChildren] = useState<Child[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -71,12 +69,15 @@ export default function ActivityDetailPage() {
     notes: '',
   })
 
-  const [formData, setFormData] = useState({
-    isForChild: false,
-    selectedChildId: '',
-    childFirstName: '',
-    childLastName: '',
-    childBirthDate: '',
+  // Mode d'inscription : adulte ou enfant(s)
+  const [inscriptionMode, setInscriptionMode] = useState<'adult' | 'children'>('adult')
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([])
+
+  // Pour les visiteurs non connectes qui ajoutent un enfant inline
+  const [inlineChild, setInlineChild] = useState({
+    firstName: '',
+    lastName: '',
+    birthDate: '',
   })
 
   useEffect(() => {
@@ -93,7 +94,6 @@ export default function ActivityDetailPage() {
         email: user.email || '',
         phone: user.phone || '',
       }))
-      fetchChildren()
     }
   }, [session])
 
@@ -104,7 +104,7 @@ export default function ActivityDetailPage() {
         const data = await res.json()
         setActivity(data)
       } else {
-        setError('Activité non trouvée')
+        setError('Activite non trouvee')
       }
     } catch (err) {
       setError('Erreur de chargement')
@@ -113,40 +113,66 @@ export default function ActivityDetailPage() {
     }
   }
 
-  const fetchChildren = async () => {
-    try {
-      const res = await fetch('/api/account/children')
-      if (res.ok) {
-        const data = await res.json()
-        setChildren(data)
-      }
-    } catch (err) {
-      console.error('Erreur chargement enfants:', err)
-    }
-  }
+  // Enfants sélectionnés (objets complets)
+  const selectedChildren = useMemo(() => {
+    return selectedChildIds
+      .map(id => getChildById(id))
+      .filter((c): c is Child => c !== undefined)
+  }, [selectedChildIds, getChildById])
+
+  // Calcul du prix total
+  const totalPrice = useMemo(() => {
+    if (!activity?.price) return 0
+    if (inscriptionMode === 'adult') return activity.price
+    return activity.price * selectedChildIds.length
+  }, [activity?.price, inscriptionMode, selectedChildIds.length])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     setError('')
 
+    // Validation
+    if (inscriptionMode === 'children') {
+      if (session && selectedChildIds.length === 0) {
+        setError('Veuillez sélectionner au moins un enfant')
+        setSubmitting(false)
+        return
+      }
+      if (!session && (!inlineChild.firstName || !inlineChild.lastName || !inlineChild.birthDate)) {
+        setError('Veuillez remplir les informations de l\'enfant')
+        setSubmitting(false)
+        return
+      }
+    }
+
     try {
-      const payload = {
+      let payload: any = {
         activityId: activityId,
         firstName: contactData.firstName,
         lastName: contactData.lastName,
         email: contactData.email,
         phone: contactData.phone,
         notes: contactData.notes,
-        isForChild: formData.isForChild,
-        ...(formData.isForChild && formData.selectedChildId && {
-          childId: formData.selectedChildId,
-        }),
-        ...(formData.isForChild && !formData.selectedChildId && {
-          childFirstName: formData.childFirstName,
-          childLastName: formData.childLastName,
-          childBirthDate: formData.childBirthDate,
-        }),
+        isForChild: inscriptionMode === 'children',
+      }
+
+      if (inscriptionMode === 'children') {
+        if (session && selectedChildIds.length > 0) {
+          // Utilisateur connecté avec enfants sélectionnés
+          if (selectedChildIds.length === 1) {
+            // Mode single : un seul enfant
+            payload.childId = selectedChildIds[0]
+          } else {
+            // Mode batch : plusieurs enfants
+            payload.childIds = selectedChildIds
+          }
+        } else if (!session) {
+          // Visiteur non connecté : nouvel enfant inline
+          payload.childFirstName = inlineChild.firstName
+          payload.childLastName = inlineChild.lastName
+          payload.childBirthDate = inlineChild.birthDate
+        }
       }
 
       const res = await fetch('/api/enrollments', {
@@ -158,7 +184,8 @@ export default function ActivityDetailPage() {
       const data = await res.json()
 
       if (res.ok) {
-        if (activity?.price && activity.price > 0 && !activity.requires_approval) {
+        if (data.checkoutUrl) {
+          // Redirection vers Stripe pour paiement
           window.location.href = data.checkoutUrl
         } else {
           setSuccess(true)
@@ -171,6 +198,11 @@ export default function ActivityDetailPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleNewChildAdded = (child: Child) => {
+    // Automatiquement ajouter le nouvel enfant à la sélection
+    setSelectedChildIds(prev => [...prev, child.id])
   }
 
   if (loading) {
@@ -208,7 +240,7 @@ export default function ActivityDetailPage() {
         backLabel="Retour aux activités"
         accentColor="bg-emerald-600 hover:bg-emerald-700"
         showMyRegistrations={!!session}
-        myRegistrationsHref="/membre/mes-inscriptions?type=activities"
+        myRegistrationsHref="/dashboard/inscriptions"
         myRegistrationsLabel="Voir mes inscriptions"
       />
     )
@@ -232,6 +264,11 @@ export default function ActivityDetailPage() {
   if (activity.max_participants) {
     infoItems.push({ icon: 'users', label: 'Places', value: `${activity.max_participants} participants max` })
   }
+
+  // Restrictions pour le ChildSelector
+  const ageRestriction = (activity.min_age || activity.max_age)
+    ? { min: activity.min_age, max: activity.max_age }
+    : undefined
 
   return (
     <RegistrationLayout
@@ -278,90 +315,119 @@ export default function ActivityDetailPage() {
                 </div>
               )}
 
-              {/* Type d'inscription */}
+              {/* Choix du type d'inscription */}
               <div className="mb-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isForChild}
-                    onChange={(e) => setFormData({ ...formData, isForChild: e.target.checked })}
-                    className="w-4 h-4 text-emerald-600 rounded"
-                  />
-                  <span className="font-medium">Cette inscription est pour mon enfant</span>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Cette inscription est pour :
                 </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInscriptionMode('adult')
+                      setSelectedChildIds([])
+                    }}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      inscriptionMode === 'adult'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <User className="h-5 w-5" />
+                    <span className="font-medium">Moi-même</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInscriptionMode('children')}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      inscriptionMode === 'children'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Users className="h-5 w-5" />
+                    <span className="font-medium">Mon/mes enfant(s)</span>
+                  </button>
+                </div>
               </div>
 
               {/* Informations du parent/participant */}
               <ContactFormFields
                 data={contactData}
                 onChange={setContactData}
-                title={formData.isForChild ? 'Vos informations (Parent/Tuteur)' : 'Vos informations'}
+                title={inscriptionMode === 'children' ? 'Vos informations (Parent/Tuteur)' : 'Vos informations'}
                 showNotes={false}
                 accentColor="focus:ring-emerald-500"
               />
 
-              {/* Informations de l'enfant */}
-              {formData.isForChild && (
+              {/* Sélection des enfants */}
+              {inscriptionMode === 'children' && (
                 <div className="mb-6">
-                  <h3 className="text-lg font-bold mb-4">Informations de l'enfant</h3>
-
-                  {/* Sélection d'un enfant existant */}
-                  {session && children.length > 0 && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium mb-2">Sélectionner un enfant enregistré</label>
-                      <select
-                        value={formData.selectedChildId}
-                        onChange={(e) => setFormData({ ...formData, selectedChildId: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      >
-                        <option value="">-- Nouvel enfant --</option>
-                        {children.map((child) => (
-                          <option key={child.id} value={child.id}>
-                            {child.firstName} {child.lastName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Formulaire nouvel enfant */}
-                  {!formData.selectedChildId && (
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Prénom de l'enfant *</label>
-                        <input
-                          type="text"
-                          required={formData.isForChild && !formData.selectedChildId}
-                          value={formData.childFirstName}
-                          onChange={(e) => setFormData({ ...formData, childFirstName: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                          placeholder="Prénom"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Nom de l'enfant *</label>
-                        <input
-                          type="text"
-                          required={formData.isForChild && !formData.selectedChildId}
-                          value={formData.childLastName}
-                          onChange={(e) => setFormData({ ...formData, childLastName: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                          placeholder="Nom"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Date de naissance *</label>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  {session ? (
+                    // Utilisateur connecté : utiliser le ChildSelector
+                    <ChildSelector
+                      mode="multiple"
+                      selectedChildIds={selectedChildIds}
+                      onSelectionChange={setSelectedChildIds}
+                      onNewChildAdded={handleNewChildAdded}
+                      showInlineAdd={true}
+                      showModalLink={true}
+                      ageRestriction={ageRestriction}
+                      genderRestriction={activity.gender_restriction}
+                      title="Sélectionnez vos enfants"
+                      description="Choisissez les enfants à inscrire à cette activité"
+                      className="mb-4"
+                    />
+                  ) : (
+                    // Visiteur non connecté : formulaire inline
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                        <Users className="h-5 w-5 text-emerald-600" />
+                        Informations de l'enfant
+                      </h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Prénom de l'enfant *</label>
                           <input
-                            type="date"
-                            required={formData.isForChild && !formData.selectedChildId}
-                            value={formData.childBirthDate}
-                            onChange={(e) => setFormData({ ...formData, childBirthDate: e.target.value })}
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            type="text"
+                            required
+                            value={inlineChild.firstName}
+                            onChange={(e) => setInlineChild({ ...inlineChild, firstName: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            placeholder="Prénom"
                           />
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Nom de l'enfant *</label>
+                          <input
+                            type="text"
+                            required
+                            value={inlineChild.lastName}
+                            onChange={(e) => setInlineChild({ ...inlineChild, lastName: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            placeholder="Nom"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium mb-2">Date de naissance *</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <input
+                              type="date"
+                              required
+                              value={inlineChild.birthDate}
+                              onChange={(e) => setInlineChild({ ...inlineChild, birthDate: e.target.value })}
+                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-sm text-gray-500 mt-3">
+                        <Link href="/connexion" className="text-emerald-600 hover:underline">
+                          Connectez-vous
+                        </Link>
+                        {' '}pour gérer vos enfants et les réutiliser pour d'autres inscriptions.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -377,13 +443,48 @@ export default function ActivityDetailPage() {
 
               {/* Résumé */}
               <div className="mb-6 bg-gray-50 rounded-lg p-4 border">
-                <h4 className="font-bold mb-2">Résumé</h4>
-                <div className="text-sm space-y-1 text-gray-700">
+                <h4 className="font-bold mb-3">Résumé</h4>
+                <div className="text-sm space-y-2 text-gray-700">
                   <p><strong>Activité:</strong> {activity.title}</p>
                   {activity.schedule && <p><strong>Horaire:</strong> {activity.schedule}</p>}
-                  <p><strong>Tarif:</strong> {isPaid ? `${activity.price} CHF` : 'Gratuit'}</p>
+
+                  {/* Participants */}
+                  <div className="pt-2 border-t border-gray-200">
+                    <strong>Participant(s):</strong>
+                    {inscriptionMode === 'adult' ? (
+                      <span className="ml-2">{contactData.firstName} {contactData.lastName}</span>
+                    ) : session && selectedChildren.length > 0 ? (
+                      <ul className="mt-1 ml-4 list-disc">
+                        {selectedChildren.map(child => (
+                          <li key={child.id}>
+                            {child.firstName} {child.lastName} ({calculateAge(child.birthDate)} ans)
+                          </li>
+                        ))}
+                      </ul>
+                    ) : !session && inlineChild.firstName ? (
+                      <span className="ml-2">{inlineChild.firstName} {inlineChild.lastName}</span>
+                    ) : (
+                      <span className="ml-2 text-gray-400 italic">Aucun enfant sélectionné</span>
+                    )}
+                  </div>
+
+                  {/* Prix */}
+                  <div className="pt-2 border-t border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <strong>Total:</strong>
+                      <span className="text-lg font-bold text-emerald-600">
+                        {isPaid ? `${totalPrice} CHF` : 'Gratuit'}
+                      </span>
+                    </div>
+                    {isPaid && inscriptionMode === 'children' && selectedChildIds.length > 1 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        ({activity.price} CHF × {selectedChildIds.length} enfants)
+                      </p>
+                    )}
+                  </div>
+
                   {activity.requires_approval && (
-                    <p className="text-amber-600"><strong>Note:</strong> Nécessite une validation</p>
+                    <p className="text-amber-600 pt-2"><strong>Note:</strong> Nécessite une validation</p>
                   )}
                 </div>
               </div>
@@ -391,7 +492,7 @@ export default function ActivityDetailPage() {
               {/* Bouton de soumission */}
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (inscriptionMode === 'children' && !!session && selectedChildIds.length === 0)}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
@@ -402,7 +503,7 @@ export default function ActivityDetailPage() {
                 ) : isPaid && !activity.requires_approval ? (
                   <>
                     <CreditCard className="h-5 w-5" />
-                    S'inscrire et payer ({activity.price} CHF)
+                    S'inscrire et payer ({totalPrice} CHF)
                   </>
                 ) : (
                   <>

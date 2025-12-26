@@ -100,20 +100,67 @@ export async function POST(req: NextRequest) {
         requestId: request.id
       })
       console.log('📧 Email de confirmation envoyé à:', request.email)
+      // Attendre 600ms avant les notifications admin (rate limit Resend: 2/sec)
+      await new Promise(resolve => setTimeout(resolve, 600))
     } catch (emailError) {
       console.error('⚠️  Erreur envoi email (non bloquant):', emailError)
     }
 
-    // Notifier l'admin (optionnel)
+    // Notifier tous les utilisateurs avec permission MANAGE_MEMBERSHIPS
     try {
-      const { sendEmail } = await import('@/lib/email')
-      const adminEmail = process.env.ADMIN_EMAIL || 'admin@mosquee.ch'
-      await sendEmail({
-        to: adminEmail,
-        subject: 'Nouvelle demande d\'adhésion',
-        html: `<p>${data.firstName} ${data.lastName} (${data.email}) - Type: ${data.membershipType}</p>
-               <p><a href="${process.env.NEXTAUTH_URL}/admin/demandes-adhesion">Voir les demandes</a></p>`,
+      const { sendMembershipRequestNotificationToAdmin } = await import('@/lib/email')
+
+      // Récupérer les rôles qui ont la permission MANAGE_MEMBERSHIPS
+      const rolesWithPermission = await prisma.rolePermission.findMany({
+        where: { permission: 'MANAGE_MEMBERSHIPS' },
+        select: { role: true }
       })
+      const authorizedRoles = rolesWithPermission.map(rp => rp.role)
+
+      // ADMIN a toujours accès, ajouter si pas déjà présent
+      if (!authorizedRoles.includes('ADMIN')) {
+        authorizedRoles.push('ADMIN')
+      }
+
+      // Récupérer tous les utilisateurs avec ces rôles (qui ont un email)
+      const allUsers = await prisma.user.findMany({
+        where: {
+          role: { in: authorizedRoles }
+        },
+        select: { email: true, firstName: true }
+      })
+      // Filtrer les utilisateurs avec email non null
+      const usersToNotify = allUsers.filter(u => u.email !== null && u.email !== '')
+
+      console.log(`📧 Envoi de notifications à ${usersToNotify.length} utilisateur(s) autorisé(s)`)
+
+      // Envoyer un email à chaque utilisateur (avec délai pour éviter rate limit Resend)
+      for (let i = 0; i < usersToNotify.length; i++) {
+        const user = usersToNotify[i]
+        if (user.email) {
+          // Attendre 600ms entre chaque email pour respecter le rate limit (2/sec)
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 600))
+          }
+
+          const result = await sendMembershipRequestNotificationToAdmin({
+            adminEmail: user.email,
+            firstName: request.firstName,
+            lastName: request.lastName,
+            email: request.email,
+            phone: request.phone,
+            membershipType: request.membershipType,
+            createdAt: request.createdAt,
+            requestId: request.id
+          })
+
+          if (result.success) {
+            console.log('  ✅ Email envoyé à:', user.email)
+          } else {
+            console.log('  ⚠️ Échec envoi à:', user.email, result.error)
+          }
+        }
+      }
     } catch (error) {
       console.log('⚠️  Notification admin non envoyée:', error)
     }

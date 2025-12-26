@@ -5,7 +5,6 @@ import { BookOpen } from 'lucide-react'
 
 interface Activity {
   id?: string
-  _id?: string // Legacy Sanity format
   title: string
   description?: string
   level?: string
@@ -96,7 +95,7 @@ export default function EnrollmentForm({ activities = [] }: EnrollmentFormProps)
                         required
                         value={formData.activityId}
                         onChange={(e) => {
-                            const activity = activities.find((a) => (a.id || a._id) === e.target.value)
+                            const activity = activities.find((a) => a.id === e.target.value)
                             setFormData({
                                 ...formData,
                                 activityId: e.target.value,

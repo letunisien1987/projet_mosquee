@@ -4,38 +4,9 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Calendar, CheckCircle, XCircle, AlertCircle, Clock, UserCheck, Users } from 'lucide-react'
 import Link from 'next/link'
+import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
-
-const MEMBERSHIP_TYPES = {
-  ACTIF: {
-    name: 'Membre Actif',
-    price: 120,
-    description: 'Membre avec droit de vote',
-    icon: UserCheck,
-    benefits: [
-      'Droit de vote aux assemblées générales',
-      'Accès à toutes les activités de la mosquée',
-      'Participation aux événements',
-      'Réductions sur les cours',
-      'Newsletter et informations privilégiées',
-      'Participation aux décisions de la mosquée',
-    ],
-  },
-  PASSIF: {
-    name: 'Membre Passif',
-    price: 120,
-    description: 'Membre sans droit de vote',
-    icon: Users,
-    benefits: [
-      'Accès à toutes les activités de la mosquée',
-      'Participation aux événements',
-      'Réductions sur les cours',
-      'Newsletter et informations privilégiées',
-      'Soutien à la communauté',
-    ],
-  },
-}
 
 export default async function CotisationPage() {
   const session = await getServerSession(authOptions)
@@ -44,10 +15,46 @@ export default async function CotisationPage() {
     redirect('/connexion')
   }
 
-  const memberships = await prisma.membership.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: 'desc' },
-  })
+  const [membershipList, settings] = await Promise.all([
+    prisma.membership.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+    }),
+    getSettings(),
+  ])
+
+  const memberships = membershipList
+
+  // Types de cotisation avec prix dynamiques depuis les settings
+  const MEMBERSHIP_TYPES = {
+    ACTIF: {
+      name: 'Membre Actif',
+      price: settings.membership_full_price || 120,
+      description: 'Membre avec droit de vote',
+      icon: UserCheck,
+      benefits: [
+        'Droit de vote aux assemblées générales',
+        'Accès à toutes les activités de la mosquée',
+        'Participation aux événements',
+        'Réductions sur les cours',
+        'Newsletter et informations privilégiées',
+        'Participation aux décisions de la mosquée',
+      ],
+    },
+    PASSIF: {
+      name: 'Membre Passif',
+      price: settings.membership_full_price || 120,
+      description: 'Membre sans droit de vote',
+      icon: Users,
+      benefits: [
+        'Accès à toutes les activités de la mosquée',
+        'Participation aux événements',
+        'Réductions sur les cours',
+        'Newsletter et informations privilégiées',
+        'Soutien à la communauté',
+      ],
+    },
+  }
 
   // Récupérer les demandes d'adhésion
   const membershipRequests = session.user.email ? await prisma.membershipRequest.findMany({
@@ -307,11 +314,11 @@ export default async function CotisationPage() {
               Informations importantes
             </h3>
             <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
-              <li>• La cotisation annuelle est de 120 CHF pour les deux types de membres</li>
+              <li>• La cotisation annuelle est de {settings.membership_full_price || 120} CHF pour les deux types de membres</li>
               <li>• La différence entre Actif et Passif réside dans le droit de vote aux assemblées</li>
               <li>• Toutes les demandes sont examinées sous 48-72 heures ouvrables</li>
               <li>• Le paiement s&apos;effectue en ligne de manière sécurisée via Stripe</li>
-              <li>• Pour toute question, contactez-nous à info@mosquee-madretsch.ch</li>
+              <li>• Pour toute question, contactez-nous à {settings.contact_email}</li>
             </ul>
           </div>
         </div>

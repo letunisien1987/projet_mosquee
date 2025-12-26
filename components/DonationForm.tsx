@@ -5,7 +5,6 @@ import { DollarSign } from 'lucide-react'
 
 interface Project {
   id?: string
-  _id?: string // Legacy Sanity format
   title: string
   description?: string
 }
@@ -153,7 +152,7 @@ export default function DonationForm({ projects = [] }: DonationFormProps) {
             <select
               value={formData.projectId}
               onChange={(e) => {
-                const project = projects.find((p) => (p.id || p._id) === e.target.value)
+                const project = projects.find((p) => p.id === e.target.value)
                 setFormData({
                   ...formData,
                   projectId: e.target.value,
@@ -164,7 +163,7 @@ export default function DonationForm({ projects = [] }: DonationFormProps) {
             >
               <option value="">Sélectionner un projet</option>
               {projects.map((project) => (
-                <option key={project.id || project._id} value={project.id || project._id}>
+                <option key={project.id} value={project.id}>
                   {project.title}
                 </option>
               ))}

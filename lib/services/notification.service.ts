@@ -238,7 +238,7 @@ export async function notifyEventConfirmation(
     type: 'EVENT_CONFIRMATION',
     title: 'Inscription confirmée',
     message: `Votre inscription à "${eventTitle}" a été confirmée.`,
-    link: `/membre/evenements/${eventId}`,
+    link: `/dashboard/evenements`,
   })
 }
 
@@ -256,7 +256,7 @@ export async function notifyNewRegistration(
     type: 'EVENT_REGISTRATION_NEW',
     title: 'Nouvelle inscription',
     message: `${participantName} s'est inscrit(e) à "${eventTitle}".`,
-    link: `/admin/evenements/${eventId}/inscriptions`,
+    link: `/dashboard/admin/inscriptions-evenements`,
   })
 }
 
@@ -291,7 +291,7 @@ export async function notifyPaymentConfirmed(
     type: 'PAYMENT_CONFIRMED',
     title: 'Paiement confirmé',
     message: `Paiement de ${amount} CHF confirmé pour "${itemTitle}".`,
-    link: '/membre/dons',
+    link: '/dashboard/dons',
   })
 }
 
@@ -308,7 +308,7 @@ export async function notifyEnrollmentConfirmation(
     type: 'ENROLLMENT_CONFIRMATION',
     title: 'Inscription confirmée',
     message: `Votre inscription à l'activité "${activityTitle}" a été confirmée.`,
-    link: `/membre/inscriptions/${activityId}`,
+    link: `/dashboard/inscriptions`,
   })
 }
 
@@ -324,7 +324,7 @@ export async function notifyEnrollmentApproved(
     type: 'ENROLLMENT_APPROVED',
     title: 'Inscription approuvée',
     message: `Votre inscription à "${activityTitle}" a été approuvée par le responsable.`,
-    link: '/membre/inscriptions',
+    link: '/dashboard/inscriptions',
   })
 }
 
@@ -345,7 +345,7 @@ export async function notifyEnrollmentRejected(
     type: 'ENROLLMENT_REJECTED',
     title: 'Inscription refusée',
     message,
-    link: '/membre/inscriptions',
+    link: '/dashboard/inscriptions',
   })
 }
 
@@ -384,7 +384,7 @@ export async function notifyMembershipExpiringSoon(
     type: 'MEMBERSHIP_EXPIRING_SOON',
     title: 'Cotisation bientôt expirée',
     message: `Votre cotisation expire le ${formattedDate}. Renouvelez-la pour continuer à bénéficier des avantages membre.`,
-    link: '/membre/cotisation',
+    link: '/dashboard/cotisation',
   })
 }
 
@@ -405,7 +405,7 @@ export async function notifyDonationConfirmed(
     type: 'DONATION_CONFIRMED',
     title: 'Don confirmé',
     message,
-    link: '/membre/dons',
+    link: '/dashboard/dons',
   })
 }
 

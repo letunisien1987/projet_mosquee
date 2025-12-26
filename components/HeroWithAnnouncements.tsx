@@ -24,6 +24,7 @@ interface HeroWithAnnouncementsProps {
   imsak?: string
   iftar?: string
   isRamadan: boolean
+  mosqueName?: string
 }
 
 export default function HeroWithAnnouncements({
@@ -35,6 +36,7 @@ export default function HeroWithAnnouncements({
   imsak,
   iftar,
   isRamadan,
+  mosqueName = 'Mosquée Madretsch',
 }: HeroWithAnnouncementsProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState(0)
@@ -42,8 +44,8 @@ export default function HeroWithAnnouncements({
   // Créer le slide par défaut "Bienvenue"
   const defaultSlide: Announcement & { isDefault: boolean } = {
     id: 'welcome',
-    title: 'Bienvenue à la Mosquée Madretsch',
-    content: 'La Mosquée Madretsch n\'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire',
+    title: `Bienvenue à ${mosqueName}`,
+    content: `${mosqueName} n'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire`,
     isDefault: true,
   }
 

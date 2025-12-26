@@ -8,8 +8,7 @@ A mosque and Islamic association management platform built with Next.js 16 (Reac
 
 **Location**: Mosquée Madretsch, Biel/Bienne, Switzerland
 **Currency**: CHF (Swiss Francs)
-**Primary CMS**: Directus (http://localhost:8055) - All new content should be managed here.
-**Legacy CMS**: Sanity - Being phased out.
+**CMS**: Directus (http://localhost:8055) - All content is managed here.
 
 ## Development Commands
 

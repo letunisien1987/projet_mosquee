@@ -2,7 +2,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById } from '@/lib/directus'
+import { getOfferingsByIds } from '@/lib/directus'
+import type { EventRegistration as PrismaEventRegistration } from '@prisma/client'
 import {
   Calendar,
   Users,
@@ -45,37 +46,48 @@ export default async function EvenementsPage() {
     redirect('/connexion')
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { email: true },
-  })
+  let user: { email: string | null } | null = null
+  let registrations: PrismaEventRegistration[] = []
 
-  // Récupérer les inscriptions aux événements
-  const registrations = await prisma.eventRegistration.findMany({
-    where: {
-      OR: [{ userId: session.user.id }, { email: user?.email?.toLowerCase() }],
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  // Lier les inscriptions orphelines
-  const orphanRegistrations = registrations.filter(
-    (r) => !r.userId && r.email?.toLowerCase() === user?.email?.toLowerCase()
-  )
-  if (orphanRegistrations.length > 0) {
-    await prisma.eventRegistration.updateMany({
-      where: {
-        id: { in: orphanRegistrations.map((r) => r.id) },
-        userId: null,
-      },
-      data: { userId: session.user.id },
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true },
     })
+
+    // Récupérer les inscriptions aux événements
+    registrations = await prisma.eventRegistration.findMany({
+      where: {
+        OR: [{ userId: session.user.id }, { email: user?.email?.toLowerCase() }],
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    // Lier les inscriptions orphelines
+    const orphanRegistrations = registrations.filter(
+      (r) => !r.userId && r.email?.toLowerCase() === user?.email?.toLowerCase()
+    )
+    if (orphanRegistrations.length > 0) {
+      await prisma.eventRegistration.updateMany({
+        where: {
+          id: { in: orphanRegistrations.map((r) => r.id) },
+          userId: null,
+        },
+        data: { userId: session.user.id },
+      })
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des événements:', error)
   }
+
+  // Batch fetch des offerings (fix N+1)
+  const eventIds = registrations.map((r) => r.eventId)
+  const offeringsMap = await getOfferingsByIds(eventIds)
 
   // Enrichir avec les données de Directus
   const events: EventRegistration[] = []
   for (const reg of registrations) {
-    const offering = await getOfferingById(reg.eventId)
+    const offering = offeringsMap.get(reg.eventId)
     events.push({
       id: reg.id,
       eventId: reg.eventId,

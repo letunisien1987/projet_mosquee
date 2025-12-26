@@ -214,6 +214,7 @@ export interface DirectusMosqueSettings {
   bank_iban?: string
   bank_bic?: string
   bank_account_holder?: string
+  bank_name?: string // Nom de la banque
   twint?: string
   social_facebook?: string
   social_instagram?: string
@@ -223,6 +224,11 @@ export interface DirectusMosqueSettings {
   capacity?: number
   logo?: string
   date_updated?: string
+  // Tarification (nouveaux champs)
+  membership_monthly_price?: number
+  membership_annual_price?: number
+  membership_full_price?: number
+  donation_email?: string // Email distinct pour les dons
 }
 
 export interface DirectusGallery {
@@ -301,7 +307,7 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.directusClientGlobal = directusClient
 }
 
-// Helper functions pour remplacer les fonctions Sanity
+// Helper functions pour récupérer les données
 
 /**
  * Récupère tous les événements publiés
@@ -464,19 +470,62 @@ export async function getProjects() {
 
 /**
  * Récupère les paramètres de la mosquée (singleton)
+ * Utilise fetch direct pour éviter les problèmes de cache du SDK
  */
-export async function getMosqueSettings() {
+export async function getMosqueSettings(): Promise<DirectusMosqueSettings | null> {
   try {
-    const settings = await directusClient.request(
-      readItems('mosque_settings', {
-        limit: 1,
-      })
-    )
+    const response = await fetch(`${DIRECTUS_URL}/items/mosque_settings?limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${DIRECTUS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
 
-    return settings[0] || null
+    if (!response.ok) {
+      console.error('Erreur Directus:', response.status, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    return data.data as DirectusMosqueSettings || null
   } catch (error) {
     console.error('Erreur lors de la récupération des paramètres:', error)
     return null
+  }
+}
+
+/**
+ * Met à jour les paramètres de la mosquée (singleton)
+ * Utilise PATCH sur le singleton directement
+ * @param id - ID du singleton mosque_settings (ignoré car singleton)
+ * @param data - Données à mettre à jour
+ */
+export async function updateMosqueSettings(
+  id: string,
+  data: Partial<Omit<DirectusMosqueSettings, 'id' | 'date_updated'>>
+): Promise<DirectusMosqueSettings | null> {
+  try {
+    const response = await fetch(`${DIRECTUS_URL}/items/mosque_settings`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${DIRECTUS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Erreur Directus:', response.status, errorData)
+      throw new Error(`Directus error: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data as DirectusMosqueSettings
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour des paramètres:', error)
+    throw error
   }
 }
 
@@ -1212,6 +1261,52 @@ export async function getOfferings(options: {
     console.error('Erreur lors de la récupération des offres filtrées:', error)
     return []
   }
+}
+
+/**
+ * Récupère plusieurs offres par leurs IDs en batch (fix N+1 query problem)
+ * Retourne un Map<id, offering> pour un accès O(1)
+ */
+export async function getOfferingsByIds(ids: string[]): Promise<Map<string, DirectusOffering>> {
+  const result = new Map<string, DirectusOffering>()
+  if (ids.length === 0) return result
+
+  const uniqueIds = [...new Set(ids)]
+
+  try {
+    // Récupérer depuis events
+    const events = await directusClient.request(
+      readItems('events', {
+        filter: { id: { _in: uniqueIds } },
+        fields: ['*'],
+        limit: -1,
+      })
+    )
+    for (const event of events) {
+      result.set(event.id, { ...event, item_type: 'EVENT' as const } as unknown as DirectusOffering)
+    }
+
+    // Récupérer les IDs non trouvés dans activities
+    const foundEventIds = new Set(events.map(e => e.id))
+    const remainingIds = uniqueIds.filter(id => !foundEventIds.has(id))
+
+    if (remainingIds.length > 0) {
+      const activities = await directusClient.request(
+        readItems('activities', {
+          filter: { id: { _in: remainingIds } },
+          fields: ['*'],
+          limit: -1,
+        })
+      )
+      for (const activity of activities) {
+        result.set(activity.id, { ...activity, item_type: 'ACTIVITY' as const } as unknown as DirectusOffering)
+      }
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération batch des offres:', error)
+  }
+
+  return result
 }
 
 /**

@@ -2,12 +2,19 @@ import { Heart, Landmark, Users, Building, TrendingUp } from 'lucide-react'
 import { getProjects, getDirectusImageUrl } from '@/lib/directus'
 import IbanCopyButton from '@/components/IbanCopyButton'
 import DonationProjectCard from '@/components/DonationProjectCard'
+import { getSettings, getDonationPresets } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DonsPage() {
-  // Récupérer les projets actifs depuis Directus
-  const projects = await getProjects()
+  // Récupérer les projets actifs depuis Directus et les paramètres
+  const [projects, settings] = await Promise.all([
+    getProjects(),
+    getSettings(),
+  ])
+
+  // Récupérer les presets de don depuis les settings
+  const donationPresets = getDonationPresets(settings)
 
   const donationTypes = [
     {
@@ -41,14 +48,12 @@ export default async function DonsPage() {
       color: 'primary',
       details: [
         'Soutien régulier de la mosquée',
-        '20 CHF/mois ou 200 CHF/an',
+        `${settings.membership_monthly_price} CHF/mois ou ${settings.membership_annual_price} CHF/an`,
         'Accès prioritaire aux événements',
         'Newsletter mensuelle',
       ],
     },
   ]
-
-  const iban = 'FR76 1234 5678 9012 3456 7890 123'
 
   return (
     <div className="islamic-pattern min-h-screen">
@@ -121,6 +126,7 @@ export default async function DonsPage() {
                 goalAmount={project.goal_amount || 0}
                 currentAmount={project.current_amount || 0}
                 raisenowCode={project.raisenow_code}
+                presetAmounts={donationPresets}
               />
             ))}
           </div>
@@ -142,18 +148,24 @@ export default async function DonsPage() {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Bénéficiaire</p>
-                <p className="font-semibold">Association Mosquée Madretsch</p>
+                <p className="font-semibold">{settings.bank_account_holder}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">IBAN</p>
                 <div className="relative">
-                  <IbanCopyButton iban={iban} />
+                  <IbanCopyButton iban={settings.bank_iban || ''} />
                 </div>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">BIC</p>
-                <p className="font-mono">BNPAFRPPXXX</p>
+                <p className="font-mono">{settings.bank_bic}</p>
               </div>
+              {settings.bank_name && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Banque</p>
+                  <p className="font-semibold">{settings.bank_name}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -196,14 +208,14 @@ export default async function DonsPage() {
           <div className="space-y-2">
             <p>
               <strong>Email :</strong>{' '}
-              <a href="mailto:dons@mosque-madretsch.ch" className="text-primary hover:underline">
-                dons@mosque-madretsch.ch
+              <a href={`mailto:${settings.donation_email || settings.contact_email}`} className="text-primary hover:underline">
+                {settings.donation_email || settings.contact_email}
               </a>
             </p>
             <p>
               <strong>Téléphone :</strong>{' '}
-              <a href="tel:0123456789" className="text-primary hover:underline">
-                01 23 45 67 89
+              <a href={`tel:${settings.contact_phone?.replace(/\s/g, '')}`} className="text-primary hover:underline">
+                {settings.contact_phone}
               </a>
             </p>
           </div>

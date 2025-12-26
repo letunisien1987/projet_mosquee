@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import Providers from "@/components/Providers";
+import { getSettings } from "@/lib/settings";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,17 +17,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Mosquée Madretsch - Prière, Communauté, Spiritualité",
-  description: "Mosquée Madretsch Biel/Bienne : horaires des prières, activités communautaires, cours d'arabe et de Coran, événements et services pour la communauté musulmane.",
-  keywords: ["mosquée", "islam", "prière", "coran", "communauté musulmane", "horaires salat", "biel", "bienne"],
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings()
 
-export default function RootLayout({
+  return {
+    title: `${settings.name} - Prière, Communauté, Spiritualité`,
+    description: `${settings.name} ${settings.address_city} : horaires des prières, activités communautaires, cours d'arabe et de Coran, événements et services pour la communauté musulmane.`,
+    keywords: ["mosquée", "islam", "prière", "coran", "communauté musulmane", "horaires salat", settings.address_city?.toLowerCase() || "biel"].filter(Boolean),
+  }
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getSettings()
+
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
@@ -36,10 +43,11 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
+        suppressHydrationWarning
       >
         <Providers>
           <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
-            <Navbar />
+            <Navbar mosqueName={settings.name} />
             <main className="flex-1">
               {children}
             </main>

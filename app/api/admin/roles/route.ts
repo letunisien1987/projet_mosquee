@@ -25,7 +25,7 @@ export async function GET() {
     await initializeDefaultPermissions()
 
     // Obtenir les permissions pour chaque rôle (sauf MEMBER)
-    const roles = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER'] as UserRole[]
+    const roles = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER', 'TRESORIER'] as UserRole[]
     const rolesWithPermissions = await Promise.all(
       roles.map(async (role) => ({
         role,

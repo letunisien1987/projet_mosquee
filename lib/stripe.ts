@@ -7,6 +7,7 @@
  */
 
 import Stripe from 'stripe'
+import { getSettings, getDonationPresets, DEFAULT_SETTINGS } from './settings'
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error(
@@ -22,14 +23,35 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 })
 
 /**
- * Configuration des prix (montants en centimes)
+ * Configuration des prix par défaut (montants en centimes)
+ * Ces valeurs sont utilisées comme fallback si les settings ne sont pas disponibles
  */
-export const DONATION_PRESETS = {
-  small: 2000,    // 20 CHF
-  medium: 5000,   // 50 CHF
-  large: 10000,   // 100 CHF
-  xlarge: 20000,  // 200 CHF
+export const DEFAULT_DONATION_PRESETS = {
+  small: DEFAULT_SETTINGS.donation_preset_1!,    // 20 CHF
+  medium: DEFAULT_SETTINGS.donation_preset_2!,   // 50 CHF
+  large: DEFAULT_SETTINGS.donation_preset_3!,    // 100 CHF
+  xlarge: DEFAULT_SETTINGS.donation_preset_4!,   // 200 CHF
 }
+
+/**
+ * Récupère les presets de dons depuis les settings (async)
+ */
+export async function getDonationPresetsFromSettings() {
+  const settings = await getSettings()
+  const presets = getDonationPresets(settings)
+  return {
+    small: presets[0],
+    medium: presets[1],
+    large: presets[2],
+    xlarge: presets[3],
+  }
+}
+
+/**
+ * Configuration des prix (legacy - pour compatibilité)
+ * @deprecated Utiliser getDonationPresetsFromSettings() pour les valeurs dynamiques
+ */
+export const DONATION_PRESETS = DEFAULT_DONATION_PRESETS
 
 /**
  * Devise utilisée

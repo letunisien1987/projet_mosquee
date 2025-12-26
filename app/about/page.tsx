@@ -1,16 +1,21 @@
 import { Heart, Target, Users, Award, BookOpen, HandHeart } from 'lucide-react'
 import { getTeamMembers, getDirectusImageUrl } from '@/lib/directus'
 import { getMawaqitServices } from '@/lib/mawaqit'
+import { getSettings, getMosqueStats } from '@/lib/settings'
 import MosqueServices from '@/components/MosqueServices'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AboutPage() {
-  // Récupérer les membres de l'équipe depuis Directus
-  const teamMembers = await getTeamMembers()
+  // Récupérer les données
+  const [teamMembers, services, settings] = await Promise.all([
+    getTeamMembers(),
+    getMawaqitServices(),
+    getSettings(),
+  ])
 
-  // Récupérer les services depuis Mawaqit
-  const services = await getMawaqitServices()
+  // Obtenir les statistiques depuis les settings
+  const stats = getMosqueStats(settings)
 
   const values = [
     {
@@ -31,7 +36,7 @@ export default async function AboutPage() {
     {
       icon: Users,
       title: 'Communauté',
-      description: 'Créer un espace accueillant pour tous les musulmans de Biel/Bienne',
+      description: `Créer un espace accueillant pour tous les musulmans de ${settings.address_city}`,
     },
   ]
 
@@ -40,7 +45,7 @@ export default async function AboutPage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary to-primary-dark text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">À Propos de la Mosquée Madretsch</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-6">À Propos de {settings.name}</h1>
           <p className="text-xl text-white/90 max-w-3xl mx-auto">
             Une communauté unie par la foi, l'apprentissage et le service
           </p>
@@ -57,9 +62,9 @@ export default async function AboutPage() {
             </h2>
             <div className="space-y-4 text-gray-700 dark:text-gray-300">
               <p>
-                La Mosquée Madretsch a été fondée par un groupe de musulmans dévoués
+                {settings.name} a été fondée par un groupe de musulmans dévoués
                 cherchant à créer un lieu de culte et de rassemblement pour la communauté
-                musulmane de Biel/Bienne et de ses environs.
+                musulmane de {settings.address_city} et de ses environs.
               </p>
               <p>
                 Depuis nos modestes débuts dans un petit local de prière, nous avons grandi
@@ -68,11 +73,11 @@ export default async function AboutPage() {
               </p>
               <p>
                 Grâce à la générosité de nos membres et de nos donateurs, nous avons
-                pu acquérir notre bâtiment actuel au Madretschstrasse 64, nous permettant
+                pu acquérir notre bâtiment actuel au {settings.address_street}, nous permettant
                 d&apos;étendre considérablement nos services et nos activités communautaires.
               </p>
               <p>
-                Aujourd&apos;hui, la Mosquée Madretsch est bien plus qu&apos;un simple lieu de prière.
+                Aujourd&apos;hui, {settings.name} est bien plus qu&apos;un simple lieu de prière.
                 C&apos;est un centre d&apos;apprentissage, de culture et de solidarité qui sert la
                 communauté musulmane dans toute sa diversité.
               </p>
@@ -81,19 +86,19 @@ export default async function AboutPage() {
           <div className="bg-primary/5 rounded-xl p-8 border border-primary/20">
             <div className="space-y-6">
               <div>
-                <div className="text-4xl font-bold text-primary mb-2">1995</div>
+                <div className="text-4xl font-bold text-primary mb-2">{stats.foundingYear}</div>
                 <div className="text-gray-700 dark:text-gray-300">Année de fondation</div>
               </div>
               <div>
-                <div className="text-4xl font-bold text-primary mb-2">500+</div>
+                <div className="text-4xl font-bold text-primary mb-2">{stats.regularAttendees}</div>
                 <div className="text-gray-700 dark:text-gray-300">Fidèles réguliers</div>
               </div>
               <div>
-                <div className="text-4xl font-bold text-primary mb-2">25+</div>
+                <div className="text-4xl font-bold text-primary mb-2">{stats.programs}</div>
                 <div className="text-gray-700 dark:text-gray-300">Programmes et activités</div>
               </div>
               <div>
-                <div className="text-4xl font-bold text-primary mb-2">150+</div>
+                <div className="text-4xl font-bold text-primary mb-2">{stats.students}</div>
                 <div className="text-gray-700 dark:text-gray-300">Étudiants en cours d'arabe et de Coran</div>
               </div>
             </div>

@@ -25,6 +25,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AdminPermission[]> = {
     'MANAGE_DONATIONS',
     'VIEW_MEMBERSHIPS',
     'MANAGE_MEMBERSHIPS',
+    'REFUND_MEMBERSHIPS',
     // Communication
     'VIEW_MESSAGES',
     'MANAGE_MESSAGES',
@@ -85,6 +86,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AdminPermission[]> = {
     'VIEW_ENROLLMENTS',
     'MANAGE_ENROLLMENTS',
   ],
+  TRESORIER: [
+    // Gestion financière
+    'VIEW_DONATIONS',
+    'MANAGE_DONATIONS',
+    'VIEW_MEMBERSHIPS',
+    'MANAGE_MEMBERSHIPS',
+    'REFUND_MEMBERSHIPS',
+    // Lecture des membres
+    'VIEW_MEMBERS',
+  ],
   MEMBER: [
     // Aucun accès admin par défaut
   ],
@@ -106,7 +117,7 @@ export const PERMISSION_CATEGORIES = {
   },
   finance: {
     label: 'Finances',
-    permissions: ['VIEW_DONATIONS', 'MANAGE_DONATIONS', 'VIEW_MEMBERSHIPS', 'MANAGE_MEMBERSHIPS'],
+    permissions: ['VIEW_DONATIONS', 'MANAGE_DONATIONS', 'VIEW_MEMBERSHIPS', 'MANAGE_MEMBERSHIPS', 'REFUND_MEMBERSHIPS'],
   },
   communication: {
     label: 'Communication',
@@ -139,6 +150,7 @@ export const PERMISSION_LABELS: Record<AdminPermission, string> = {
   MANAGE_DONATIONS: 'Gérer les dons',
   VIEW_MEMBERSHIPS: 'Voir les cotisations',
   MANAGE_MEMBERSHIPS: 'Gérer les cotisations',
+  REFUND_MEMBERSHIPS: 'Rembourser les cotisations',
   VIEW_MESSAGES: 'Voir les messages',
   MANAGE_MESSAGES: 'Gérer les messages',
   VIEW_SERVICES: 'Voir les services',
@@ -157,6 +169,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   TEACHER: 'Enseignant',
   STAFF: 'Personnel',
   MANAGER: 'Gestionnaire',
+  TRESORIER: 'Trésorier',
   MEMBER: 'Membre',
 }
 

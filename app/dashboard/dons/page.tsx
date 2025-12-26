@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Heart, Calendar, Download, TrendingUp, FileText } from 'lucide-react'
 import Link from 'next/link'
+import type { Donation } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,18 +15,25 @@ export default async function DonsPage() {
     redirect('/connexion')
   }
 
-  // Récupérer TOUS les dons liés à cet utilisateur :
-  // 1. Dons avec userId (quand l'utilisateur était connecté)
-  // 2. Dons avec email (dons faits AVANT la création du compte)
-  const donations = await prisma.donation.findMany({
-    where: {
-      OR: [
-        { userId: session.user.id },
-        { email: session.user.email || '' },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  let donations: Donation[] = []
+
+  try {
+    // Récupérer TOUS les dons liés à cet utilisateur :
+    // 1. Dons avec userId (quand l'utilisateur était connecté)
+    // 2. Dons avec email (dons faits AVANT la création du compte)
+    donations = await prisma.donation.findMany({
+      where: {
+        OR: [
+          { userId: session.user.id },
+          { email: session.user.email || '' },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (error) {
+    console.error('Erreur lors de la récupération des dons:', error)
+    // Continue with empty donations array
+  }
 
   const stats = {
     total: donations.reduce((sum, d) => sum + d.amount, 0),
@@ -104,7 +112,7 @@ export default async function DonsPage() {
             </div>
           </div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-            {stats.lastDonation ? new Date(stats.lastDonation).toLocaleDateString('fr-FR') : '-'}
+            {stats.lastDonation ? new Date(stats.lastDonation).toLocaleDateString('fr-CH') : '-'}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Dernier don
@@ -186,7 +194,7 @@ export default async function DonsPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-sm text-gray-900 dark:text-white">
                         <Calendar className="h-4 w-4 text-gray-400" />
-                        {new Date(donation.createdAt).toLocaleDateString('fr-FR')}
+                        {new Date(donation.createdAt).toLocaleDateString('fr-CH')}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -214,7 +222,7 @@ export default async function DonsPage() {
                       </span>
                       {donation.receiptSent && donation.receiptSentAt && (
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {new Date(donation.receiptSentAt).toLocaleDateString('fr-FR')}
+                          {new Date(donation.receiptSentAt).toLocaleDateString('fr-CH')}
                         </div>
                       )}
                     </td>

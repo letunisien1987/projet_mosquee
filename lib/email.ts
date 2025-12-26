@@ -1,11 +1,18 @@
 import { Resend } from 'resend'
-
-// Constantes
-const MOSQUE_NAME = 'Mosquée Madretsch'
+import { getSettings, type MosqueSettings } from './settings'
 
 // Helper pour obtenir l'email FROM de façon dynamique
 function getFromEmail(): string {
   return process.env.EMAIL_FROM || 'noreply@mosquee-madretsch.ch'
+}
+
+// Cache des settings pour les emails
+let cachedSettings: MosqueSettings | null = null
+async function getEmailSettings(): Promise<MosqueSettings> {
+  if (!cachedSettings) {
+    cachedSettings = await getSettings()
+  }
+  return cachedSettings
 }
 
 // Lazy initialization de Resend pour supporter les scripts
@@ -50,7 +57,13 @@ export async function sendEmail(data: EmailData) {
 
     const result = await client.emails.send(emailData)
 
-    console.log('✅ Email envoyé avec succès:', result)
+    // Vérifier si Resend a retourné une erreur (rate limit, etc.)
+    if (result.error) {
+      console.error('❌ Erreur Resend:', result.error)
+      return { success: false, error: result.error }
+    }
+
+    console.log('✅ Email envoyé avec succès:', result.data?.id)
     return { success: true, data: result }
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi de l\'email:', error)
@@ -61,14 +74,18 @@ export async function sendEmail(data: EmailData) {
 /**
  * Template de base pour les emails
  */
-function getEmailTemplate(content: string): string {
+function getEmailTemplate(content: string, settings: MosqueSettings): string {
+  const mosqueName = settings.name || 'Mosquée Madretsch'
+  const address = `${settings.address_street || 'Rue Centrale 49'}, ${settings.address_postal_code || '2503'} ${settings.address_city || 'Bienne'}`
+  const contactEmail = settings.contact_email || 'info@mosquee-madretsch.ch'
+
   return `
     <!DOCTYPE html>
     <html lang="fr" dir="ltr">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${MOSQUE_NAME}</title>
+      <title>${mosqueName}</title>
     </head>
     <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
@@ -78,8 +95,8 @@ function getEmailTemplate(content: string): string {
               <!-- Header -->
               <tr>
                 <td style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 30px 20px; text-align: center;">
-                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${MOSQUE_NAME}</h1>
-                  <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">Association Musulmane de Bienne</p>
+                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${mosqueName}</h1>
+                  <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">Association Musulmane de ${settings.address_city || 'Bienne'}</p>
                 </td>
               </tr>
 
@@ -90,17 +107,27 @@ function getEmailTemplate(content: string): string {
                 </td>
               </tr>
 
-              <!-- Footer -->
+              <!-- Footer with Grid Pattern -->
               <tr>
-                <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                  <p style="margin: 0; color: #6b7280; font-size: 12px;">
-                    ${MOSQUE_NAME}<br>
-                    Rue Centrale 49, 2503 Bienne<br>
-                    <a href="mailto:info@mosquee-madretsch.ch" style="color: #DC2626; text-decoration: none;">info@mosquee-madretsch.ch</a>
-                  </p>
-                  <p style="margin: 15px 0 0 0; color: #9ca3af; font-size: 11px;">
-                    Vous recevez cet email car vous êtes membre de notre mosquée.
-                  </p>
+                <td style="background-color: #DC2626; padding: 0;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 20px 20px;">
+                    <tr>
+                      <td style="padding: 25px 30px; text-align: center;">
+                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 13px; font-weight: 500;">
+                          ${mosqueName}
+                        </p>
+                        <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.75); font-size: 12px;">
+                          ${address}
+                        </p>
+                        <p style="margin: 8px 0 0 0;">
+                          <a href="mailto:${contactEmail}" style="color: #ffffff; text-decoration: none; font-size: 12px;">${contactEmail}</a>
+                        </p>
+                        <p style="margin: 15px 0 0 0; color: rgba(255,255,255,0.5); font-size: 11px;">
+                          Vous recevez cet email car vous êtes membre de notre mosquée.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>
@@ -116,6 +143,7 @@ function getEmailTemplate(content: string): string {
  * Email de bienvenue après inscription
  */
 export async function sendWelcomeEmail(to: string, firstName: string) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">Bienvenue ${firstName}!</h2>
 
@@ -124,7 +152,7 @@ export async function sendWelcomeEmail(to: string, firstName: string) {
     </p>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
-      Votre compte a été créé avec succès sur l'espace membre de ${MOSQUE_NAME}.
+      Votre compte a été créé avec succès sur l'espace membre de ${settings.name || 'Mosquée Madretsch'}.
     </p>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
@@ -154,8 +182,8 @@ export async function sendWelcomeEmail(to: string, firstName: string) {
 
   return sendEmail({
     to,
-    subject: `Bienvenue sur l'espace membre - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Bienvenue sur l'espace membre - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -168,6 +196,7 @@ export async function sendEnrollmentConfirmationEmail(
   activityTitle: string,
   status: 'PENDING' | 'ACTIVE'
 ) {
+  const settings = await getEmailSettings()
   const isPending = status === 'PENDING'
 
   const content = `
@@ -215,7 +244,7 @@ export async function sendEnrollmentConfirmationEmail(
   return sendEmail({
     to,
     subject: `${isPending ? 'Inscription reçue' : 'Inscription confirmée'} - ${activityTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -228,6 +257,7 @@ export async function sendEventRegistrationEmail(
   eventTitle: string,
   eventDate: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">Inscription confirmée</h2>
 
@@ -265,7 +295,7 @@ export async function sendEventRegistrationEmail(
   return sendEmail({
     to,
     subject: `Inscription confirmée - ${eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -278,6 +308,7 @@ export async function sendEventPendingApprovalEmail(data: {
   eventTitle: string
   eventDate?: string
 }) {
+  const settings = await getEmailSettings()
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'À confirmer'
     try {
@@ -350,7 +381,7 @@ export async function sendEventPendingApprovalEmail(data: {
   return sendEmail({
     to: data.email,
     subject: `⏳ Inscription reçue - ${data.eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -363,6 +394,7 @@ export async function sendDonationConfirmationEmail(
   amount: number,
   projectName?: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">Merci pour votre don</h2>
 
@@ -404,8 +436,8 @@ export async function sendDonationConfirmationEmail(
 
   return sendEmail({
     to,
-    subject: `Confirmation de don - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Confirmation de don - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -423,6 +455,7 @@ export async function sendDonationReceipt(donation: {
   createdAt: Date
   userId: string | null
 }) {
+  const settings = await getEmailSettings()
   const donorName = `${donation.firstName} ${donation.lastName}`
   const amount = donation.amount.toFixed(2)
   const date = new Date(donation.createdAt).toLocaleDateString('fr-FR', {
@@ -512,8 +545,8 @@ export async function sendDonationReceipt(donation: {
 
   return sendEmail({
     to: donation.email,
-    subject: `Reçu de don - ${amount} CHF - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Reçu de don - ${amount} CHF - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -525,6 +558,7 @@ export async function sendEventCancellationEmail(
   firstName: string,
   eventTitle: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #dc2626; margin: 0 0 20px 0;">Inscription annulée</h2>
 
@@ -561,7 +595,7 @@ export async function sendEventCancellationEmail(
   return sendEmail({
     to,
     subject: `Annulation d'inscription - ${eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -574,6 +608,7 @@ export async function sendDonationThankYouEmail(
   amount: number,
   donationType: string
 ) {
+  const settings = await getEmailSettings()
   const typeLabels: Record<string, string> = {
     ZAKAT: 'Zakat',
     SADAQA: 'Sadaqa',
@@ -624,8 +659,8 @@ export async function sendDonationThankYouEmail(
 
   return sendEmail({
     to,
-    subject: `Merci pour votre don - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Merci pour votre don - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -637,6 +672,7 @@ export async function sendServiceRequestConfirmationEmail(
   firstName: string,
   serviceType: string
 ) {
+  const settings = await getEmailSettings()
   const serviceLabels: Record<string, string> = {
     MARRIAGE: 'Mariage',
     FUNERAL: 'Funérailles',
@@ -680,7 +716,7 @@ export async function sendServiceRequestConfirmationEmail(
   return sendEmail({
     to,
     subject: `Demande de service reçue - ${serviceLabels[serviceType] || serviceType}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -691,6 +727,7 @@ export async function sendContactMessageConfirmationEmail(
   to: string,
   firstName: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">Message bien reçu</h2>
 
@@ -726,8 +763,8 @@ export async function sendContactMessageConfirmationEmail(
 
   return sendEmail({
     to,
-    subject: `Message reçu - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Message reçu - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -742,6 +779,7 @@ export async function sendNotificationEmail(
   ctaText?: string,
   ctaLink?: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">${title}</h2>
 
@@ -770,7 +808,7 @@ export async function sendNotificationEmail(
   return sendEmail({
     to,
     subject: title,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -790,6 +828,7 @@ export async function sendEventRegistrationConfirmation(data: {
   registrationId: string
   hasAccount: boolean
 }) {
+  const settings = await getEmailSettings()
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'À confirmer'
     try {
@@ -917,7 +956,7 @@ export async function sendEventRegistrationConfirmation(data: {
   return sendEmail({
     to: data.email,
     subject: `✅ Inscription confirmée - ${data.eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -930,64 +969,60 @@ export async function sendMembershipApplicationReceived(data: {
   membershipType?: string
   requestId?: string
 }) {
+  const settings = await getEmailSettings()
   const membershipTypeLabel = data.membershipType === 'ACTIF'
     ? 'Membre Actif (avec droit de vote)'
     : 'Membre Passif'
 
   const content = `
-    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
-      <h3 style="color: #1e40af; margin: 0 0 10px 0; font-size: 18px;">
-        📬 Demande bien reçue
-      </h3>
-      <p style="color: #1e3a8a; margin: 0; font-size: 14px;">
-        Votre demande d'adhésion est en cours de traitement.
-      </p>
-    </div>
-
-    <h2 style="color: #DC2626; margin: 0 0 20px 0;">
-      Demande d'adhésion à ${MOSQUE_NAME}
-    </h2>
-
-    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
       Assalamu alaikum ${data.firstName},
     </p>
 
-    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
       Nous avons bien reçu votre demande d'adhésion en tant que <strong>${membershipTypeLabel}</strong> et nous vous en remercions.
     </p>
 
-    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
-      <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">📋 Prochaines étapes</h3>
-      <ol style="margin: 0; padding-left: 20px; color: #374151; line-height: 1.8;">
-        <li>Notre équipe va examiner votre demande</li>
-        <li>Vous recevrez une réponse par email sous 3 à 5 jours ouvrables</li>
-        <li>Si votre demande est approuvée, vous recevrez un lien de paiement sécurisé</li>
-        <li>Après paiement, votre compte membre sera activé immédiatement</li>
-      </ol>
-    </div>
+    <p style="color: #6b7280; font-size: 14px; font-weight: 600; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+      Prochaines étapes
+    </p>
 
-    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 0 0 25px 0; border-radius: 6px;">
-      <p style="color: #92400e; margin: 0; font-size: 14px;">
-        ⏳ <strong>Pas d'action requise de votre part pour le moment.</strong><br>
-        Nous vous contacterons dès que votre demande aura été examinée.
-      </p>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #374151; font-size: 14px;">
+          1. Notre équipe va examiner votre demande
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #374151; font-size: 14px;">
+          2. Vous recevrez une réponse par email sous 3 à 5 jours ouvrables
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #374151; font-size: 14px;">
+          3. Si approuvée, vous recevrez un lien de paiement sécurisé
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; color: #374151; font-size: 14px;">
+          4. Après paiement, votre compte membre sera activé
+        </td>
+      </tr>
+    </table>
 
-    <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0 0 0;">
-      <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
-        "La meilleure des gens est celle qui est la plus utile aux gens" (Hadith)
-      </p>
-    </div>
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0 0 25px 0; padding: 15px; background-color: #f9fafb; border-radius: 4px;">
+      Pas d'action requise de votre part pour le moment. Nous vous contacterons dès que votre demande aura été examinée.
+    </p>
 
-    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+    <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0;">
       Barakallahou fikoum.
     </p>
   `
 
   return sendEmail({
     to: data.email,
-    subject: `Demande d'adhésion reçue - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Demande d'adhésion reçue - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1002,6 +1037,7 @@ export async function sendMembershipApproved(data: {
   paymentUrl: string
   expiresAt: Date
 }) {
+  const settings = await getEmailSettings()
   const membershipTypeLabel = data.membershipType === 'ACTIF'
     ? 'Membre Actif (avec droit de vote)'
     : 'Membre Passif'
@@ -1026,7 +1062,7 @@ export async function sendMembershipApproved(data: {
     </div>
 
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">
-      Bienvenue à ${MOSQUE_NAME} !
+      Bienvenue à ${settings.name || 'Mosquée Madretsch'} !
     </h2>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
@@ -1102,7 +1138,7 @@ export async function sendMembershipApproved(data: {
   return sendEmail({
     to: data.email,
     subject: `✅ Demande approuvée - Finalisez votre adhésion`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1114,6 +1150,7 @@ export async function sendMembershipRejected(data: {
   firstName: string
   reason: string
 }) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">
       Suite à votre demande d'adhésion
@@ -1124,7 +1161,7 @@ export async function sendMembershipRejected(data: {
     </p>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
-      Nous vous remercions pour l'intérêt que vous portez à ${MOSQUE_NAME}.
+      Nous vous remercions pour l'intérêt que vous portez à ${settings.name || 'Mosquée Madretsch'}.
     </p>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
@@ -1175,8 +1212,8 @@ export async function sendMembershipRejected(data: {
 
   return sendEmail({
     to: data.email,
-    subject: `Suite à votre demande d'adhésion - ${MOSQUE_NAME}`,
-    html: getEmailTemplate(content),
+    subject: `Suite à votre demande d'adhésion - ${settings.name || 'Mosquée Madretsch'}`,
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1191,6 +1228,7 @@ export async function sendMembershipWelcome(data: {
   endDate: Date
   isNewAccount: boolean
 }) {
+  const settings = await getEmailSettings()
   const membershipTypeLabel = data.membershipType === 'ACTIF'
     ? 'Membre Actif'
     : 'Membre Passif'
@@ -1218,7 +1256,7 @@ export async function sendMembershipWelcome(data: {
     </div>
 
     <h2 style="color: #DC2626; margin: 0 0 20px 0;">
-      Bienvenue à ${MOSQUE_NAME}
+      Bienvenue à ${settings.name || 'Mosquée Madretsch'}
     </h2>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
@@ -1226,7 +1264,7 @@ export async function sendMembershipWelcome(data: {
     </p>
 
     <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
-      Nous sommes heureux de vous accueillir officiellement en tant que <strong>${membershipTypeLabel}</strong> de ${MOSQUE_NAME}.
+      Nous sommes heureux de vous accueillir officiellement en tant que <strong>${membershipTypeLabel}</strong> de ${settings.name || 'Mosquée Madretsch'}.
     </p>
 
     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
@@ -1310,7 +1348,7 @@ export async function sendMembershipWelcome(data: {
 
     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
       <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
-        En cas de question, contactez-nous à <a href="mailto:info@mosquee-madretsch.ch" style="color: #DC2626;">info@mosquee-madretsch.ch</a>
+        En cas de question, contactez-nous à <a href="mailto:${settings.contact_email || 'info@mosquee-madretsch.ch'}" style="color: #DC2626;">${settings.contact_email || 'info@mosquee-madretsch.ch'}</a>
       </p>
     </div>
   `
@@ -1318,7 +1356,7 @@ export async function sendMembershipWelcome(data: {
   return sendEmail({
     to: data.email,
     subject: `🎉 Bienvenue - Votre adhésion est active !`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1334,6 +1372,7 @@ export async function sendEnrollmentPaymentRequest(data: {
   paymentUrl: string
   expiresAt: Date
 }) {
+  const settings = await getEmailSettings()
   const expirationDate = new Date(data.expiresAt).toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -1406,7 +1445,7 @@ export async function sendEnrollmentPaymentRequest(data: {
   return sendEmail({
     to: data.email,
     subject: `✅ Inscription approuvée - Finalisez le paiement pour "${data.activityTitle}"`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1421,6 +1460,7 @@ export async function sendEnrollmentPaymentConfirmation(data: {
   amount: number
   enrollmentId: string
 }) {
+  const settings = await getEmailSettings()
   const content = `
     <div style="background-color: #FEE2E2; border-left: 4px solid #EF4444; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
       <h3 style="color: #B91C1C; margin: 0 0 10px 0; font-size: 18px;">
@@ -1492,7 +1532,7 @@ export async function sendEnrollmentPaymentConfirmation(data: {
   return sendEmail({
     to: data.email,
     subject: `🎉 Paiement confirmé - ${data.activityTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1511,6 +1551,7 @@ export async function sendEventPaymentRequest(data: {
   paymentUrl: string
   registrationId: string
 }) {
+  const settings = await getEmailSettings()
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'À confirmer'
     try {
@@ -1605,7 +1646,7 @@ export async function sendEventPaymentRequest(data: {
   return sendEmail({
     to: data.email,
     subject: `💳 Paiement en attente - ${data.eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1617,6 +1658,7 @@ export async function sendEnrollmentApprovalEmail(
   firstName: string,
   activityTitle: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #059669; font-size: 24px; margin-bottom: 20px;">
       ✅ Inscription Confirmée
@@ -1654,7 +1696,7 @@ export async function sendEnrollmentApprovalEmail(
   return sendEmail({
     to: email,
     subject: `✅ Inscription confirmée - ${activityTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1667,6 +1709,7 @@ export async function sendEnrollmentRejectionEmail(
   activityTitle: string,
   reason?: string
 ) {
+  const settings = await getEmailSettings()
   const content = `
     <h2 style="color: #dc2626; font-size: 24px; margin-bottom: 20px;">
       Inscription non retenue
@@ -1710,7 +1753,7 @@ export async function sendEnrollmentRejectionEmail(
   return sendEmail({
     to: email,
     subject: `Inscription à ${activityTitle} - Réponse`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1729,6 +1772,7 @@ export async function sendPaymentReceivedToManager(data: {
   amount: number
   registrationId: string
 }) {
+  const settings = await getEmailSettings()
   const content = `
     <div style="background-color: #D1FAE5; border-left: 4px solid #059669; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
       <h3 style="color: #065F46; margin: 0 0 10px 0; font-size: 18px;">
@@ -1787,7 +1831,7 @@ export async function sendPaymentReceivedToManager(data: {
   return sendEmail({
     to: data.managerEmail,
     subject: `✅ Paiement reçu - ${data.eventTitle} - ${data.participantName}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
   })
 }
 
@@ -1804,6 +1848,7 @@ export async function sendNewRegistrationToManager(data: {
   requiresPayment: boolean
   status: string
 }) {
+  const settings = await getEmailSettings()
   const participationLabel = data.participationType === 'FAMILY' ? 'Inscription familiale' : 'Inscription individuelle'
   const statusLabel = {
     PENDING: 'En attente d\'approbation',
@@ -1887,6 +1932,90 @@ export async function sendNewRegistrationToManager(data: {
   return sendEmail({
     to: data.managerEmail,
     subject: `🆕 Nouvelle inscription - ${data.eventTitle}`,
-    html: getEmailTemplate(content),
+    html: getEmailTemplate(content, settings),
+  })
+}
+
+/**
+ * Email de notification aux admins pour nouvelle demande d'adhésion
+ */
+export async function sendMembershipRequestNotificationToAdmin(data: {
+  adminEmail: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  membershipType: string
+  createdAt: Date
+  requestId: string
+}) {
+  const settings = await getEmailSettings()
+  const typeLabel = data.membershipType === 'ACTIF' ? 'Membre Actif (avec droit de vote)' :
+                    data.membershipType === 'PASSIF' ? 'Membre Passif' : data.membershipType
+
+  const content = `
+    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+      Une nouvelle demande d'adhésion a été soumise et nécessite votre examen.
+    </p>
+
+    <!-- Informations du demandeur -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 120px;">Nom</span>
+          <span style="color: #111827; font-size: 14px; font-weight: 600;">${data.firstName} ${data.lastName}</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 120px;">Email</span>
+          <a href="mailto:${data.email}" style="color: #111827; font-size: 14px; text-decoration: none;">${data.email}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 120px;">Téléphone</span>
+          <a href="tel:${data.phone}" style="color: #111827; font-size: 14px; text-decoration: none;">${data.phone}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 120px;">Type</span>
+          <span style="color: #111827; font-size: 14px;">${typeLabel}</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 120px;">Date</span>
+          <span style="color: #111827; font-size: 14px;">${new Date(data.createdAt).toLocaleDateString('fr-FR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })}</span>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Bouton -->
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding: 0 0 30px 0;">
+          <a href="${process.env.NEXTAUTH_URL}/dashboard/admin/adhesions"
+             style="display: inline-block; background-color: #DC2626; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 14px;">
+            Examiner la demande
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+      Vous recevez cet email car vous avez les droits de gestion des adhésions.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.adminEmail,
+    subject: `Nouvelle demande d'adhésion - ${data.firstName} ${data.lastName}`,
+    html: getEmailTemplate(content, settings),
   })
 }

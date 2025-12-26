@@ -12,6 +12,7 @@ interface DonationProjectCardProps {
   goalAmount: number
   currentAmount: number
   raisenowCode?: string // Code RaiseNow unique (ex: zsmgy)
+  presetAmounts?: number[] // Montants prédéfinis en centimes (depuis settings)
 }
 
 export default function DonationProjectCard({
@@ -22,6 +23,7 @@ export default function DonationProjectCard({
   goalAmount,
   currentAmount,
   raisenowCode,
+  presetAmounts,
 }: DonationProjectCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -96,6 +98,7 @@ export default function DonationProjectCard({
         onClose={() => setIsModalOpen(false)}
         projectId={id}
         projectTitle={title}
+        presetAmounts={presetAmounts}
       />
     </>
   )

@@ -1,19 +1,36 @@
 import Link from 'next/link'
 import { Facebook, Instagram, Youtube, Mail, Phone, MapPin, Building2 } from 'lucide-react'
+import { getSettings } from '@/lib/settings'
 
-export function Footer() {
+export async function Footer() {
+  const settings = await getSettings()
+
+  // Construire l'adresse formatée
+  const formattedAddress = `${settings.address_street}, ${settings.address_postal_code} ${settings.address_city}`
+
   return (
-    <footer className="bg-primary text-white mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <footer className="bg-primary text-white mt-auto relative overflow-hidden">
+      {/* Background Grid Pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, white 1px, transparent 1px),
+            linear-gradient(to bottom, white 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px'
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* À propos */}
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Building2 className="h-6 w-6" />
-              <h3 className="font-bold text-lg">Mosquée Madretsch</h3>
+              <h3 className="font-bold text-lg">{settings.name}</h3>
             </div>
             <p className="text-white/80 text-sm">
-              La Mosquée Madretsch n'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire.
+              {settings.description || `${settings.name} n'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire.`}
             </p>
           </div>
 
@@ -50,15 +67,15 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2 text-white/80">
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Madretschstrasse 64, 2503 Biel/Bienne</span>
+                <span>{formattedAddress}</span>
               </li>
               <li className="flex items-center gap-2 text-white/80">
                 <Phone className="h-4 w-4 flex-shrink-0" />
-                <span>032 322 89 89</span>
+                <span>{settings.contact_phone}</span>
               </li>
               <li className="flex items-center gap-2 text-white/80">
                 <Mail className="h-4 w-4 flex-shrink-0" />
-                <span>info@mosque-madretsch.ch</span>
+                <span>{settings.contact_email}</span>
               </li>
             </ul>
           </div>
@@ -67,39 +84,45 @@ export function Footer() {
           <div>
             <h3 className="font-bold text-lg mb-4">Suivez-nous</h3>
             <div className="flex gap-4">
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Facebook"
-              >
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Instagram"
-              >
-                <Instagram className="h-5 w-5" />
-              </a>
-              <a
-                href="https://youtube.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="YouTube"
-              >
-                <Youtube className="h-5 w-5" />
-              </a>
+              {settings.social_facebook && (
+                <a
+                  href={settings.social_facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  aria-label="Facebook"
+                >
+                  <Facebook className="h-5 w-5" />
+                </a>
+              )}
+              {settings.social_instagram && (
+                <a
+                  href={settings.social_instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  aria-label="Instagram"
+                >
+                  <Instagram className="h-5 w-5" />
+                </a>
+              )}
+              {settings.social_youtube && (
+                <a
+                  href={settings.social_youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  aria-label="YouTube"
+                >
+                  <Youtube className="h-5 w-5" />
+                </a>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-white/60">
-          <p>&copy; {new Date().getFullYear()} Mosquée Madretsch. Tous droits réservés.</p>
+          <p>&copy; {new Date().getFullYear()} {settings.name}. Tous droits réservés.</p>
         </div>
       </div>
     </footer>

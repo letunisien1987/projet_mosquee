@@ -2,12 +2,16 @@ import { Clock, Calendar } from 'lucide-react'
 import { getMonthlyPrayerTimes, getPrayerTimes, getNextPrayer } from '@/lib/prayer-times'
 import { getMawaqitJumuahTimes } from '@/lib/mawaqit'
 import { PrayerCountdown } from '@/components/PrayerCountdown'
+import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HorairesPage() {
-  const monthlyPrayers = await getMonthlyPrayerTimes()
-  const todayPrayers = await getPrayerTimes()
+  const [monthlyPrayers, todayPrayers, settings] = await Promise.all([
+    getMonthlyPrayerTimes(),
+    getPrayerTimes(),
+    getSettings(),
+  ])
   const nextPrayer = getNextPrayer(todayPrayers.timings)
 
   // Récupérer horaires Joumou'a depuis Mawaqit
@@ -28,7 +32,7 @@ export default async function HorairesPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Horaires des Prières</h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
-            Consultez les horaires mensuels des prières de la Mosquée Madretsch (Bienne, Suisse)
+            Consultez les horaires mensuels des prières de {settings.name} ({settings.address_city}, Suisse)
           </p>
         </div>
 
@@ -129,7 +133,7 @@ export default async function HorairesPage() {
           <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Les horaires officiels de la Mosquée Madretsch (Bienne, Suisse)</span>
+              <span>Les horaires officiels de {settings.name} ({settings.address_city}, Suisse)</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>

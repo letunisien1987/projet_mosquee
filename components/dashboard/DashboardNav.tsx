@@ -11,7 +11,6 @@ import {
   Users,
   BookOpen,
   Heart,
-  Calendar,
   CreditCard,
   FileText,
   Settings,
@@ -22,19 +21,12 @@ import {
   Shield,
   LayoutGrid,
   LayoutDashboard,
-  DollarSign,
   MessageSquare,
-  BookOpenText,
   UserPlus,
-  GraduationCap,
-  PartyPopper,
   Mail,
   HandHeart,
-  Wallet,
   ChevronDown,
   ChevronRight,
-  CalendarPlus,
-  BookPlus,
   ClipboardCheck,
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -70,16 +62,14 @@ const personalNavigation: NavItem[] = [
   { name: 'Mon Profil', href: '/dashboard/profil', icon: User },
   { name: 'Mes Enfants', href: '/dashboard/enfants', icon: Users },
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { name: 'Paramètres', href: '/dashboard/parametres', icon: Settings },
 ]
 
-// Mes activités (tous les utilisateurs)
+// Mes participations (tous les utilisateurs)
 const activitiesNavigation: NavItem[] = [
   { name: 'Mes Inscriptions', href: '/dashboard/inscriptions', icon: BookOpen },
-  { name: 'Mes Événements', href: '/dashboard/evenements', icon: Calendar },
   { name: 'Mes Dons', href: '/dashboard/dons', icon: Heart },
-  { name: 'Cotisation', href: '/dashboard/cotisation', icon: CreditCard },
-  { name: 'Documents', href: '/dashboard/documents', icon: FileText },
+  { name: 'Ma Cotisation', href: '/dashboard/cotisation', icon: CreditCard },
+  { name: 'Mes Documents', href: '/dashboard/documents', icon: FileText },
 ]
 
 // Espace organisateur (MANAGER+)
@@ -87,55 +77,27 @@ const organizerNavigation: NavItem[] = [
   { name: 'Espace Organisateur', href: '/dashboard/organiser', icon: LayoutGrid },
 ]
 
-// Navigation admin (groupes avec permissions)
+// Navigation admin (groupes avec permissions) - 4 groupes simplifiés
 const adminNavigationGroups: NavGroup[] = [
   {
-    name: 'Membres',
+    name: 'Communauté',
     icon: Users,
     section: 'admin',
     permissions: ['VIEW_MEMBERS', 'MANAGE_MEMBERS', 'VIEW_MEMBERSHIPS', 'MANAGE_MEMBERSHIPS'],
     items: [
-      { name: 'Liste des membres', href: '/dashboard/admin/membres', icon: Users, permissions: ['VIEW_MEMBERS'] },
-      { name: 'Demandes d\'adhésion', href: '/dashboard/admin/adhesions', icon: UserPlus, permissions: ['VIEW_MEMBERSHIPS'] },
+      { name: 'Membres', href: '/dashboard/admin/membres', icon: Users, permissions: ['VIEW_MEMBERS'] },
+      { name: 'Adhésions', href: '/dashboard/admin/adhesions', icon: UserPlus, permissions: ['VIEW_MEMBERSHIPS'] },
       { name: 'Cotisations', href: '/dashboard/admin/cotisations', icon: CreditCard, permissions: ['VIEW_MEMBERSHIPS'] },
     ],
   },
   {
-    name: 'Gestion unifiée',
+    name: 'Programmes',
     icon: LayoutGrid,
     section: 'admin',
-    permissions: ['VIEW_EVENTS', 'MANAGE_EVENTS', 'VIEW_ACTIVITIES', 'MANAGE_ACTIVITIES'],
+    permissions: ['VIEW_EVENTS', 'MANAGE_EVENTS', 'VIEW_ACTIVITIES', 'MANAGE_ACTIVITIES', 'VIEW_ENROLLMENTS', 'VIEW_EVENT_REGISTRATIONS'],
     items: [
-      { name: 'Événements & Activités', href: '/dashboard/admin/gestion', icon: LayoutGrid, permissions: ['VIEW_EVENTS', 'VIEW_ACTIVITIES'] },
-    ],
-  },
-  {
-    name: 'Activités',
-    icon: GraduationCap,
-    section: 'admin',
-    permissions: ['VIEW_ACTIVITIES', 'MANAGE_ACTIVITIES', 'VIEW_ENROLLMENTS', 'MANAGE_ENROLLMENTS'],
-    items: [
-      { name: 'Inscriptions', href: '/dashboard/admin/inscriptions-activites', icon: BookOpen, permissions: ['VIEW_ENROLLMENTS'] },
-      { name: 'Gérer les activités', href: '/dashboard/admin/activites', icon: BookPlus, permissions: ['VIEW_ACTIVITIES'] },
-    ],
-  },
-  {
-    name: 'Événements',
-    icon: PartyPopper,
-    section: 'admin',
-    permissions: ['VIEW_EVENTS', 'MANAGE_EVENTS', 'VIEW_EVENT_REGISTRATIONS', 'MANAGE_EVENT_REGISTRATIONS'],
-    items: [
-      { name: 'Inscriptions', href: '/dashboard/admin/inscriptions-evenements', icon: Calendar, permissions: ['VIEW_EVENT_REGISTRATIONS'] },
-      { name: 'Gérer les événements', href: '/dashboard/admin/evenements-gestion', icon: CalendarPlus, permissions: ['VIEW_EVENTS'] },
-    ],
-  },
-  {
-    name: 'Finances',
-    icon: Wallet,
-    section: 'admin',
-    permissions: ['VIEW_DONATIONS', 'MANAGE_DONATIONS'],
-    items: [
-      { name: 'Dons', href: '/dashboard/admin/dons', icon: HandHeart, permissions: ['VIEW_DONATIONS'] },
+      { name: 'Gestion', href: '/dashboard/admin/gestion', icon: LayoutGrid, permissions: ['VIEW_EVENTS', 'VIEW_ACTIVITIES'] },
+      { name: 'Inscriptions', href: '/dashboard/admin/inscriptions-activites', icon: ClipboardCheck, permissions: ['VIEW_ENROLLMENTS', 'VIEW_EVENT_REGISTRATIONS'] },
     ],
   },
   {
@@ -145,23 +107,24 @@ const adminNavigationGroups: NavGroup[] = [
     permissions: ['VIEW_MESSAGES', 'MANAGE_MESSAGES', 'VIEW_SERVICES', 'MANAGE_SERVICES'],
     items: [
       { name: 'Messages', href: '/dashboard/admin/messages', icon: MessageSquare, permissions: ['VIEW_MESSAGES'] },
-      { name: 'Demandes de services', href: '/dashboard/admin/services', icon: FileText, permissions: ['VIEW_SERVICES'] },
-      { name: 'Messages Jumua', href: '/dashboard/admin/jumua', icon: BookOpenText, permissions: ['VIEW_MESSAGES'] },
+      { name: 'Services', href: '/dashboard/admin/services', icon: FileText, permissions: ['VIEW_SERVICES'] },
     ],
   },
   {
-    name: 'Configuration',
+    name: 'Système',
     icon: Settings,
     section: 'admin',
-    permissions: ['VIEW_SETTINGS', 'MANAGE_SETTINGS', 'MANAGE_ROLES'],
+    permissions: ['VIEW_DONATIONS', 'MANAGE_DONATIONS', 'VIEW_SETTINGS', 'MANAGE_SETTINGS', 'MANAGE_ROLES'],
     items: [
-      { name: 'Gestion des rôles', href: '/dashboard/admin/roles', icon: Shield, permissions: ['MANAGE_ROLES'] },
+      { name: 'Dons', href: '/dashboard/admin/dons', icon: HandHeart, permissions: ['VIEW_DONATIONS'] },
+      { name: 'Paramètres', href: '/dashboard/admin/parametres', icon: Settings, permissions: ['MANAGE_SETTINGS'] },
+      { name: 'Rôles', href: '/dashboard/admin/roles', icon: Shield, permissions: ['MANAGE_ROLES'] },
     ],
   },
 ]
 
 // Rôles qui ont accès à l'espace admin
-const ADMIN_ROLES = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER']
+const ADMIN_ROLES = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER', 'TRESORIER']
 
 // Rôles qui voient l'espace organisateur
 const ORGANIZER_ROLES = ['ADMIN', 'IMAM', 'STAFF', 'MANAGER']
@@ -294,7 +257,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   }
 
   const renderNavigation = (mobile = false) => (
-    <nav className="flex-1 overflow-y-auto px-2 py-4">
+    <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-4">
       {/* Section Espace Personnel */}
       <div className="space-y-1">
         <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
@@ -303,10 +266,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         {personalNavigation.map((item) => renderNavItem(item, mobile))}
       </div>
 
-      {/* Section Mes Activités */}
+      {/* Section Mes Participations */}
       <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
         <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-          Mes Activités
+          Mes Participations
         </p>
         <div className="space-y-1">
           {activitiesNavigation.map((item) => renderNavItem(item, mobile))}
@@ -454,7 +417,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-1 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
             <Link href="/" className="flex items-center">

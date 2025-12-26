@@ -165,9 +165,10 @@ export default function OfferingDetailPage({ params }: { params: Promise<{ id: s
     })
   }
 
-  const formatPrice = (price?: number, paymentType?: string, interval?: string) => {
-    if (!price || price === 0 || paymentType === 'FREE') return 'Gratuit'
-    const formatted = `${price.toFixed(2)} CHF`
+  const formatPrice = (price?: number | string, paymentType?: string, interval?: string) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price
+    if (!numPrice || numPrice === 0 || paymentType === 'FREE') return 'Gratuit'
+    const formatted = `${numPrice.toFixed(2)} CHF`
     if (paymentType === 'SUBSCRIPTION') {
       const intervals: Record<string, string> = {
         WEEKLY: '/semaine',

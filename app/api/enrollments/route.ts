@@ -16,8 +16,10 @@ const enrollmentSchema = z.object({
   phone: z.string().min(1),
   notes: z.string().optional(),
   isForChild: z.boolean(),
-  // Pour enfant existant
+  // Pour enfant existant (single)
   childId: z.string().uuid().optional(),
+  // Pour plusieurs enfants existants (batch)
+  childIds: z.array(z.string().uuid()).optional(),
   // Pour nouvel enfant
   childFirstName: z.string().optional(),
   childLastName: z.string().optional(),
@@ -70,7 +72,169 @@ export async function POST(request: NextRequest) {
       console.log('👤 Nouvel utilisateur créé:', user.id)
     }
 
-    // Gérer l'enfant si inscription pour un enfant
+    // Déterminer le statut initial et si paiement requis
+    const requiresPayment = activity.price && activity.price > 0
+    const requiresApproval = activity.requires_approval
+
+    let initialStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' = 'PENDING'
+    if (!requiresApproval) {
+      if (requiresPayment) {
+        initialStatus = 'APPROVED'
+      } else {
+        initialStatus = 'ACTIVE'
+      }
+    }
+
+    // ========== MODE BATCH : plusieurs enfants ==========
+    if (validatedData.childIds && validatedData.childIds.length > 0) {
+      console.log('📝 Mode batch: inscription de', validatedData.childIds.length, 'enfants')
+
+      // Vérifier que tous les enfants appartiennent à l'utilisateur
+      const children = await prisma.child.findMany({
+        where: {
+          id: { in: validatedData.childIds },
+          parentId: user.id,
+        },
+      })
+
+      if (children.length !== validatedData.childIds.length) {
+        return NextResponse.json(
+          { error: 'Un ou plusieurs enfants non trouvés ou non autorisés' },
+          { status: 400 }
+        )
+      }
+
+      // Vérifier qu'aucun enfant n'est déjà inscrit
+      const existingEnrollments = await prisma.enrollment.findMany({
+        where: {
+          activityId: validatedData.activityId,
+          childId: { in: validatedData.childIds },
+          status: { notIn: ['REJECTED'] },
+        },
+      })
+
+      if (existingEnrollments.length > 0) {
+        const alreadyEnrolled = children.filter(c =>
+          existingEnrollments.some(e => e.childId === c.id)
+        )
+        return NextResponse.json(
+          {
+            error: 'Certains enfants sont déjà inscrits',
+            alreadyEnrolled: alreadyEnrolled.map(c => `${c.firstName} ${c.lastName}`),
+          },
+          { status: 400 }
+        )
+      }
+
+      // Créer une inscription par enfant
+      const enrollments = await Promise.all(
+        children.map(child =>
+          prisma.enrollment.create({
+            data: {
+              activityId: validatedData.activityId,
+              activityTitle: activity.title || 'Activité',
+              userId: user!.id,
+              childId: child.id,
+              status: initialStatus,
+              notes: validatedData.notes || null,
+              requiresPayment: !!requiresPayment,
+              paymentAmount: requiresPayment ? activity.price : null,
+            },
+          })
+        )
+      )
+
+      console.log('📝 Inscriptions batch créées:', enrollments.length)
+
+      // Créer une notification globale
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: initialStatus === 'PENDING' ? 'ENROLLMENT_CONFIRMATION' : 'ENROLLMENT_APPROVED',
+          title: initialStatus === 'PENDING'
+            ? 'Demandes d\'inscription reçues'
+            : requiresPayment
+              ? 'Inscriptions - Paiement requis'
+              : 'Inscriptions confirmées',
+          message: `${children.length} inscription(s) à "${activity.title}" ${
+            initialStatus === 'PENDING' ? 'en attente de validation' :
+            requiresPayment ? '- Paiement de ' + (activity.price! * children.length) + ' CHF requis' :
+            'confirmée(s)'
+          }`,
+          link: requiresPayment ? '/membre/paiements' : '/membre/inscriptions',
+          read: false,
+          emailSent: true,
+        },
+      })
+
+      // Envoyer l'email de confirmation
+      const emailStatus = initialStatus === 'ACTIVE' ? 'ACTIVE' : 'PENDING'
+      await sendEnrollmentConfirmationEmail(
+        validatedData.email,
+        validatedData.firstName,
+        activity.title || 'Activité',
+        emailStatus
+      )
+
+      // Si paiement requis, créer une session Stripe unique pour tous les enfants
+      if (!requiresApproval && requiresPayment) {
+        const totalAmount = activity.price! * children.length
+        const participantNames = children.map(c => `${c.firstName} ${c.lastName}`).join(', ')
+
+        const stripeSession = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: children.map(child => ({
+            price_data: {
+              currency: 'chf',
+              product_data: {
+                name: `Inscription: ${activity.title}`,
+                description: `Participant: ${child.firstName} ${child.lastName}`,
+              },
+              unit_amount: Math.round(activity.price! * 100),
+            },
+            quantity: 1,
+          })),
+          mode: 'payment',
+          success_url: `${process.env.NEXTAUTH_URL}/membre/inscriptions?payment=success&batch=true`,
+          cancel_url: `${process.env.NEXTAUTH_URL}/activites/${validatedData.activityId}?payment=cancelled`,
+          customer_email: validatedData.email,
+          metadata: {
+            type: 'ACTIVITY_ENROLLMENT_BATCH',
+            enrollmentIds: enrollments.map(e => e.id).join(','),
+            activityId: validatedData.activityId,
+            activityTitle: activity.title,
+            userId: user.id,
+            childIds: validatedData.childIds.join(','),
+            participantNames,
+          },
+        })
+
+        console.log('💳 Session Stripe batch créée:', stripeSession.id)
+
+        return NextResponse.json(
+          {
+            message: 'Inscriptions créées - Redirection vers paiement',
+            enrollments,
+            checkoutUrl: stripeSession.url,
+            requiresPayment: true,
+            totalAmount,
+          },
+          { status: 201 }
+        )
+      }
+
+      return NextResponse.json(
+        {
+          message: `${enrollments.length} inscription(s) enregistrée(s) avec succès`,
+          enrollments,
+          requiresApproval,
+          requiresPayment: false,
+        },
+        { status: 201 }
+      )
+    }
+
+    // ========== MODE SINGLE : un seul enfant ou adulte ==========
     let childId: string | null = null
 
     if (validatedData.isForChild) {
@@ -102,23 +266,6 @@ export async function POST(request: NextRequest) {
         })
         childId = newChild.id
         console.log('👶 Nouvel enfant créé:', childId)
-      }
-    }
-
-    // Déterminer le statut initial et si paiement requis
-    const requiresPayment = activity.price && activity.price > 0
-    const requiresApproval = activity.requires_approval
-
-    // Si pas d'approbation requise ET payant -> passer en APPROVED et rediriger vers paiement
-    // Si pas d'approbation requise ET gratuit -> passer directement en ACTIVE
-    // Si approbation requise -> rester en PENDING
-    let initialStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' = 'PENDING'
-
-    if (!requiresApproval) {
-      if (requiresPayment) {
-        initialStatus = 'APPROVED' // Prêt pour paiement
-      } else {
-        initialStatus = 'ACTIVE' // Directement actif
       }
     }
 
@@ -160,8 +307,6 @@ export async function POST(request: NextRequest) {
     })
 
     // Envoyer l'email de confirmation
-    // Note: sendEnrollmentConfirmationEmail attend 'PENDING' ou 'ACTIVE'
-    // 'APPROVED' signifie en attente de paiement, donc on envoie 'PENDING' pour l'email
     const emailStatus = initialStatus === 'ACTIVE' ? 'ACTIVE' : 'PENDING'
     await sendEnrollmentConfirmationEmail(
       validatedData.email,

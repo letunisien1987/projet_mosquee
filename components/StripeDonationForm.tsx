@@ -7,22 +7,30 @@
  * - Le paiement est géré par Stripe Checkout (page sécurisée)
  * - La clé secrète n'est JAMAIS exposée au client
  * - Redirection directe vers Stripe (pas de clé publique nécessaire)
+ *
+ * Les montants prédéfinis (presetAmounts) sont configurables dans les settings Directus.
+ * Ils sont passés depuis la page parent qui les charge côté serveur.
  */
 
 import { useState } from 'react'
 import { Heart, Loader2 } from 'lucide-react'
 
+// Valeurs par défaut si les presets ne sont pas fournis (fallback)
+const DEFAULT_PRESETS = [2000, 5000, 10000, 20000] // 20, 50, 100, 200 CHF en centimes
+
 interface StripeDonationFormProps {
   projectId: string
   projectTitle: string
-  presetAmounts?: number[] // Montants prédéfinis en centimes
+  presetAmounts?: number[] // Montants prédéfinis en centimes (depuis settings)
 }
 
 export default function StripeDonationForm({
   projectId,
   projectTitle,
-  presetAmounts = [2000, 5000, 10000, 20000], // 20, 50, 100, 200 CHF
+  presetAmounts,
 }: StripeDonationFormProps) {
+  // Utiliser les presets fournis ou les valeurs par défaut
+  const amounts = presetAmounts && presetAmounts.length > 0 ? presetAmounts : DEFAULT_PRESETS
   const [amount, setAmount] = useState<number>(5000) // 50 CHF par défaut
   const [customAmount, setCustomAmount] = useState<string>('')
   const [donorName, setDonorName] = useState<string>('')
@@ -87,7 +95,7 @@ export default function StripeDonationForm({
           Choisissez un montant
         </label>
         <div className="grid grid-cols-2 gap-3">
-          {presetAmounts.map((preset) => (
+          {amounts.map((preset) => (
             <button
               key={preset}
               type="button"

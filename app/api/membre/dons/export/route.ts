@@ -3,6 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PDFDocument from 'pdfkit'
+import { z } from 'zod'
+import { getSettings, MosqueSettings } from '@/lib/settings'
+
+// Schéma de validation UUID
+const uuidSchema = z.string().uuid('ID de don invalide')
 
 export async function POST(request: Request) {
   try {
@@ -12,8 +17,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
+    // Récupérer les settings pour les PDFs
+    const settings = await getSettings()
+
     const formData = await request.formData()
-    const donationId = formData.get('donationId') as string | null
+    const donationIdRaw = formData.get('donationId') as string | null
+
+    // Valider l'UUID si fourni
+    let donationId: string | null = null
+    if (donationIdRaw) {
+      const validation = uuidSchema.safeParse(donationIdRaw)
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: 'ID de don invalide' },
+          { status: 400 }
+        )
+      }
+      donationId = validation.data
+    }
 
     // Si un don spécifique est demandé
     if (donationId) {
@@ -29,7 +50,7 @@ export async function POST(request: Request) {
       }
 
       // Générer le PDF pour un seul don
-      const pdfBuffer = await generateDonationReceipt(donation, session.user)
+      const pdfBuffer = await generateDonationReceipt(donation, session.user, settings)
 
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
@@ -58,7 +79,7 @@ export async function POST(request: Request) {
         )
       }
 
-      const pdfBuffer = await generateAnnualReceipt(donations, session.user, currentYear)
+      const pdfBuffer = await generateAnnualReceipt(donations, session.user, currentYear, settings)
 
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
@@ -76,7 +97,10 @@ export async function POST(request: Request) {
   }
 }
 
-async function generateDonationReceipt(donation: any, user: any): Promise<Buffer> {
+async function generateDonationReceipt(donation: any, user: any, settings: MosqueSettings): Promise<Buffer> {
+  // Formater l'adresse
+  const formattedAddress = `${settings.address_street}, ${settings.address_postal_code} ${settings.address_city}`
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 })
     const chunks: Buffer[] = []
@@ -89,11 +113,11 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
     doc
       .fontSize(20)
       .font('Helvetica-Bold')
-      .text('Mosquée Madretsch', { align: 'center' })
+      .text(settings.name || 'Mosquée Madretsch', { align: 'center' })
       .fontSize(12)
       .font('Helvetica')
-      .text('Madretschstrasse 64, 2503 Biel/Bienne', { align: 'center' })
-      .text('info@mosque-madretsch.ch', { align: 'center' })
+      .text(formattedAddress, { align: 'center' })
+      .text(settings.contact_email || '', { align: 'center' })
       .moveDown(2)
 
     // Titre
@@ -118,7 +142,7 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
       .font('Helvetica-Bold')
       .text('Détails du don:')
       .font('Helvetica')
-      .text(`Date: ${new Date(donation.createdAt).toLocaleDateString('fr-FR')}`)
+      .text(`Date: ${new Date(donation.createdAt).toLocaleDateString('fr-CH')}`)
       .text(`Type: ${donation.type}`)
 
     if (donation.projectName) {
@@ -145,9 +169,9 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
     // Signature
     doc
       .fontSize(12)
-      .text(`Biel/Bienne, le ${new Date().toLocaleDateString('fr-FR')}`)
+      .text(`${settings.address_city}, le ${new Date().toLocaleDateString('fr-CH')}`)
       .moveDown()
-      .text('Pour la Mosquée Madretsch')
+      .text(`Pour ${settings.name || 'la Mosquée'}`)
 
     doc.end()
   })
@@ -156,8 +180,12 @@ async function generateDonationReceipt(donation: any, user: any): Promise<Buffer
 async function generateAnnualReceipt(
   donations: any[],
   user: any,
-  year: number
+  year: number,
+  settings: MosqueSettings
 ): Promise<Buffer> {
+  // Formater l'adresse
+  const formattedAddress = `${settings.address_street}, ${settings.address_postal_code} ${settings.address_city}`
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 })
     const chunks: Buffer[] = []
@@ -170,11 +198,11 @@ async function generateAnnualReceipt(
     doc
       .fontSize(20)
       .font('Helvetica-Bold')
-      .text('Mosquée Madretsch', { align: 'center' })
+      .text(settings.name || 'Mosquée Madretsch', { align: 'center' })
       .fontSize(12)
       .font('Helvetica')
-      .text('Madretschstrasse 64, 2503 Biel/Bienne', { align: 'center' })
-      .text('info@mosque-madretsch.ch', { align: 'center' })
+      .text(formattedAddress, { align: 'center' })
+      .text(settings.contact_email || '', { align: 'center' })
       .moveDown(2)
 
     // Titre
@@ -213,7 +241,7 @@ async function generateAnnualReceipt(
         .fontSize(10)
         .font('Helvetica')
         .text(
-          `${index + 1}. ${new Date(donation.createdAt).toLocaleDateString('fr-FR')} - ${
+          `${index + 1}. ${new Date(donation.createdAt).toLocaleDateString('fr-CH')} - ${
             donation.type
           }${donation.projectName ? ` (${donation.projectName})` : ''} - ${donation.amount.toFixed(
             2
@@ -260,9 +288,9 @@ async function generateAnnualReceipt(
     // Signature
     doc
       .fontSize(12)
-      .text(`Biel/Bienne, le ${new Date().toLocaleDateString('fr-FR')}`)
+      .text(`${settings.address_city}, le ${new Date().toLocaleDateString('fr-CH')}`)
       .moveDown()
-      .text('Pour la Mosquée Madretsch')
+      .text(`Pour ${settings.name || 'la Mosquée'}`)
 
     doc.end()
   })
