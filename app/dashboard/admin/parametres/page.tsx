@@ -171,8 +171,7 @@ export default function ParametresPage() {
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
         <p className="text-red-700">
-          Impossible de charger les paramètres. Vérifiez que Directus est démarré et que la collection
-          mosque_settings existe.
+          Impossible de charger les paramètres. Veuillez réessayer plus tard.
         </p>
       </div>
     )

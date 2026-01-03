@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getActivityById } from '@/lib/directus'
+import { getActivityById } from '@/lib/content'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 
 // GET - Récupère une activité par ID
 export async function GET(

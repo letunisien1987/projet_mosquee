@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getOfferingsByIds } from '@/lib/directus'
+import { getOfferingsByIds } from '@/lib/content'
 import type { EventRegistration as PrismaEventRegistration } from '@prisma/client'
 import {
   Calendar,
@@ -81,12 +81,13 @@ export default async function EvenementsPage() {
   }
 
   // Batch fetch des offerings (fix N+1)
-  const eventIds = registrations.map((r) => r.eventId)
+  const eventIds = registrations.map((r) => r.eventId).filter((id): id is string => id !== null)
   const offeringsMap = await getOfferingsByIds(eventIds)
 
-  // Enrichir avec les données de Directus
+  // Enrichir avec les données de Prisma
   const events: EventRegistration[] = []
   for (const reg of registrations) {
+    if (!reg.eventId) continue // Skip si pas d'eventId
     const offering = offeringsMap.get(reg.eventId)
     events.push({
       id: reg.id,
@@ -102,8 +103,8 @@ export default async function EvenementsPage() {
       notes: reg.notes,
       date: offering?.date,
       location: offering?.location,
-      startTime: offering?.start_time,
-      endTime: offering?.end_time,
+      startTime: offering?.startTime,
+      endTime: offering?.endTime,
     })
   }
 

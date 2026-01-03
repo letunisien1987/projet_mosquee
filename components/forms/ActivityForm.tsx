@@ -18,6 +18,7 @@ import {
   Settings,
   Calendar,
   Info,
+  Mail,
 } from 'lucide-react'
 import ScheduleBuilder, { ScheduleRule, scheduleRulesToText } from './ScheduleBuilder'
 
@@ -61,19 +62,19 @@ interface User {
 }
 
 interface PricingConfig {
-  adult_price: number
-  child_price: number
-  child_free_until_age: number
-  group_discount: {
+  adultPrice: number
+  childPrice: number
+  childFreeUntilAge: number
+  groupDiscount: {
     enabled: boolean
-    from_persons: number
-    discount_percent: number
+    fromPersons: number
+    discountPercent: number
   }
-  family_max_price: number | null
-  early_bird: {
+  familyMaxPrice: number | null
+  earlyBird: {
     enabled: boolean
-    until_date: string | null
-    discount_percent: number
+    untilDate: string | null
+    discountPercent: number
   }
 }
 
@@ -85,25 +86,28 @@ export interface ActivityData {
   description?: string
   content?: string
   schedule?: string // texte lisible (généré automatiquement)
-  schedule_rules?: ScheduleRule[] // règles de planning structurées
-  max_capacity?: number
-  enrollment_open: boolean
-  requires_approval: boolean
+  scheduleRules?: ScheduleRule[] // règles de planning structurées
+  maxCapacity?: number
+  enrollmentOpen: boolean
+  requiresApproval: boolean
   published: boolean
   price?: number
-  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
-  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  paymentType?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscriptionInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   pricing?: PricingConfig | null
-  allow_refund?: boolean
-  cancellation_deadline_days?: number
-  manager_id?: string
-  manager_email?: string
+  allowRefund?: boolean
+  cancellationDeadlineDays?: number
+  managerId?: string
+  managerEmail?: string
+  showOrganizerName?: boolean
+  showOrganizerEmail?: boolean
+  showOrganizerPhone?: boolean
   restrictions?: {
     enabled: boolean
-    participation_type: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
-    allowed_gender: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
-    min_age: number | null
-    max_age: number | null
+    participationType: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
+    allowedGender: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
+    minAge: number | null
+    maxAge: number | null
   }
 }
 
@@ -138,40 +142,43 @@ export default function ActivityForm({
     title: activity?.title || '',
     slug: activity?.slug || '',
     category: activity?.category || 'education',
-    activity_category: (activity as any)?.activity_category || 'coran',
+    activityCategory: (activity as any)?.activityCategory || 'coran',
     description: activity?.description || '',
     content: activity?.content || '',
     schedule: activity?.schedule || '',
-    schedule_rules: activity?.schedule_rules || [] as ScheduleRule[],
-    max_capacity: activity?.max_capacity?.toString() || '',
-    enrollment_open: activity?.enrollment_open ?? true,
-    requires_approval: activity?.requires_approval ?? false,
+    scheduleRules: activity?.scheduleRules || [] as ScheduleRule[],
+    maxCapacity: activity?.maxCapacity?.toString() || '',
+    enrollmentOpen: activity?.enrollmentOpen ?? true,
+    requiresApproval: activity?.requiresApproval ?? false,
     published: activity?.published ?? true,
-    payment_type: (activity?.payment_type || 'FREE') as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
+    paymentType: (activity?.paymentType || 'FREE') as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
     price: activity?.price?.toString() || '',
-    subscription_interval: (activity?.subscription_interval || 'MONTHLY') as 'WEEKLY' | 'MONTHLY' | 'YEARLY',
-    pricing_enabled: !!activity?.pricing,
+    subscriptionInterval: (activity?.subscriptionInterval || 'MONTHLY') as 'WEEKLY' | 'MONTHLY' | 'YEARLY',
+    pricingEnabled: !!activity?.pricing,
     pricing: {
-      adult_price: activity?.pricing?.adult_price?.toString() || '',
-      child_price: activity?.pricing?.child_price?.toString() || '',
-      child_free_until_age: activity?.pricing?.child_free_until_age?.toString() || '',
-      group_discount_enabled: activity?.pricing?.group_discount?.enabled ?? false,
-      group_discount_from_persons: activity?.pricing?.group_discount?.from_persons?.toString() || '4',
-      group_discount_percent: activity?.pricing?.group_discount?.discount_percent?.toString() || '10',
-      family_max_price: activity?.pricing?.family_max_price?.toString() || '',
-      early_bird_enabled: activity?.pricing?.early_bird?.enabled ?? false,
-      early_bird_until_date: activity?.pricing?.early_bird?.until_date || '',
-      early_bird_discount_percent: activity?.pricing?.early_bird?.discount_percent?.toString() || '15',
+      adultPrice: activity?.pricing?.adultPrice?.toString() || '',
+      childPrice: activity?.pricing?.childPrice?.toString() || '',
+      childFreeUntilAge: activity?.pricing?.childFreeUntilAge?.toString() || '',
+      groupDiscountEnabled: activity?.pricing?.groupDiscount?.enabled ?? false,
+      groupDiscountFromPersons: activity?.pricing?.groupDiscount?.fromPersons?.toString() || '4',
+      groupDiscountPercent: activity?.pricing?.groupDiscount?.discountPercent?.toString() || '10',
+      familyMaxPrice: activity?.pricing?.familyMaxPrice?.toString() || '',
+      earlyBirdEnabled: activity?.pricing?.earlyBird?.enabled ?? false,
+      earlyBirdUntilDate: activity?.pricing?.earlyBird?.untilDate || '',
+      earlyBirdDiscountPercent: activity?.pricing?.earlyBird?.discountPercent?.toString() || '15',
     },
-    allow_refund: activity?.allow_refund ?? true,
-    cancellation_deadline_days: activity?.cancellation_deadline_days?.toString() || '7',
-    manager_id: activity?.manager_id || '',
+    allowRefund: activity?.allowRefund ?? true,
+    cancellationDeadlineDays: activity?.cancellationDeadlineDays?.toString() || '7',
+    managerId: activity?.managerId || '',
+    showOrganizerName: activity?.showOrganizerName ?? false,
+    showOrganizerEmail: activity?.showOrganizerEmail ?? false,
+    showOrganizerPhone: activity?.showOrganizerPhone ?? false,
     restrictions: {
       enabled: activity?.restrictions?.enabled ?? false,
-      participation_type: (activity?.restrictions?.participation_type || 'INDIVIDUAL') as 'INDIVIDUAL' | 'FAMILY' | 'MIXED',
-      allowed_gender: (activity?.restrictions?.allowed_gender || 'ALL') as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL',
-      min_age: activity?.restrictions?.min_age?.toString() || '',
-      max_age: activity?.restrictions?.max_age?.toString() || '',
+      participationType: (activity?.restrictions?.participationType || 'INDIVIDUAL') as 'INDIVIDUAL' | 'FAMILY' | 'MIXED',
+      allowedGender: (activity?.restrictions?.allowedGender || 'ALL') as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL',
+      minAge: activity?.restrictions?.minAge?.toString() || '',
+      maxAge: activity?.restrictions?.maxAge?.toString() || '',
     },
   })
 
@@ -223,43 +230,43 @@ export default function ActivityForm({
     setSuccess('')
 
     try {
-      const pricingPayload = formData.pricing_enabled && formData.payment_type !== 'FREE' ? {
-        adult_price: formData.pricing.adult_price ? parseFloat(formData.pricing.adult_price) : 0,
-        child_price: formData.pricing.child_price ? parseFloat(formData.pricing.child_price) : 0,
-        child_free_until_age: formData.pricing.child_free_until_age ? parseInt(formData.pricing.child_free_until_age) : 0,
-        group_discount: {
-          enabled: formData.pricing.group_discount_enabled,
-          from_persons: parseInt(formData.pricing.group_discount_from_persons) || 4,
-          discount_percent: parseInt(formData.pricing.group_discount_percent) || 10,
+      const pricingPayload = formData.pricingEnabled && formData.paymentType !== 'FREE' ? {
+        adultPrice: formData.pricing.adultPrice ? parseFloat(formData.pricing.adultPrice) : 0,
+        childPrice: formData.pricing.childPrice ? parseFloat(formData.pricing.childPrice) : 0,
+        childFreeUntilAge: formData.pricing.childFreeUntilAge ? parseInt(formData.pricing.childFreeUntilAge) : 0,
+        groupDiscount: {
+          enabled: formData.pricing.groupDiscountEnabled,
+          fromPersons: parseInt(formData.pricing.groupDiscountFromPersons) || 4,
+          discountPercent: parseInt(formData.pricing.groupDiscountPercent) || 10,
         },
-        family_max_price: formData.pricing.family_max_price ? parseFloat(formData.pricing.family_max_price) : null,
-        early_bird: {
-          enabled: formData.pricing.early_bird_enabled,
-          until_date: formData.pricing.early_bird_until_date || null,
-          discount_percent: parseInt(formData.pricing.early_bird_discount_percent) || 15,
+        familyMaxPrice: formData.pricing.familyMaxPrice ? parseFloat(formData.pricing.familyMaxPrice) : null,
+        earlyBird: {
+          enabled: formData.pricing.earlyBirdEnabled,
+          untilDate: formData.pricing.earlyBirdUntilDate || null,
+          discountPercent: parseInt(formData.pricing.earlyBirdDiscountPercent) || 15,
         },
       } : null
 
       const payload: Record<string, unknown> = {
         ...formData,
-        item_type: 'ACTIVITY', // Toujours ACTIVITY pour ce formulaire
-        max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : undefined,
+        itemType: 'ACTIVITY', // Toujours ACTIVITY pour ce formulaire
+        maxCapacity: formData.maxCapacity ? parseInt(formData.maxCapacity) : undefined,
         price: formData.price ? parseFloat(formData.price) : undefined,
-        subscription_interval: formData.payment_type === 'SUBSCRIPTION' ? formData.subscription_interval : undefined,
+        subscriptionInterval: formData.paymentType === 'SUBSCRIPTION' ? formData.subscriptionInterval : undefined,
         pricing: pricingPayload,
-        allow_refund: formData.payment_type !== 'FREE' ? formData.allow_refund : undefined,
-        cancellation_deadline_days: formData.payment_type !== 'FREE' && formData.allow_refund
-          ? parseInt(formData.cancellation_deadline_days) || 7
+        allowRefund: formData.paymentType !== 'FREE' ? formData.allowRefund : undefined,
+        cancellationDeadlineDays: formData.paymentType !== 'FREE' && formData.allowRefund
+          ? parseInt(formData.cancellationDeadlineDays) || 7
           : undefined,
-        manager_id: formData.manager_id || undefined,
+        managerId: formData.managerId || undefined,
         restrictions: formData.restrictions.enabled ? {
           ...formData.restrictions,
-          min_age: formData.restrictions.min_age ? parseInt(formData.restrictions.min_age) : null,
-          max_age: formData.restrictions.max_age ? parseInt(formData.restrictions.max_age) : null,
+          minAge: formData.restrictions.minAge ? parseInt(formData.restrictions.minAge) : null,
+          maxAge: formData.restrictions.maxAge ? parseInt(formData.restrictions.maxAge) : null,
         } : undefined,
       }
 
-      delete payload.pricing_enabled
+      delete payload.pricingEnabled
 
       const res = await fetch(apiEndpoint, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -368,8 +375,8 @@ export default function ActivityForm({
                 Type d&apos;activité
               </label>
               <select
-                value={formData.activity_category}
-                onChange={(e) => setFormData({ ...formData, activity_category: e.target.value })}
+                value={formData.activityCategory}
+                onChange={(e) => setFormData({ ...formData, activityCategory: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 {activityTypes.map((type) => (
@@ -420,10 +427,10 @@ export default function ActivityForm({
 
           <div className="p-6">
             <ScheduleBuilder
-              value={formData.schedule_rules}
+              value={formData.scheduleRules}
               onChange={(rules) => setFormData({
                 ...formData,
-                schedule_rules: rules,
+                scheduleRules: rules,
                 schedule: scheduleRulesToText(rules)
               })}
             />
@@ -450,8 +457,8 @@ export default function ActivityForm({
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={formData.enrollment_open}
-                onChange={(e) => setFormData({ ...formData, enrollment_open: e.target.checked })}
+                checked={formData.enrollmentOpen}
+                onChange={(e) => setFormData({ ...formData, enrollmentOpen: e.target.checked })}
                 className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-gray-700 dark:text-gray-300">Inscriptions ouvertes</span>
@@ -462,8 +469,8 @@ export default function ActivityForm({
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Capacité max</label>
                 <input
                   type="number"
-                  value={formData.max_capacity}
-                  onChange={(e) => setFormData({ ...formData, max_capacity: e.target.value })}
+                  value={formData.maxCapacity}
+                  onChange={(e) => setFormData({ ...formData, maxCapacity: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="20"
                 />
@@ -473,8 +480,8 @@ export default function ActivityForm({
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={formData.requires_approval}
-                onChange={(e) => setFormData({ ...formData, requires_approval: e.target.checked })}
+                checked={formData.requiresApproval}
+                onChange={(e) => setFormData({ ...formData, requiresApproval: e.target.checked })}
                 className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-gray-700 dark:text-gray-300">Validation manuelle des inscriptions requise</span>
@@ -493,10 +500,10 @@ export default function ActivityForm({
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Type de paiement</label>
               <select
-                value={formData.payment_type}
+                value={formData.paymentType}
                 onChange={(e) => setFormData({
                   ...formData,
-                  payment_type: e.target.value as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
+                  paymentType: e.target.value as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
                   price: e.target.value === 'FREE' ? '' : formData.price,
                 })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
@@ -509,7 +516,7 @@ export default function ActivityForm({
               </select>
             </div>
 
-            {formData.payment_type !== 'FREE' && (
+            {formData.paymentType !== 'FREE' && (
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Prix (CHF) <span className="text-red-500">*</span>
@@ -527,14 +534,14 @@ export default function ActivityForm({
               </div>
             )}
 
-            {formData.payment_type === 'SUBSCRIPTION' && (
+            {formData.paymentType === 'SUBSCRIPTION' && (
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Intervalle de paiement</label>
                 <select
-                  value={formData.subscription_interval}
+                  value={formData.subscriptionInterval}
                   onChange={(e) => setFormData({
                     ...formData,
-                    subscription_interval: e.target.value as 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+                    subscriptionInterval: e.target.value as 'WEEKLY' | 'MONTHLY' | 'YEARLY'
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -550,7 +557,7 @@ export default function ActivityForm({
         </div>
 
         {/* Tarification avancée */}
-        {formData.payment_type !== 'FREE' && (
+        {formData.paymentType !== 'FREE' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
@@ -560,15 +567,15 @@ export default function ActivityForm({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.pricing_enabled}
-                  onChange={(e) => setFormData({ ...formData, pricing_enabled: e.target.checked })}
+                  checked={formData.pricingEnabled}
+                  onChange={(e) => setFormData({ ...formData, pricingEnabled: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Activer</span>
               </label>
             </div>
 
-            {formData.pricing_enabled ? (
+            {formData.pricingEnabled ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -579,12 +586,12 @@ export default function ActivityForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.pricing.adult_price}
+                      value={formData.pricing.adultPrice}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, adult_price: e.target.value }
+                        pricing: { ...formData.pricing, adultPrice: e.target.value }
                       })}
-                      required={formData.pricing_enabled}
+                      required={formData.pricingEnabled}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="50"
                     />
@@ -596,10 +603,10 @@ export default function ActivityForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.pricing.child_price}
+                      value={formData.pricing.childPrice}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, child_price: e.target.value }
+                        pricing: { ...formData.pricing, childPrice: e.target.value }
                       })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="25"
@@ -612,10 +619,10 @@ export default function ActivityForm({
                       type="number"
                       min="0"
                       max="18"
-                      value={formData.pricing.child_free_until_age}
+                      value={formData.pricing.childFreeUntilAge}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, child_free_until_age: e.target.value }
+                        pricing: { ...formData.pricing, childFreeUntilAge: e.target.value }
                       })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="5"
@@ -628,10 +635,10 @@ export default function ActivityForm({
                   <label className="flex items-center gap-3 cursor-pointer mb-4">
                     <input
                       type="checkbox"
-                      checked={formData.pricing.group_discount_enabled}
+                      checked={formData.pricing.groupDiscountEnabled}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, group_discount_enabled: e.target.checked }
+                        pricing: { ...formData.pricing, groupDiscountEnabled: e.target.checked }
                       })}
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -641,17 +648,17 @@ export default function ActivityForm({
                     </span>
                   </label>
 
-                  {formData.pricing.group_discount_enabled && (
+                  {formData.pricing.groupDiscountEnabled && (
                     <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">À partir de (pers.)</label>
                         <input
                           type="number"
                           min="2"
-                          value={formData.pricing.group_discount_from_persons}
+                          value={formData.pricing.groupDiscountFromPersons}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, group_discount_from_persons: e.target.value }
+                            pricing: { ...formData.pricing, groupDiscountFromPersons: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -662,10 +669,10 @@ export default function ActivityForm({
                           type="number"
                           min="1"
                           max="100"
-                          value={formData.pricing.group_discount_percent}
+                          value={formData.pricing.groupDiscountPercent}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, group_discount_percent: e.target.value }
+                            pricing: { ...formData.pricing, groupDiscountPercent: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -684,10 +691,10 @@ export default function ActivityForm({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.pricing.family_max_price}
+                    value={formData.pricing.familyMaxPrice}
                     onChange={(e) => setFormData({
                       ...formData,
-                      pricing: { ...formData.pricing, family_max_price: e.target.value }
+                      pricing: { ...formData.pricing, familyMaxPrice: e.target.value }
                     })}
                     className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="150"
@@ -699,10 +706,10 @@ export default function ActivityForm({
                   <label className="flex items-center gap-3 cursor-pointer mb-4">
                     <input
                       type="checkbox"
-                      checked={formData.pricing.early_bird_enabled}
+                      checked={formData.pricing.earlyBirdEnabled}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, early_bird_enabled: e.target.checked }
+                        pricing: { ...formData.pricing, earlyBirdEnabled: e.target.checked }
                       })}
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -712,16 +719,16 @@ export default function ActivityForm({
                     </span>
                   </label>
 
-                  {formData.pricing.early_bird_enabled && (
+                  {formData.pricing.earlyBirdEnabled && (
                     <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date limite</label>
                         <input
                           type="date"
-                          value={formData.pricing.early_bird_until_date}
+                          value={formData.pricing.earlyBirdUntilDate}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, early_bird_until_date: e.target.value }
+                            pricing: { ...formData.pricing, earlyBirdUntilDate: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -732,10 +739,10 @@ export default function ActivityForm({
                           type="number"
                           min="1"
                           max="100"
-                          value={formData.pricing.early_bird_discount_percent}
+                          value={formData.pricing.earlyBirdDiscountPercent}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, early_bird_discount_percent: e.target.value }
+                            pricing: { ...formData.pricing, earlyBirdDiscountPercent: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -753,7 +760,7 @@ export default function ActivityForm({
         )}
 
         {/* Politique de remboursement */}
-        {formData.payment_type !== 'FREE' && (
+        {formData.paymentType !== 'FREE' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
               <RefreshCcw className="h-5 w-5 text-blue-600" />
@@ -764,14 +771,14 @@ export default function ActivityForm({
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.allow_refund}
-                  onChange={(e) => setFormData({ ...formData, allow_refund: e.target.checked })}
+                  checked={formData.allowRefund}
+                  onChange={(e) => setFormData({ ...formData, allowRefund: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-gray-700 dark:text-gray-300">Autoriser les remboursements</span>
               </label>
 
-              {formData.allow_refund && (
+              {formData.allowRefund && (
                 <div className="ml-8 pt-4 border-t border-gray-200 dark:border-gray-600">
                   <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Délai de remboursement (jours)
@@ -780,8 +787,8 @@ export default function ActivityForm({
                     type="number"
                     min="0"
                     max="365"
-                    value={formData.cancellation_deadline_days}
-                    onChange={(e) => setFormData({ ...formData, cancellation_deadline_days: e.target.value })}
+                    value={formData.cancellationDeadlineDays}
+                    onChange={(e) => setFormData({ ...formData, cancellationDeadlineDays: e.target.value })}
                     className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="7"
                   />
@@ -810,8 +817,8 @@ export default function ActivityForm({
                 </div>
               ) : (
                 <select
-                  value={formData.manager_id}
-                  onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
+                  value={formData.managerId}
+                  onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">-- Aucun --</option>
@@ -843,6 +850,60 @@ export default function ActivityForm({
           </label>
         </div>
 
+        {/* Contact Organisateur */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Mail className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Organisateur</h2>
+                <p className="text-sm text-gray-500">Choisissez quelles informations afficher aux visiteurs</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Les visiteurs pourront voir ces informations sur la page de l&apos;activité et vous contacter directement.
+            </p>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerName}
+                onChange={(e) => setFormData({ ...formData, showOrganizerName: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Afficher mon nom</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerEmail}
+                onChange={(e) => setFormData({ ...formData, showOrganizerEmail: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <div>
+                <span className="text-gray-700 dark:text-gray-300">Afficher mon email</span>
+                <p className="text-xs text-gray-500">Permet aux visiteurs de vous contacter via un formulaire</p>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerPhone}
+                onChange={(e) => setFormData({ ...formData, showOrganizerPhone: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Afficher mon téléphone</span>
+            </label>
+          </div>
+        </div>
+
         {/* Restrictions */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
@@ -868,10 +929,10 @@ export default function ActivityForm({
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Type de participation</label>
                 <select
-                  value={formData.restrictions.participation_type}
+                  value={formData.restrictions.participationType}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, participation_type: e.target.value as 'INDIVIDUAL' | 'FAMILY' | 'MIXED' }
+                    restrictions: { ...formData.restrictions, participationType: e.target.value as 'INDIVIDUAL' | 'FAMILY' | 'MIXED' }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -884,10 +945,10 @@ export default function ActivityForm({
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Genre autorisé</label>
                 <select
-                  value={formData.restrictions.allowed_gender}
+                  value={formData.restrictions.allowedGender}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, allowed_gender: e.target.value as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL' }
+                    restrictions: { ...formData.restrictions, allowedGender: e.target.value as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL' }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -902,10 +963,10 @@ export default function ActivityForm({
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Âge minimum</label>
                 <input
                   type="number"
-                  value={formData.restrictions.min_age}
+                  value={formData.restrictions.minAge}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, min_age: e.target.value }
+                    restrictions: { ...formData.restrictions, minAge: e.target.value }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Aucun"
@@ -916,10 +977,10 @@ export default function ActivityForm({
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Âge maximum</label>
                 <input
                   type="number"
-                  value={formData.restrictions.max_age}
+                  value={formData.restrictions.maxAge}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, max_age: e.target.value }
+                    restrictions: { ...formData.restrictions, maxAge: e.target.value }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Aucun"

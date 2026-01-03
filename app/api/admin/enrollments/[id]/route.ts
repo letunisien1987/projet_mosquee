@@ -5,8 +5,7 @@
 
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { directusClient } from '@/lib/directus'
-import { readItem } from '@directus/sdk'
+import { getActivityById } from '@/lib/content'
 import { z } from 'zod'
 import crypto from 'crypto'
 import {
@@ -59,11 +58,7 @@ export const PATCH = apiHandler(async (
 
   if (isBeingApproved && currentEnrollment.activityId) {
     try {
-      const activity = await directusClient.request(
-        readItem('activities', currentEnrollment.activityId as unknown as string, {
-          fields: ['id', 'title', 'price']
-        })
-      ) as { id: string; title: string; price?: number }
+      const activity = await getActivityById(currentEnrollment.activityId)
 
       if (activity?.price && activity.price > 0) {
         const paymentToken = crypto.randomBytes(32).toString('hex')

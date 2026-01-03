@@ -961,6 +961,156 @@ export async function sendEventRegistrationConfirmation(data: {
 }
 
 /**
+ * Email de confirmation GROUPÉ pour inscriptions multiples d'enfants
+ * Un seul email avec la liste de tous les participants et le montant total
+ */
+export async function sendBatchEventRegistrationConfirmation(data: {
+  email: string
+  contactFirstName: string
+  contactLastName: string
+  eventTitle: string
+  eventDate?: string
+  participants: Array<{
+    firstName: string
+    lastName: string
+    isChild: boolean
+  }>
+  totalAmount: number
+  hasAccount: boolean
+}) {
+  const settings = await getEmailSettings()
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'À confirmer'
+    try {
+      const date = new Date(dateStr)
+      return date.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
+  // Construire la liste des participants
+  const participantsList = data.participants.map(p =>
+    `<li style="padding: 8px 0; color: #1f2937; font-size: 14px; border-bottom: 1px solid #e5e7eb;">
+      👤 <strong>${p.firstName} ${p.lastName}</strong>
+      ${p.isChild ? '<span style="color: #6b7280; font-size: 12px;">(enfant)</span>' : ''}
+    </li>`
+  ).join('')
+
+  const content = `
+    <div style="background-color: #FEE2E2; border-left: 4px solid #EF4444; padding: 20px; margin: 0 0 30px 0; border-radius: 6px;">
+      <h3 style="color: #B91C1C; margin: 0 0 10px 0; font-size: 18px;">
+        ✅ ${data.participants.length} inscription(s) confirmée(s)
+      </h3>
+      <p style="color: #991B1B; margin: 0; font-size: 14px;">
+        Votre paiement groupé de <strong>${data.totalAmount.toFixed(2)} CHF</strong> a été reçu avec succès.
+      </p>
+    </div>
+
+    <h2 style="color: #DC2626; margin: 0 0 20px 0;">
+      ${data.eventTitle}
+    </h2>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 15px 0;">
+      Assalamu alaikum ${data.contactFirstName},
+    </p>
+
+    <p style="color: #374151; line-height: 1.6; margin: 0 0 20px 0;">
+      Nous avons le plaisir de confirmer les inscriptions suivantes pour l'événement <strong>${data.eventTitle}</strong>.
+    </p>
+
+    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 0 0 25px 0;">
+      <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">📋 Récapitulatif de la facture</h3>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 50%;">📅 Date de l'événement</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${formatDate(data.eventDate)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">👥 Nombre de participants</td>
+          <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${data.participants.length} personne(s)</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">💰 Montant total payé</td>
+          <td style="padding: 8px 0; color: #DC2626; font-weight: 700; font-size: 18px;">${data.totalAmount.toFixed(2)} CHF</td>
+        </tr>
+      </table>
+
+      <h4 style="color: #1f2937; margin: 20px 0 10px 0; font-size: 14px; font-weight: 600;">👨‍👩‍👧‍👦 Participants inscrits :</h4>
+      <ul style="margin: 0; padding: 0 0 0 15px; list-style: none;">
+        ${participantsList}
+      </ul>
+    </div>
+
+    ${data.hasAccount ? `
+      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 0 0 25px 0; border-radius: 6px;">
+        <p style="color: #1e40af; margin: 0; font-size: 14px;">
+          ℹ️ Ces inscriptions sont enregistrées dans votre espace membre. Vous pouvez les consulter à tout moment.
+        </p>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.NEXTAUTH_URL}/membre/mes-inscriptions"
+           style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+          Voir mes inscriptions
+        </a>
+      </div>
+    ` : `
+      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 0 0 25px 0; border-radius: 6px;">
+        <p style="color: #92400e; margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">
+          💡 Créez votre espace membre
+        </p>
+        <p style="color: #92400e; margin: 0; font-size: 14px;">
+          Créez un compte avec cette adresse email (<strong>${data.email}</strong>) pour retrouver automatiquement ces inscriptions et gérer vos activités en ligne.
+        </p>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.NEXTAUTH_URL}/inscription"
+           style="background-color: #DC2626; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+          Créer mon compte
+        </a>
+      </div>
+    `}
+
+    <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 10px 0;">
+        📧 <strong>Un email de rappel vous sera envoyé quelques jours avant l'événement.</strong>
+      </p>
+      <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0 0 10px 0;">
+        Si vous avez des questions, n'hésitez pas à nous contacter.
+      </p>
+    </div>
+
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0 0 0;">
+      <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+        "Et vous êtes une communauté qui invite au bien" (Coran 3:110)
+      </p>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+      Qu'Allah accepte votre participation.<br>
+      Barakallahou fikoum.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.email,
+    subject: `✅ ${data.participants.length} inscription(s) confirmée(s) - ${data.eventTitle}`,
+    html: getEmailTemplate(content, settings),
+  })
+}
+
+/**
  * Email de confirmation de réception de demande d'adhésion
  */
 export async function sendMembershipApplicationReceived(data: {
@@ -2016,6 +2166,92 @@ export async function sendMembershipRequestNotificationToAdmin(data: {
   return sendEmail({
     to: data.adminEmail,
     subject: `Nouvelle demande d'adhésion - ${data.firstName} ${data.lastName}`,
+    html: getEmailTemplate(content, settings),
+  })
+}
+
+/**
+ * Email à l'organisateur lorsqu'un visiteur le contacte via un événement/activité
+ */
+export async function sendOrganizerContactEmail(data: {
+  organizerEmail: string
+  organizerName?: string
+  senderEmail: string
+  subject: string
+  message: string
+  itemType: 'event' | 'activity'
+  itemTitle: string
+  itemId: string
+}) {
+  const settings = await getEmailSettings()
+  const itemTypeLabel = data.itemType === 'event' ? 'Événement' : 'Activité'
+  const itemUrl = data.itemType === 'event'
+    ? `${process.env.NEXTAUTH_URL}/evenements/${data.itemId}`
+    : `${process.env.NEXTAUTH_URL}/activites/${data.itemId}`
+
+  const content = `
+    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+      ${data.organizerName ? `Bonjour ${data.organizerName},<br><br>` : ''}
+      Vous avez reçu un nouveau message concernant votre ${itemTypeLabel.toLowerCase()}.
+    </p>
+
+    <!-- Détails de l'item -->
+    <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+      <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0; text-transform: uppercase;">${itemTypeLabel}</p>
+      <p style="color: #111827; font-size: 16px; font-weight: 600; margin: 0;">
+        <a href="${itemUrl}" style="color: #DC2626; text-decoration: none;">${data.itemTitle}</a>
+      </p>
+    </div>
+
+    <!-- Message -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 80px;">De</span>
+          <a href="mailto:${data.senderEmail}" style="color: #111827; font-size: 14px; text-decoration: none;">${data.senderEmail}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="color: #6b7280; font-size: 13px; display: inline-block; width: 80px;">Sujet</span>
+          <span style="color: #111827; font-size: 14px;">${data.subject}</span>
+        </td>
+      </tr>
+    </table>
+
+    <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+      <p style="color: #6b7280; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase;">Message</p>
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${data.message}</p>
+    </div>
+
+    <!-- Boutons -->
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding: 0 0 15px 0;">
+          <a href="mailto:${data.senderEmail}?subject=Re: ${encodeURIComponent(data.subject)}"
+             style="display: inline-block; background-color: #DC2626; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 14px;">
+            Répondre par email
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding: 0 0 30px 0;">
+          <a href="${process.env.NEXTAUTH_URL}/dashboard/admin/messages"
+             style="display: inline-block; color: #6b7280; padding: 8px 20px; text-decoration: none; font-size: 13px;">
+            Voir dans le tableau de bord
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+      Ce message a été envoyé via le formulaire de contact de ${data.itemTitle}.
+    </p>
+  `
+
+  return sendEmail({
+    to: data.organizerEmail,
+    subject: `Nouveau message: ${data.itemTitle}`,
     html: getEmailTemplate(content, settings),
   })
 }

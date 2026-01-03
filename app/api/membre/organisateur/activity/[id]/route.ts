@@ -6,10 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById, updateOffering } from '@/lib/directus'
+import { getOfferingById, updateOffering } from '@/lib/content'
 
 export async function GET(
   request: NextRequest,
@@ -32,17 +35,17 @@ export async function GET(
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 })
     }
 
-    // Récupérer l'activité depuis Directus
+    // Récupérer l'activité depuis la base de données
     const activity = await getOfferingById(id)
 
-    if (!activity || activity.item_type !== 'ACTIVITY') {
+    if (!activity || activity.itemType !== 'ACTIVITY') {
       return NextResponse.json({ error: 'Activité non trouvée' }, { status: 404 })
     }
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      activity.manager_id === user.id ||
-      activity.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      activity.managerId === user.id ||
+      activity.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {
@@ -97,10 +100,10 @@ export async function GET(
         category: activity.category,
         schedule: activity.schedule,
         price: activity.price,
-        payment_type: activity.payment_type,
-        max_capacity: activity.max_capacity,
-        enrollment_open: activity.enrollment_open,
-        requires_approval: activity.requires_approval,
+        paymentType: activity.paymentType,
+        maxCapacity: activity.maxCapacity,
+        enrollmentOpen: activity.enrollmentOpen,
+        requiresApproval: activity.requiresApproval,
         published: activity.published,
         restrictions: activity.restrictions,
       },
@@ -137,14 +140,14 @@ export async function PATCH(
     // Récupérer l'activité
     const activity = await getOfferingById(id)
 
-    if (!activity || activity.item_type !== 'ACTIVITY') {
+    if (!activity || activity.itemType !== 'ACTIVITY') {
       return NextResponse.json({ error: 'Activité non trouvée' }, { status: 404 })
     }
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      activity.manager_id === user.id ||
-      activity.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      activity.managerId === user.id ||
+      activity.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {
@@ -154,7 +157,21 @@ export async function PATCH(
     const body = await request.json()
 
     // Préparer les données de mise à jour
+    // Accepter camelCase OU snake_case pour compatibilité avec les formulaires
     const updateData: Record<string, unknown> = {}
+
+    // Accepter les deux conventions de nommage
+    const maxCapacity = body.maxCapacity ?? body.max_capacity
+    const enrollmentOpen = body.enrollmentOpen ?? body.enrollment_open
+    const requiresApproval = body.requiresApproval ?? body.requires_approval
+    const paymentType = body.paymentType ?? body.payment_type
+    const subscriptionInterval = body.subscriptionInterval ?? body.subscription_interval
+    const allowRefund = body.allowRefund ?? body.allow_refund
+    const cancellationDeadlineDays = body.cancellationDeadlineDays ?? body.cancellation_deadline_days
+    const showOrganizerName = body.showOrganizerName ?? body.show_organizer_name
+    const showOrganizerEmail = body.showOrganizerEmail ?? body.show_organizer_email
+    const showOrganizerPhone = body.showOrganizerPhone ?? body.show_organizer_phone
+    const activityCategory = body.activityCategory ?? body.activity_category
 
     // Champs modifiables
     if (body.title !== undefined) updateData.title = body.title
@@ -162,16 +179,24 @@ export async function PATCH(
     if (body.description !== undefined) updateData.description = body.description
     if (body.content !== undefined) updateData.content = body.content
     if (body.category !== undefined) updateData.category = body.category
+    if (activityCategory !== undefined) updateData.activityCategory = activityCategory
     if (body.schedule !== undefined) updateData.schedule = body.schedule
-    if (body.max_capacity !== undefined) updateData.max_capacity = body.max_capacity
-    if (body.enrollment_open !== undefined) updateData.enrollment_open = body.enrollment_open
-    if (body.requires_approval !== undefined) updateData.requires_approval = body.requires_approval
+    if (maxCapacity !== undefined) updateData.maxCapacity = maxCapacity
+    if (enrollmentOpen !== undefined) updateData.enrollmentOpen = enrollmentOpen
+    if (requiresApproval !== undefined) updateData.requiresApproval = requiresApproval
     if (body.published !== undefined) updateData.published = body.published
     if (body.price !== undefined) updateData.price = body.price
-    if (body.payment_type !== undefined) updateData.payment_type = body.payment_type
+    if (paymentType !== undefined) updateData.paymentType = paymentType
+    if (subscriptionInterval !== undefined) updateData.subscriptionInterval = subscriptionInterval
+    if (allowRefund !== undefined) updateData.allowRefund = allowRefund
+    if (cancellationDeadlineDays !== undefined) updateData.cancellationDeadlineDays = cancellationDeadlineDays
+    if (showOrganizerName !== undefined) updateData.showOrganizerName = showOrganizerName
+    if (showOrganizerEmail !== undefined) updateData.showOrganizerEmail = showOrganizerEmail
+    if (showOrganizerPhone !== undefined) updateData.showOrganizerPhone = showOrganizerPhone
     if (body.restrictions !== undefined) updateData.restrictions = body.restrictions
+    if (body.pricing !== undefined) updateData.pricing = body.pricing
 
-    // Mettre à jour dans Directus
+    // Mettre à jour via lib/content.ts
     const updatedActivity = await updateOffering(id, updateData)
 
     if (!updatedActivity) {

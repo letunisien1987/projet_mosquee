@@ -7,7 +7,7 @@
 
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getEventById } from '@/lib/directus'
+import { getEventById } from '@/lib/content'
 import {
   sendEventPaymentRequest,
   sendEventRegistrationEmail
@@ -73,8 +73,8 @@ export const PATCH = apiHandler(async (
       throw new ApiError('Seules les inscriptions en attente peuvent être approuvées', 400, 'INVALID_STATUS')
     }
 
-    const event = await getEventById(registration.eventId)
-    const isPaidEvent = event?.payment_type && event.payment_type !== 'FREE' && event.price && event.price > 0
+    const event = registration.eventId ? await getEventById(registration.eventId) : null
+    const isPaidEvent = event?.paymentType && event.paymentType !== 'FREE' && event.price && event.price > 0
 
     let newStatus: 'PENDING_PAYMENT' | 'CONFIRMED'
     let message: string
@@ -95,7 +95,7 @@ export const PATCH = apiHandler(async (
           email: registration.email,
           firstName: registration.firstName,
           eventTitle: registration.eventTitle,
-          eventDate: event?.date,
+          eventDate: event?.date?.toISOString().split('T')[0] || '',
           participationType: registration.participationType,
           numberOfAdults: registration.numberOfAdults,
           numberOfChildren: registration.numberOfChildren,

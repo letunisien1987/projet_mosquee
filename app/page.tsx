@@ -6,7 +6,7 @@ import HeroWithAnnouncements from '@/components/HeroWithAnnouncements'
 import AnnouncementsGallery from '@/components/AnnouncementsGallery'
 import { getPrayerTimes, getNextPrayer, formatHijriDate, isRamadan } from '@/lib/prayer-times'
 import { getMawaqitAnnouncements, getMawaqitPrayerTimesWithDetails, getSpecialPrayerInfo } from '@/lib/mawaqit'
-import { getJumuaMessages } from '@/lib/directus'
+import { getActiveJumuaMessages } from '@/lib/content'
 import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
@@ -40,10 +40,10 @@ export default async function Home() {
     rawAnnouncements = []
   }
 
-  // Fetch Jumua messages from Directus
+  // Fetch Jumua messages from Prisma
   let jumuaMessages: any[] = []
   try {
-    jumuaMessages = await getJumuaMessages()
+    jumuaMessages = await getActiveJumuaMessages()
   } catch (error) {
     console.error('Erreur lors du chargement des messages Joumou\'a:', error)
     jumuaMessages = []
@@ -51,7 +51,7 @@ export default async function Home() {
 
   // Transform Jumua messages for the carousel
   // Note: Les horaires Jumua viennent de l'API Mawaqit (jumua, jumua2, jumua3)
-  // Les messages Jumua (Directus) ne contiennent que le contenu du message, pas les horaires
+  // Les messages Jumua ne contiennent que le contenu du message, pas les horaires
   const jumuaAnnouncements = jumuaMessages.map((msg) => ({
     id: msg.id,
     title: msg.title,

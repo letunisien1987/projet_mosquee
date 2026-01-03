@@ -1,5 +1,5 @@
 import { Heart, Target, Users, Award, BookOpen, HandHeart } from 'lucide-react'
-import { getTeamMembers, getDirectusImageUrl } from '@/lib/directus'
+import { getTeamMembers, getImageUrl } from '@/lib/content'
 import { getMawaqitServices } from '@/lib/mawaqit'
 import { getSettings, getMosqueStats } from '@/lib/settings'
 import MosqueServices from '@/components/MosqueServices'
@@ -158,10 +158,10 @@ export default async function AboutPage() {
               key={member.id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-primary/10 hover:shadow-xl transition-shadow"
             >
-              {member.photo && typeof member.photo === 'string' && getDirectusImageUrl(member.photo) ? (
+              {member.photo && typeof member.photo === 'string' && getImageUrl(member.photo) ? (
                 <div className="h-48 overflow-hidden">
                   <img
-                    src={getDirectusImageUrl(member.photo) || ''}
+                    src={getImageUrl(member.photo) || ''}
                     alt={member.name}
                     className="w-full h-full object-cover"
                   />

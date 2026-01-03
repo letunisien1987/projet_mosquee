@@ -17,16 +17,16 @@ interface Event {
   description?: string
   category: 'religieux' | 'communaute' | 'education' | 'charite'
   date: string
-  start_time: string
-  end_time: string
+  startTime: string
+  endTime: string
   location?: string
   attendees?: string
-  registration_required?: boolean
-  max_capacity?: number
-  requires_approval?: boolean
+  registrationRequired?: boolean
+  maxCapacity?: number
+  requiresApproval?: boolean
   price?: number | string
-  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
-  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  paymentType?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscriptionInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   pricing?: PricingConfig | null
 }
 
@@ -61,7 +61,7 @@ export default function EvenementsPage() {
 
   useEffect(() => {
     events.forEach((event) => {
-      if (event.registration_required) {
+      if (event.registrationRequired) {
         fetchAvailability(event.id)
       }
     })
@@ -111,7 +111,7 @@ export default function EvenementsPage() {
 
   // Déterminer le statut d'un événement
   const getEventStatus = (event: Event) => {
-    if (!event.registration_required) return undefined
+    if (!event.registrationRequired) return undefined
 
     const avail = availability[event.id]
     if (!avail) return { type: 'loading' as const }
@@ -121,7 +121,7 @@ export default function EvenementsPage() {
     return {
       type: 'available' as const,
       availableSpots: avail.availableSpots ?? undefined,
-      requiresApproval: event.requires_approval,
+      requiresApproval: event.requiresApproval,
     }
   }
 
@@ -158,11 +158,11 @@ export default function EvenementsPage() {
                 categoryConfig={categoryConfig}
                 infos={[
                   { icon: 'calendar', label: '', value: formatDate(event.date) },
-                  { icon: 'clock', label: '', value: `${event.start_time} - ${event.end_time}` },
+                  { icon: 'clock', label: '', value: `${event.startTime} - ${event.endTime}` },
                   ...(event.location ? [{ icon: 'location' as const, label: '', value: event.location }] : []),
                   ...(event.attendees ? [{ icon: 'users' as const, label: '', value: event.attendees }] : []),
                 ]}
-                price={event.registration_required ? {
+                price={event.registrationRequired ? {
                   amount: priceInfo.price,
                   label: priceInfo.isVariable ? 'Dès' : undefined,
                 } : undefined}

@@ -187,7 +187,7 @@ export default function NouvelleActivitePage() {
           Nouvelle Activité
         </h1>
         <p className="text-gray-500 mt-1">
-          Créez une nouvelle activité qui sera synchronisée avec Directus
+          Créez une nouvelle activité
         </p>
       </div>
 

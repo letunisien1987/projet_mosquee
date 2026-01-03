@@ -18,6 +18,7 @@ import {
   Info,
   MapPin,
   Settings,
+  Mail,
 } from 'lucide-react'
 
 const categories = [
@@ -48,19 +49,19 @@ interface User {
 }
 
 interface PricingConfig {
-  adult_price: number
-  child_price: number
-  child_free_until_age: number
-  group_discount: {
+  adultPrice: number
+  childPrice: number
+  childFreeUntilAge: number
+  groupDiscount: {
     enabled: boolean
-    from_persons: number
-    discount_percent: number
+    fromPersons: number
+    discountPercent: number
   }
-  family_max_price: number | null
-  early_bird: {
+  familyMaxPrice: number | null
+  earlyBird: {
     enabled: boolean
-    until_date: string | null
-    discount_percent: number
+    untilDate: string | null
+    discountPercent: number
   }
 }
 
@@ -72,29 +73,32 @@ export interface EventData {
   description?: string
   content?: string
   date: string
-  start_time?: string
-  end_time?: string
+  startTime?: string
+  endTime?: string
   location?: string
-  max_capacity?: number
-  registration_required: boolean
-  requires_approval: boolean
-  registration_deadline?: string
+  maxCapacity?: number
+  registrationRequired: boolean
+  requiresApproval: boolean
+  registrationDeadline?: string
   featured: boolean
   published: boolean
   price?: number
-  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
-  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  paymentType?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscriptionInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   pricing?: PricingConfig | null
-  allow_refund?: boolean
-  cancellation_deadline_days?: number
-  manager_id?: string
-  manager_email?: string
+  allowRefund?: boolean
+  cancellationDeadlineDays?: number
+  managerId?: string
+  managerEmail?: string
+  showOrganizerName?: boolean
+  showOrganizerEmail?: boolean
+  showOrganizerPhone?: boolean
   restrictions?: {
     enabled: boolean
-    participation_type: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
-    allowed_gender: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
-    min_age: number | null
-    max_age: number | null
+    participationType: 'INDIVIDUAL' | 'FAMILY' | 'MIXED'
+    allowedGender: 'MALE' | 'FEMALE' | 'CHILD' | 'ALL'
+    minAge: number | null
+    maxAge: number | null
   }
 }
 
@@ -132,40 +136,43 @@ export default function EventForm({
     description: event?.description || '',
     content: event?.content || '',
     date: event?.date ? event.date.split('T')[0] : '',
-    start_time: event?.start_time || '',
-    end_time: event?.end_time || '',
+    startTime: event?.startTime || '',
+    endTime: event?.endTime || '',
     location: event?.location || '',
-    max_capacity: event?.max_capacity?.toString() || '',
-    registration_required: event?.registration_required ?? false,
-    requires_approval: event?.requires_approval ?? false,
-    registration_deadline: event?.registration_deadline ? event.registration_deadline.split('T')[0] : '',
+    maxCapacity: event?.maxCapacity?.toString() || '',
+    registrationRequired: event?.registrationRequired ?? false,
+    requiresApproval: event?.requiresApproval ?? false,
+    registrationDeadline: event?.registrationDeadline ? event.registrationDeadline.split('T')[0] : '',
     featured: event?.featured ?? false,
     published: event?.published ?? true,
-    payment_type: (event?.payment_type || 'FREE') as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
+    paymentType: (event?.paymentType || 'FREE') as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
     price: event?.price?.toString() || '',
-    subscription_interval: (event?.subscription_interval || 'MONTHLY') as 'WEEKLY' | 'MONTHLY' | 'YEARLY',
-    pricing_enabled: !!event?.pricing,
+    subscriptionInterval: (event?.subscriptionInterval || 'MONTHLY') as 'WEEKLY' | 'MONTHLY' | 'YEARLY',
+    pricingEnabled: !!event?.pricing,
     pricing: {
-      adult_price: event?.pricing?.adult_price?.toString() || '',
-      child_price: event?.pricing?.child_price?.toString() || '',
-      child_free_until_age: event?.pricing?.child_free_until_age?.toString() || '',
-      group_discount_enabled: event?.pricing?.group_discount?.enabled ?? false,
-      group_discount_from_persons: event?.pricing?.group_discount?.from_persons?.toString() || '4',
-      group_discount_percent: event?.pricing?.group_discount?.discount_percent?.toString() || '10',
-      family_max_price: event?.pricing?.family_max_price?.toString() || '',
-      early_bird_enabled: event?.pricing?.early_bird?.enabled ?? false,
-      early_bird_until_date: event?.pricing?.early_bird?.until_date || '',
-      early_bird_discount_percent: event?.pricing?.early_bird?.discount_percent?.toString() || '15',
+      adultPrice: event?.pricing?.adultPrice?.toString() || '',
+      childPrice: event?.pricing?.childPrice?.toString() || '',
+      childFreeUntilAge: event?.pricing?.childFreeUntilAge?.toString() || '',
+      groupDiscountEnabled: event?.pricing?.groupDiscount?.enabled ?? false,
+      groupDiscountFromPersons: event?.pricing?.groupDiscount?.fromPersons?.toString() || '4',
+      groupDiscountPercent: event?.pricing?.groupDiscount?.discountPercent?.toString() || '10',
+      familyMaxPrice: event?.pricing?.familyMaxPrice?.toString() || '',
+      earlyBirdEnabled: event?.pricing?.earlyBird?.enabled ?? false,
+      earlyBirdUntilDate: event?.pricing?.earlyBird?.untilDate || '',
+      earlyBirdDiscountPercent: event?.pricing?.earlyBird?.discountPercent?.toString() || '15',
     },
-    allow_refund: event?.allow_refund ?? true,
-    cancellation_deadline_days: event?.cancellation_deadline_days?.toString() || '7',
-    manager_id: event?.manager_id || '',
+    allowRefund: event?.allowRefund ?? true,
+    cancellationDeadlineDays: event?.cancellationDeadlineDays?.toString() || '7',
+    managerId: event?.managerId || '',
+    showOrganizerName: event?.showOrganizerName ?? false,
+    showOrganizerEmail: event?.showOrganizerEmail ?? false,
+    showOrganizerPhone: event?.showOrganizerPhone ?? false,
     restrictions: {
       enabled: event?.restrictions?.enabled ?? false,
-      participation_type: (event?.restrictions?.participation_type || 'INDIVIDUAL') as 'INDIVIDUAL' | 'FAMILY' | 'MIXED',
-      allowed_gender: (event?.restrictions?.allowed_gender || 'ALL') as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL',
-      min_age: event?.restrictions?.min_age?.toString() || '',
-      max_age: event?.restrictions?.max_age?.toString() || '',
+      participationType: (event?.restrictions?.participationType || 'INDIVIDUAL') as 'INDIVIDUAL' | 'FAMILY' | 'MIXED',
+      allowedGender: (event?.restrictions?.allowedGender || 'ALL') as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL',
+      minAge: event?.restrictions?.minAge?.toString() || '',
+      maxAge: event?.restrictions?.maxAge?.toString() || '',
     },
   })
 
@@ -217,43 +224,43 @@ export default function EventForm({
     setSuccess('')
 
     try {
-      const pricingPayload = formData.pricing_enabled && formData.payment_type !== 'FREE' ? {
-        adult_price: formData.pricing.adult_price ? parseFloat(formData.pricing.adult_price) : 0,
-        child_price: formData.pricing.child_price ? parseFloat(formData.pricing.child_price) : 0,
-        child_free_until_age: formData.pricing.child_free_until_age ? parseInt(formData.pricing.child_free_until_age) : 0,
-        group_discount: {
-          enabled: formData.pricing.group_discount_enabled,
-          from_persons: parseInt(formData.pricing.group_discount_from_persons) || 4,
-          discount_percent: parseInt(formData.pricing.group_discount_percent) || 10,
+      const pricingPayload = formData.pricingEnabled && formData.paymentType !== 'FREE' ? {
+        adultPrice: formData.pricing.adultPrice ? parseFloat(formData.pricing.adultPrice) : 0,
+        childPrice: formData.pricing.childPrice ? parseFloat(formData.pricing.childPrice) : 0,
+        childFreeUntilAge: formData.pricing.childFreeUntilAge ? parseInt(formData.pricing.childFreeUntilAge) : 0,
+        groupDiscount: {
+          enabled: formData.pricing.groupDiscountEnabled,
+          fromPersons: parseInt(formData.pricing.groupDiscountFromPersons) || 4,
+          discountPercent: parseInt(formData.pricing.groupDiscountPercent) || 10,
         },
-        family_max_price: formData.pricing.family_max_price ? parseFloat(formData.pricing.family_max_price) : null,
-        early_bird: {
-          enabled: formData.pricing.early_bird_enabled,
-          until_date: formData.pricing.early_bird_until_date || null,
-          discount_percent: parseInt(formData.pricing.early_bird_discount_percent) || 15,
+        familyMaxPrice: formData.pricing.familyMaxPrice ? parseFloat(formData.pricing.familyMaxPrice) : null,
+        earlyBird: {
+          enabled: formData.pricing.earlyBirdEnabled,
+          untilDate: formData.pricing.earlyBirdUntilDate || null,
+          discountPercent: parseInt(formData.pricing.earlyBirdDiscountPercent) || 15,
         },
       } : null
 
       const payload: Record<string, unknown> = {
         ...formData,
-        item_type: 'EVENT', // Toujours EVENT pour ce formulaire
-        max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : undefined,
+        itemType: 'EVENT', // Toujours EVENT pour ce formulaire
+        maxCapacity: formData.maxCapacity ? parseInt(formData.maxCapacity) : undefined,
         price: formData.price ? parseFloat(formData.price) : undefined,
-        subscription_interval: formData.payment_type === 'SUBSCRIPTION' ? formData.subscription_interval : undefined,
+        subscriptionInterval: formData.paymentType === 'SUBSCRIPTION' ? formData.subscriptionInterval : undefined,
         pricing: pricingPayload,
-        allow_refund: formData.payment_type !== 'FREE' ? formData.allow_refund : undefined,
-        cancellation_deadline_days: formData.payment_type !== 'FREE' && formData.allow_refund
-          ? parseInt(formData.cancellation_deadline_days) || 7
+        allowRefund: formData.paymentType !== 'FREE' ? formData.allowRefund : undefined,
+        cancellationDeadlineDays: formData.paymentType !== 'FREE' && formData.allowRefund
+          ? parseInt(formData.cancellationDeadlineDays) || 7
           : undefined,
-        manager_id: formData.manager_id || undefined,
+        managerId: formData.managerId || undefined,
         restrictions: formData.restrictions.enabled ? {
           ...formData.restrictions,
-          min_age: formData.restrictions.min_age ? parseInt(formData.restrictions.min_age) : null,
-          max_age: formData.restrictions.max_age ? parseInt(formData.restrictions.max_age) : null,
+          minAge: formData.restrictions.minAge ? parseInt(formData.restrictions.minAge) : null,
+          maxAge: formData.restrictions.maxAge ? parseInt(formData.restrictions.maxAge) : null,
         } : undefined,
       }
 
-      delete payload.pricing_enabled
+      delete payload.pricingEnabled
 
       const res = await fetch(apiEndpoint, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -438,8 +445,8 @@ export default function EventForm({
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Heure de début</label>
               <input
                 type="time"
-                value={formData.start_time}
-                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
               />
             </div>
@@ -448,8 +455,8 @@ export default function EventForm({
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Heure de fin</label>
               <input
                 type="time"
-                value={formData.end_time}
-                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
               />
               </div>
@@ -459,8 +466,8 @@ export default function EventForm({
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date limite d&apos;inscription</label>
               <input
                 type="date"
-                value={formData.registration_deadline}
-                onChange={(e) => setFormData({ ...formData, registration_deadline: e.target.value })}
+                value={formData.registrationDeadline}
+                onChange={(e) => setFormData({ ...formData, registrationDeadline: e.target.value })}
                 className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
               />
             </div>
@@ -486,8 +493,8 @@ export default function EventForm({
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Capacité maximale</label>
               <input
                 type="number"
-                value={formData.max_capacity}
-                onChange={(e) => setFormData({ ...formData, max_capacity: e.target.value })}
+                value={formData.maxCapacity}
+                onChange={(e) => setFormData({ ...formData, maxCapacity: e.target.value })}
                 className="w-full md:w-1/2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Laisser vide pour illimité"
                 min="1"
@@ -498,8 +505,8 @@ export default function EventForm({
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.registration_required}
-                  onChange={(e) => setFormData({ ...formData, registration_required: e.target.checked })}
+                  checked={formData.registrationRequired}
+                  onChange={(e) => setFormData({ ...formData, registrationRequired: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                 />
                 <span className="text-gray-700 dark:text-gray-300">Inscription requise</span>
@@ -508,8 +515,8 @@ export default function EventForm({
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.requires_approval}
-                  onChange={(e) => setFormData({ ...formData, requires_approval: e.target.checked })}
+                  checked={formData.requiresApproval}
+                  onChange={(e) => setFormData({ ...formData, requiresApproval: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                 />
                 <span className="text-gray-700 dark:text-gray-300">Approbation requise</span>
@@ -542,11 +549,11 @@ export default function EventForm({
                     type="button"
                     onClick={() => setFormData({
                       ...formData,
-                      payment_type: type.value as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
+                      paymentType: type.value as 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION',
                       price: type.value === 'FREE' ? '' : formData.price,
                     })}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
-                      formData.payment_type === type.value
+                      formData.paymentType === type.value
                         ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
                         : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                     }`}
@@ -557,7 +564,7 @@ export default function EventForm({
               </div>
             </div>
 
-            {formData.payment_type !== 'FREE' && (
+            {formData.paymentType !== 'FREE' && (
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Prix (CHF) <span className="text-red-500">*</span>
@@ -575,14 +582,14 @@ export default function EventForm({
               </div>
             )}
 
-            {formData.payment_type === 'SUBSCRIPTION' && (
+            {formData.paymentType === 'SUBSCRIPTION' && (
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Intervalle de paiement</label>
                 <select
-                  value={formData.subscription_interval}
+                  value={formData.subscriptionInterval}
                   onChange={(e) => setFormData({
                     ...formData,
-                    subscription_interval: e.target.value as 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+                    subscriptionInterval: e.target.value as 'WEEKLY' | 'MONTHLY' | 'YEARLY'
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -598,7 +605,7 @@ export default function EventForm({
         </div>
 
         {/* Tarification avancée */}
-        {formData.payment_type !== 'FREE' && (
+        {formData.paymentType !== 'FREE' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
@@ -614,8 +621,8 @@ export default function EventForm({
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.pricing_enabled}
-                    onChange={(e) => setFormData({ ...formData, pricing_enabled: e.target.checked })}
+                    checked={formData.pricingEnabled}
+                    onChange={(e) => setFormData({ ...formData, pricingEnabled: e.target.checked })}
                     className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                   />
                   <span className="text-sm font-medium">Activer</span>
@@ -623,7 +630,7 @@ export default function EventForm({
               </div>
             </div>
 
-            {formData.pricing_enabled ? (
+            {formData.pricingEnabled ? (
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -634,12 +641,12 @@ export default function EventForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.pricing.adult_price}
+                      value={formData.pricing.adultPrice}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, adult_price: e.target.value }
+                        pricing: { ...formData.pricing, adultPrice: e.target.value }
                       })}
-                      required={formData.pricing_enabled}
+                      required={formData.pricingEnabled}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                       placeholder="50"
                     />
@@ -651,10 +658,10 @@ export default function EventForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.pricing.child_price}
+                      value={formData.pricing.childPrice}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, child_price: e.target.value }
+                        pricing: { ...formData.pricing, childPrice: e.target.value }
                       })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                       placeholder="25"
@@ -667,10 +674,10 @@ export default function EventForm({
                       type="number"
                       min="0"
                       max="18"
-                      value={formData.pricing.child_free_until_age}
+                      value={formData.pricing.childFreeUntilAge}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, child_free_until_age: e.target.value }
+                        pricing: { ...formData.pricing, childFreeUntilAge: e.target.value }
                       })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                       placeholder="5"
@@ -683,10 +690,10 @@ export default function EventForm({
                   <label className="flex items-center gap-3 cursor-pointer mb-4">
                     <input
                       type="checkbox"
-                      checked={formData.pricing.group_discount_enabled}
+                      checked={formData.pricing.groupDiscountEnabled}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, group_discount_enabled: e.target.checked }
+                        pricing: { ...formData.pricing, groupDiscountEnabled: e.target.checked }
                       })}
                       className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                     />
@@ -696,17 +703,17 @@ export default function EventForm({
                     </span>
                   </label>
 
-                  {formData.pricing.group_discount_enabled && (
+                  {formData.pricing.groupDiscountEnabled && (
                     <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">À partir de (pers.)</label>
                         <input
                           type="number"
                           min="2"
-                          value={formData.pricing.group_discount_from_persons}
+                          value={formData.pricing.groupDiscountFromPersons}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, group_discount_from_persons: e.target.value }
+                            pricing: { ...formData.pricing, groupDiscountFromPersons: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -717,10 +724,10 @@ export default function EventForm({
                           type="number"
                           min="1"
                           max="100"
-                          value={formData.pricing.group_discount_percent}
+                          value={formData.pricing.groupDiscountPercent}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, group_discount_percent: e.target.value }
+                            pricing: { ...formData.pricing, groupDiscountPercent: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -739,10 +746,10 @@ export default function EventForm({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.pricing.family_max_price}
+                    value={formData.pricing.familyMaxPrice}
                     onChange={(e) => setFormData({
                       ...formData,
-                      pricing: { ...formData.pricing, family_max_price: e.target.value }
+                      pricing: { ...formData.pricing, familyMaxPrice: e.target.value }
                     })}
                     className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                     placeholder="150"
@@ -754,10 +761,10 @@ export default function EventForm({
                   <label className="flex items-center gap-3 cursor-pointer mb-4">
                     <input
                       type="checkbox"
-                      checked={formData.pricing.early_bird_enabled}
+                      checked={formData.pricing.earlyBirdEnabled}
                       onChange={(e) => setFormData({
                         ...formData,
-                        pricing: { ...formData.pricing, early_bird_enabled: e.target.checked }
+                        pricing: { ...formData.pricing, earlyBirdEnabled: e.target.checked }
                       })}
                       className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                     />
@@ -767,16 +774,16 @@ export default function EventForm({
                     </span>
                   </label>
 
-                  {formData.pricing.early_bird_enabled && (
+                  {formData.pricing.earlyBirdEnabled && (
                     <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date limite</label>
                         <input
                           type="date"
-                          value={formData.pricing.early_bird_until_date}
+                          value={formData.pricing.earlyBirdUntilDate}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, early_bird_until_date: e.target.value }
+                            pricing: { ...formData.pricing, earlyBirdUntilDate: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -787,10 +794,10 @@ export default function EventForm({
                           type="number"
                           min="1"
                           max="100"
-                          value={formData.pricing.early_bird_discount_percent}
+                          value={formData.pricing.earlyBirdDiscountPercent}
                           onChange={(e) => setFormData({
                             ...formData,
-                            pricing: { ...formData.pricing, early_bird_discount_percent: e.target.value }
+                            pricing: { ...formData.pricing, earlyBirdDiscountPercent: e.target.value }
                           })}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
                         />
@@ -810,7 +817,7 @@ export default function EventForm({
         )}
 
         {/* Politique de remboursement */}
-        {formData.payment_type !== 'FREE' && (
+        {formData.paymentType !== 'FREE' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
@@ -828,14 +835,14 @@ export default function EventForm({
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.allow_refund}
-                  onChange={(e) => setFormData({ ...formData, allow_refund: e.target.checked })}
+                  checked={formData.allowRefund}
+                  onChange={(e) => setFormData({ ...formData, allowRefund: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="font-medium text-gray-700 dark:text-gray-300">Autoriser les remboursements</span>
               </label>
 
-              {formData.allow_refund && (
+              {formData.allowRefund && (
                 <div className="ml-8 pt-4 border-t border-gray-200 dark:border-gray-600">
                   <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Délai de remboursement automatique (jours avant l&apos;événement)
@@ -844,13 +851,13 @@ export default function EventForm({
                     type="number"
                     min="0"
                     max="365"
-                    value={formData.cancellation_deadline_days}
-                    onChange={(e) => setFormData({ ...formData, cancellation_deadline_days: e.target.value })}
+                    value={formData.cancellationDeadlineDays}
+                    onChange={(e) => setFormData({ ...formData, cancellationDeadlineDays: e.target.value })}
                     className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white"
                     placeholder="7"
                   />
                   <p className="mt-2 text-sm text-gray-500">
-                    Si un participant annule au moins <strong>{formData.cancellation_deadline_days || 7} jours</strong> avant,
+                    Si un participant annule au moins <strong>{formData.cancellationDeadlineDays || 7} jours</strong> avant,
                     il sera automatiquement remboursé.
                   </p>
                 </div>
@@ -885,8 +892,8 @@ export default function EventForm({
                 </div>
               ) : (
                 <select
-                  value={formData.manager_id}
-                  onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
+                  value={formData.managerId}
+                  onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-cyan-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">-- Aucun --</option>
@@ -940,6 +947,60 @@ export default function EventForm({
           </div>
         </div>
 
+        {/* Contact Organisateur */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Mail className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Organisateur</h2>
+                <p className="text-sm text-gray-500">Choisissez quelles informations afficher aux visiteurs</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Les visiteurs pourront voir ces informations sur la page de l&apos;événement et vous contacter directement.
+            </p>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerName}
+                onChange={(e) => setFormData({ ...formData, showOrganizerName: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Afficher mon nom</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerEmail}
+                onChange={(e) => setFormData({ ...formData, showOrganizerEmail: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <div>
+                <span className="text-gray-700 dark:text-gray-300">Afficher mon email</span>
+                <p className="text-xs text-gray-500">Permet aux visiteurs de vous contacter via un formulaire</p>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.showOrganizerPhone}
+                onChange={(e) => setFormData({ ...formData, showOrganizerPhone: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Afficher mon téléphone</span>
+            </label>
+          </div>
+        </div>
+
         {/* Restrictions */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -973,10 +1034,10 @@ export default function EventForm({
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Type de participation</label>
                 <select
-                  value={formData.restrictions.participation_type}
+                  value={formData.restrictions.participationType}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, participation_type: e.target.value as 'INDIVIDUAL' | 'FAMILY' | 'MIXED' }
+                    restrictions: { ...formData.restrictions, participationType: e.target.value as 'INDIVIDUAL' | 'FAMILY' | 'MIXED' }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -989,10 +1050,10 @@ export default function EventForm({
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Genre autorisé</label>
                 <select
-                  value={formData.restrictions.allowed_gender}
+                  value={formData.restrictions.allowedGender}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, allowed_gender: e.target.value as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL' }
+                    restrictions: { ...formData.restrictions, allowedGender: e.target.value as 'MALE' | 'FEMALE' | 'CHILD' | 'ALL' }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                 >
@@ -1007,10 +1068,10 @@ export default function EventForm({
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Âge minimum</label>
                 <input
                   type="number"
-                  value={formData.restrictions.min_age}
+                  value={formData.restrictions.minAge}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, min_age: e.target.value }
+                    restrictions: { ...formData.restrictions, minAge: e.target.value }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Aucun"
@@ -1021,10 +1082,10 @@ export default function EventForm({
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Âge maximum</label>
                 <input
                   type="number"
-                  value={formData.restrictions.max_age}
+                  value={formData.restrictions.maxAge}
                   onChange={(e) => setFormData({
                     ...formData,
-                    restrictions: { ...formData.restrictions, max_age: e.target.value }
+                    restrictions: { ...formData.restrictions, maxAge: e.target.value }
                   })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Aucun"

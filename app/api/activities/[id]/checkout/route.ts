@@ -7,7 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
-import { getActivityById } from '@/lib/directus'
+import { getActivityById } from '@/lib/content'
 
 export async function GET(
   req: NextRequest,
@@ -66,7 +66,7 @@ export async function GET(
       )
     }
 
-    // Récupérer l'activité depuis Directus
+    // Récupérer l'activité depuis la base de données
     const activity = await getActivityById(activityId)
 
     if (!activity) {

@@ -1,5 +1,5 @@
 import { Heart, Landmark, Users, Building, TrendingUp } from 'lucide-react'
-import { getProjects, getDirectusImageUrl } from '@/lib/directus'
+import { getProjects, getImageUrl } from '@/lib/content'
 import IbanCopyButton from '@/components/IbanCopyButton'
 import DonationProjectCard from '@/components/DonationProjectCard'
 import { getSettings, getDonationPresets } from '@/lib/settings'
@@ -7,7 +7,7 @@ import { getSettings, getDonationPresets } from '@/lib/settings'
 export const dynamic = 'force-dynamic'
 
 export default async function DonsPage() {
-  // Récupérer les projets actifs depuis Directus et les paramètres
+  // Récupérer les projets actifs et les paramètres
   const [projects, settings] = await Promise.all([
     getProjects(),
     getSettings(),
@@ -122,7 +122,7 @@ export default async function DonsPage() {
                 id={project.id}
                 title={project.title}
                 description={project.description || ''}
-                image={project.image && typeof project.image === 'string' ? getDirectusImageUrl(project.image) || undefined : undefined}
+                image={project.image && typeof project.image === 'string' ? getImageUrl(project.image) || undefined : undefined}
                 goalAmount={project.goal_amount || 0}
                 currentAmount={project.current_amount || 0}
                 raisenowCode={project.raisenow_code}

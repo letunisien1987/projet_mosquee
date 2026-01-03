@@ -8,7 +8,7 @@ import {
   Calendar, Clock, Loader2, CheckCircle,
   AlertCircle, Info, CreditCard, User, Users
 } from 'lucide-react'
-import { EventRestrictions, getRestrictionsMessage } from '@/types/restrictions'
+import { EventRestrictions, getRestrictionsMessage, getVisibleParticipationModes } from '@/types/restrictions'
 import { PricingConfig, calculatePrice, isPaidItem } from '@/lib/pricing'
 import {
   RegistrationLayout,
@@ -21,6 +21,8 @@ import { RegistrationSuccess } from '@/components/RegistrationSuccess'
 import { ContactFormFields, ContactFormData, NotesField } from '@/components/ContactFormFields'
 import { ChildSelector } from '@/components/ChildSelector'
 import { useChildren, type Child } from '@/hooks/useChildren'
+import { OrganizerContact } from '@/components/OrganizerContact'
+import type { OrganizerInfo } from '@/lib/content'
 
 interface Event {
   id: string
@@ -30,21 +32,26 @@ interface Event {
   content?: string
   category: 'religieux' | 'communaute' | 'education' | 'charite'
   date: string
-  start_time: string
-  end_time: string
+  startTime?: string
+  endTime?: string
   location?: string
   attendees?: string
-  registration_required?: boolean
-  max_capacity?: number
-  requires_approval?: boolean
+  registrationRequired?: boolean
+  maxCapacity?: number
+  requiresApproval?: boolean
   restrictions?: EventRestrictions
   price?: number | string
-  payment_type?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
-  subscription_interval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  paymentType?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION'
+  subscriptionInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   pricing?: PricingConfig | null
-  min_age?: number
-  max_age?: number
-  gender_restriction?: 'MALE' | 'FEMALE'
+  minAge?: number
+  maxAge?: number
+  genderRestriction?: 'MALE' | 'FEMALE'
+  // Champs organisateur
+  managerEmail?: string
+  showOrganizerName?: boolean
+  showOrganizerEmail?: boolean
+  showOrganizerPhone?: boolean
 }
 
 interface EventAvailability {
@@ -97,20 +104,23 @@ export default function EventDetailPage() {
 
   const [event, setEvent] = useState<Event | null>(null)
   const [availability, setAvailability] = useState<EventAvailability | null>(null)
+  const [organizerInfo, setOrganizerInfo] = useState<OrganizerInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [ageError, setAgeError] = useState('')
 
-  // Restrictions
+  // Restrictions et modes de participation
   const restrictions = event?.restrictions
   const restrictionsMessage = restrictions ? getRestrictionsMessage(restrictions) : null
-  const allowIndividual = !restrictions?.enabled ||
-    restrictions.participation_type === 'INDIVIDUAL' ||
-    restrictions.participation_type === 'MIXED'
-  const requiresGender = restrictions?.enabled && restrictions.allowed_gender !== 'ALL'
-  const requiresAge = restrictions?.enabled && (restrictions.min_age !== null || restrictions.max_age !== null)
+
+  // Utiliser la fonction helper pour déterminer les modes visibles
+  const participationModes = useMemo(() => {
+    return getVisibleParticipationModes(restrictions)
+  }, [restrictions])
+
+  const { showIndividual, showChildren, showFamily, defaultMode, isChildrenOnly, isAdultsOnly, requiresAge, requiresGender } = participationModes
 
   // Type de participation: INDIVIDUAL (moi-même), FAMILY (groupe), CHILDREN (mes enfants)
   const [participationType, setParticipationType] = useState<'INDIVIDUAL' | 'FAMILY' | 'CHILDREN'>('INDIVIDUAL')
@@ -150,40 +160,71 @@ export default function EventDetailPage() {
 
   // Prix
   const fallbackPrice = event?.price ? parseFloat(String(event.price)) : 0
-  const isPaidEvent = event ? isPaidItem(event.payment_type, event.price, event.pricing) : false
-  const isSubscription = event?.payment_type === 'SUBSCRIPTION'
+  const isPaidEvent = event ? isPaidItem(event.paymentType, event.price, event.pricing) : false
+  const isSubscription = event?.paymentType === 'SUBSCRIPTION'
 
   const priceResult = useMemo(() => {
     if (!event) return { total: 0, breakdown: [], discountAmount: 0, discountReason: '' }
 
     let numberOfAdults = 0
     let numberOfChildren = 0
+    let childrenAges: number[] = []
 
     if (participationType === 'INDIVIDUAL') {
       numberOfAdults = 1
     } else if (participationType === 'FAMILY') {
       numberOfAdults = formData.numberOfAdults
       numberOfChildren = formData.numberOfChildren
+      // Note: en mode FAMILY, on n'a pas les âges individuels des enfants
     } else if (participationType === 'CHILDREN') {
       numberOfChildren = selectedChildIds.length
+      // Calculer les âges des enfants sélectionnés pour childFreeUntilAge
+      childrenAges = selectedChildren
+        .map(child => calcChildAge(child.birthDate))
+        .filter((age): age is number => age !== undefined && age !== null)
     }
 
     return calculatePrice(event.pricing || null, {
       numberOfAdults,
       numberOfChildren,
+      childrenAges: childrenAges.length > 0 ? childrenAges : undefined,
       registrationDate: new Date(),
     }, fallbackPrice)
-  }, [event, participationType, formData.numberOfAdults, formData.numberOfChildren, selectedChildIds.length, fallbackPrice])
+  }, [event, participationType, formData.numberOfAdults, formData.numberOfChildren, selectedChildIds.length, selectedChildren, calcChildAge, fallbackPrice])
 
   useEffect(() => {
     fetchEvent()
   }, [eventSlug])
 
   useEffect(() => {
-    if (event?.id && event.registration_required) {
+    if (event?.id && event.registrationRequired) {
       fetchAvailability(event.id)
     }
   }, [event?.id])
+
+  // Charger les infos de l'organisateur
+  useEffect(() => {
+    if (event?.managerEmail && (event.showOrganizerName || event.showOrganizerEmail || event.showOrganizerPhone)) {
+      const fetchOrganizerInfo = async () => {
+        try {
+          const params = new URLSearchParams({
+            email: event.managerEmail!,
+            showName: String(event.showOrganizerName || false),
+            showEmail: String(event.showOrganizerEmail || false),
+            showPhone: String(event.showOrganizerPhone || false)
+          })
+          const res = await fetch(`/api/organizer-info?${params}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data) setOrganizerInfo(data)
+          }
+        } catch (err) {
+          console.error('Erreur chargement infos organisateur:', err)
+        }
+      }
+      fetchOrganizerInfo()
+    }
+  }, [event?.managerEmail, event?.showOrganizerName, event?.showOrganizerEmail, event?.showOrganizerPhone])
 
   useEffect(() => {
     if (session?.user) {
@@ -198,19 +239,16 @@ export default function EventDetailPage() {
     }
   }, [session])
 
+  // Définir le mode de participation par défaut selon les restrictions
   useEffect(() => {
-    if (restrictions?.enabled) {
-      if (restrictions.participation_type === 'FAMILY') {
-        setParticipationType('FAMILY')
-      } else if (restrictions.participation_type === 'INDIVIDUAL') {
-        setParticipationType('INDIVIDUAL')
-      }
+    if (defaultMode) {
+      setParticipationType(defaultMode)
     }
-  }, [restrictions])
+  }, [defaultMode])
 
   useEffect(() => {
-    if (restrictions?.enabled && restrictions.allowed_gender && restrictions.allowed_gender !== 'ALL') {
-      setFormData(prev => ({ ...prev, participantGender: restrictions.allowed_gender! }))
+    if (restrictions?.enabled && restrictions.allowedGender && restrictions.allowedGender !== 'ALL') {
+      setFormData(prev => ({ ...prev, participantGender: restrictions.allowedGender! }))
     }
   }, [restrictions])
 
@@ -224,12 +262,12 @@ export default function EventDetailPage() {
       setAgeError('')
       return
     }
-    if (restrictions.min_age !== null && age < restrictions.min_age) {
-      setAgeError(`Âge minimum requis: ${restrictions.min_age} ans (vous avez ${age} ans)`)
+    if (restrictions.minAge !== null && age < restrictions.minAge) {
+      setAgeError(`Âge minimum requis: ${restrictions.minAge} ans (vous avez ${age} ans)`)
       return
     }
-    if (restrictions.max_age !== null && age > restrictions.max_age) {
-      setAgeError(`Âge maximum autorisé: ${restrictions.max_age} ans (vous avez ${age} ans)`)
+    if (restrictions.maxAge !== null && age > restrictions.maxAge) {
+      setAgeError(`Âge maximum autorisé: ${restrictions.maxAge} ans (vous avez ${age} ans)`)
       return
     }
     setAgeError('')
@@ -409,7 +447,7 @@ export default function EventDetailPage() {
     let successTitle = 'Inscription confirmée !'
     let successMessage = 'Vous recevrez un email de confirmation.'
 
-    if (event.requires_approval) {
+    if (event.requiresApproval) {
       successTitle = 'Demande envoyée !'
       if (isPaidEvent) {
         successMessage = 'Votre demande d\'inscription a été envoyée. Après approbation par l\'organisateur, vous recevrez un email avec le lien de paiement.'
@@ -437,7 +475,7 @@ export default function EventDetailPage() {
   // Build info items
   const infoItems: InfoItem[] = [
     { icon: 'calendar', label: 'Date', value: formatDate(event.date) },
-    { icon: 'clock', label: 'Horaire', value: `${event.start_time} - ${event.end_time}` },
+    { icon: 'clock', label: 'Horaire', value: `${event.startTime || '-'} - ${event.endTime || '-'}` },
   ]
 
   if (event.location) {
@@ -448,7 +486,7 @@ export default function EventDetailPage() {
     infoItems.push({ icon: 'users', label: 'Public', value: event.attendees })
   }
 
-  if (availability && event.max_capacity) {
+  if (availability && event.maxCapacity) {
     infoItems.push({
       icon: 'users',
       label: 'Places',
@@ -458,36 +496,52 @@ export default function EventDetailPage() {
   }
 
   // Restrictions pour le ChildSelector
-  const childAgeRestriction = (event.min_age || event.max_age || restrictions?.min_age || restrictions?.max_age)
+  const childAgeRestriction = (event.minAge || event.maxAge || restrictions?.minAge || restrictions?.maxAge)
     ? {
-        min: event.min_age || restrictions?.min_age || undefined,
-        max: event.max_age || restrictions?.max_age || undefined
+        min: event.minAge || restrictions?.minAge || undefined,
+        max: event.maxAge || restrictions?.maxAge || undefined
       }
     : undefined
 
-  const childGenderRestriction = event.gender_restriction ||
-    (restrictions?.allowed_gender !== 'ALL' ? restrictions?.allowed_gender as 'MALE' | 'FEMALE' : undefined)
+  // Ne filtrer par genre que si MALE ou FEMALE (pas CHILD ni ALL)
+  const childGenderRestriction = event.genderRestriction ||
+    (restrictions?.allowedGender === 'MALE' || restrictions?.allowedGender === 'FEMALE'
+      ? restrictions.allowedGender
+      : undefined)
 
   return (
     <RegistrationLayout
       title={event.title}
       description={event.description}
+      content={event.content}
       backHref="/evenements"
       backLabel="Retour aux événements"
       gradientConfig={config}
       showCategoryBadge
     >
       {/* Sidebar */}
-      <RegistrationInfoCard
-        infos={infoItems}
-        price={event.registration_required ? {
-          amount: fallbackPrice,
-          isPaid: isPaidEvent,
-          interval: isSubscription && event.subscription_interval ? intervalLabels[event.subscription_interval] : undefined
-        } : undefined}
-        warningMessage={event.requires_approval ? 'Inscription soumise à approbation' : undefined}
-        accentColor={config.textColor}
-      />
+      <div>
+        <RegistrationInfoCard
+          infos={infoItems}
+          price={event.registrationRequired ? {
+            amount: fallbackPrice,
+            isPaid: isPaidEvent,
+            interval: isSubscription && event.subscriptionInterval ? intervalLabels[event.subscriptionInterval] : undefined
+          } : undefined}
+          warningMessage={event.requiresApproval ? 'Inscription soumise à approbation' : undefined}
+          accentColor={config.textColor}
+        />
+
+        {/* Organisateur */}
+        {organizerInfo && (
+          <OrganizerContact
+            organizer={organizerInfo}
+            itemType="event"
+            itemId={event.id}
+            itemTitle={event.title}
+          />
+        )}
+      </div>
 
       {/* Form */}
       <div className="md:col-span-2">
@@ -504,7 +558,7 @@ export default function EventDetailPage() {
             </div>
           )}
 
-          {!event.registration_required ? (
+          {!event.registrationRequired ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="h-8 w-8 text-green-600" />
@@ -543,13 +597,19 @@ export default function EventDetailPage() {
                 </div>
               )}
 
-              {/* Type de participation - Avec option CHILDREN */}
+              {/* Type de participation - Affichage dynamique selon les restrictions */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Cette inscription est pour :
                 </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(!restrictions?.enabled || restrictions.participation_type !== 'FAMILY') && (
+                <div className={`grid gap-3 ${
+                  [showIndividual, showChildren, showFamily].filter(Boolean).length === 1
+                    ? 'grid-cols-1 max-w-xs'
+                    : [showIndividual, showChildren, showFamily].filter(Boolean).length === 2
+                      ? 'grid-cols-2'
+                      : 'grid-cols-3'
+                }`}>
+                  {showIndividual && (
                     <button
                       type="button"
                       onClick={() => {
@@ -566,21 +626,24 @@ export default function EventDetailPage() {
                       <span className="font-medium text-sm">Moi-même</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setParticipationType('CHILDREN')
-                    }}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
-                      participationType === 'CHILDREN'
-                        ? 'border-red-600 bg-red-50 text-red-700'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <Users className="h-5 w-5" />
-                    <span className="font-medium text-sm">Mon/mes enfant(s)</span>
-                  </button>
-                  {(!restrictions?.enabled || restrictions.participation_type !== 'INDIVIDUAL') && (
+                  {showChildren && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParticipationType('CHILDREN')
+                        setSelectedChildIds([])
+                      }}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                        participationType === 'CHILDREN'
+                          ? 'border-red-600 bg-red-50 text-red-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <Users className="h-5 w-5" />
+                      <span className="font-medium text-sm">Mon/mes enfant(s)</span>
+                    </button>
+                  )}
+                  {showFamily && (
                     <button
                       type="button"
                       onClick={() => {
@@ -728,7 +791,7 @@ export default function EventDetailPage() {
                           required
                           value={formData.participantGender}
                           onChange={(e) => setFormData({ ...formData, participantGender: e.target.value })}
-                          disabled={restrictions?.enabled && restrictions.allowed_gender !== 'ALL'}
+                          disabled={restrictions?.enabled && restrictions.allowedGender !== 'ALL'}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Sélectionnez</option>
@@ -736,7 +799,7 @@ export default function EventDetailPage() {
                           <option value="FEMALE">Femme</option>
                           <option value="CHILD">Enfant</option>
                         </select>
-                        {restrictions?.enabled && restrictions.allowed_gender !== 'ALL' && (
+                        {restrictions?.enabled && restrictions.allowedGender !== 'ALL' && (
                           <p className="text-xs text-gray-500 mt-1">
                             Genre imposé par les restrictions
                           </p>
@@ -762,9 +825,9 @@ export default function EventDetailPage() {
                             {ageError}
                           </p>
                         ) : (
-                          restrictions?.min_age !== null && restrictions?.max_age !== null && (
+                          restrictions?.minAge !== null && restrictions?.maxAge !== null && (
                             <p className="text-xs text-gray-500 mt-1">
-                              Âge requis: {restrictions.min_age}-{restrictions.max_age} ans
+                              Âge requis: {restrictions?.minAge}-{restrictions?.maxAge} ans
                             </p>
                           )
                         )}
@@ -854,8 +917,8 @@ export default function EventDetailPage() {
                         <strong>Total:</strong>
                         <span className="text-lg font-bold text-red-600">
                           {priceResult.total} CHF
-                          {isSubscription && event.subscription_interval && (
-                            <span className="text-sm font-normal ml-1">{intervalLabels[event.subscription_interval]}</span>
+                          {isSubscription && event.subscriptionInterval && (
+                            <span className="text-sm font-normal ml-1">{intervalLabels[event.subscriptionInterval]}</span>
                           )}
                         </span>
                       </div>
@@ -868,7 +931,7 @@ export default function EventDetailPage() {
                     </div>
                   )}
 
-                  {event.requires_approval && (
+                  {event.requiresApproval && (
                     <p className="text-amber-600 pt-2"><strong>Note:</strong> Nécessite une validation</p>
                   )}
                 </div>
@@ -885,7 +948,7 @@ export default function EventDetailPage() {
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Inscription en cours...
                   </>
-                ) : event.requires_approval ? (
+                ) : event.requiresApproval ? (
                   <>
                     <CheckCircle className="h-5 w-5" />
                     Envoyer ma demande d'inscription
@@ -897,8 +960,8 @@ export default function EventDetailPage() {
                   <>
                     <CreditCard className="h-5 w-5" />
                     Payer {priceResult.total} CHF
-                    {isSubscription && event.subscription_interval && (
-                      <span className="text-sm ml-1">{intervalLabels[event.subscription_interval]}</span>
+                    {isSubscription && event.subscriptionInterval && (
+                      <span className="text-sm ml-1">{intervalLabels[event.subscriptionInterval]}</span>
                     )}
                   </>
                 ) : (

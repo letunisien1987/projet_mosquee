@@ -1,5 +1,5 @@
 /**
- * API Admin: Gestion des messages Jumua (CRUD vers Directus)
+ * API Admin: Gestion des messages Jumua (CRUD)
  * GET /api/admin/jumua - Liste tous les messages
  * POST /api/admin/jumua - Créer un nouveau message
  */
@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getAllJumuaMessages, createJumuaMessage } from '@/lib/directus'
+import { getAllJumuaMessages, createJumuaMessage } from '@/lib/content'
 import { z } from 'zod'
 
 // Vérifie si une valeur est un objet vide {}

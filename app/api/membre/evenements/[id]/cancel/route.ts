@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getEventById } from '@/lib/directus'
+import { getEventById } from '@/lib/content'
 import { stripe } from '@/lib/stripe'
 import { sendEventCancellationEmail } from '@/lib/email'
 
@@ -64,8 +64,8 @@ export async function POST(
       )
     }
 
-    // Récupérer les détails de l'événement depuis Directus
-    const event = await getEventById(registration.eventId)
+    // Récupérer les détails de l'événement depuis Prisma
+    const event = registration.eventId ? await getEventById(registration.eventId) : null
 
     // Déterminer si un remboursement est nécessaire
     const hasPaidPayment = registration.payment &&
@@ -83,14 +83,14 @@ export async function POST(
     }
 
     if (hasPaidPayment && event) {
-      const allowRefund = event.allow_refund ?? true // Par défaut, autoriser les remboursements
-      const cancellationDeadlineDays = event.cancellation_deadline_days ?? 7 // Par défaut 7 jours
+      const allowRefund = event.allowRefund ?? true // Par défaut, autoriser les remboursements
+      const deadlineDays = event.cancellationDeadlineDays ?? 7 // Par défaut 7 jours
 
       // Calculer si on est dans le délai d'annulation
       const eventDate = event.date ? new Date(event.date) : new Date()
       const today = new Date()
       const daysUntilEvent = Math.ceil((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      const isWithinDeadline = daysUntilEvent >= cancellationDeadlineDays
+      const isWithinDeadline = daysUntilEvent >= deadlineDays
 
       if (allowRefund && isWithinDeadline) {
         // REMBOURSEMENT AUTOMATIQUE
@@ -189,9 +189,9 @@ export async function POST(
     }
 
     // Notifier l'organisateur si c'est un événement payant
-    if (event?.manager_email && hasPaidPayment) {
+    if (event?.managerEmail && hasPaidPayment) {
       const managerUser = await prisma.user.findFirst({
-        where: { email: event.manager_email },
+        where: { email: event.managerEmail },
         select: { id: true }
       })
 

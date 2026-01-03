@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getActivityById, updateActivity, deleteActivity } from '@/lib/directus'
+import { getActivityById, updateActivity, deleteActivity } from '@/lib/content'
 import { hasPermission } from '@/lib/permissions'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
@@ -118,7 +118,7 @@ export async function GET(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && rawActivity.manager_id !== session.user.id) {
+    if (!isFullAccess && rawActivity.managerId !== session.user.id) {
       return NextResponse.json({ error: 'Non autorisé - Vous n\'êtes pas le responsable de cette activité' }, { status: 403 })
     }
 
@@ -140,7 +140,7 @@ export async function GET(
         enrollments: enrollmentStats,
         total: totalEnrollments,
       },
-      isManager: rawActivity.manager_id === session.user.id,
+      isManager: rawActivity.managerId === session.user.id,
     })
   } catch (error) {
     console.error('Erreur GET /api/admin/activites/[id]:', error)
@@ -186,15 +186,53 @@ export async function PATCH(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && existingActivity.manager_id !== session.user.id) {
+    if (!isFullAccess && existingActivity.managerId !== session.user.id) {
       return NextResponse.json({ error: 'Non autorisé - Vous n\'êtes pas le responsable de cette activité' }, { status: 403 })
     }
 
     const body = await request.json()
     const validatedData = updateActivitySchema.parse(body)
 
-    // Cast pour compatibilité avec le type Directus
-    const activity = await updateActivity(id, validatedData as Parameters<typeof updateActivity>[1])
+    // Si un manager_id est fourni mais pas l'email, récupérer l'email
+    let managerEmail = validatedData.manager_email
+    if (validatedData.manager_id && !managerEmail) {
+      const manager = await prisma.user.findUnique({
+        where: { id: validatedData.manager_id },
+        select: { email: true },
+      })
+      managerEmail = manager?.email || undefined
+    }
+
+    // Convertir snake_case vers camelCase pour Prisma
+    const prismaData: Record<string, any> = {
+      title: validatedData.title,
+      slug: validatedData.slug,
+      description: validatedData.description,
+      content: validatedData.content,
+      category: validatedData.category,
+      level: validatedData.level,
+      ageGroup: validatedData.age_group,
+      schedule: validatedData.schedule,
+      instructorName: validatedData.instructor,
+      maxParticipants: validatedData.max_participants,
+      requiresApproval: validatedData.requires_approval,
+      active: validatedData.active,
+      enrollmentOpen: validatedData.enrollment_open,
+      price: validatedData.price,
+      paymentType: validatedData.payment_type,
+      subscriptionInterval: validatedData.subscription_interval,
+      pricing: validatedData.pricing,
+      managerId: validatedData.manager_id,
+      managerEmail: managerEmail,
+      restrictions: validatedData.restrictions,
+    }
+
+    // Filtrer les valeurs undefined pour ne pas écraser les valeurs existantes
+    const cleanUpdateData = Object.fromEntries(
+      Object.entries(prismaData).filter(([, value]) => value !== undefined)
+    )
+
+    const activity = await updateActivity(id, cleanUpdateData)
 
     if (!activity) {
       return NextResponse.json({ error: 'Erreur lors de la mise à jour' }, { status: 500 })

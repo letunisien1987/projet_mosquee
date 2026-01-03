@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById } from '@/lib/directus'
+import { getOfferingById } from '@/lib/content'
 import { sendEnrollmentApprovalEmail, sendEnrollmentRejectionEmail, sendEnrollmentPaymentRequest } from '@/lib/email'
 
 export async function PATCH(
@@ -35,14 +35,14 @@ export async function PATCH(
     // Récupérer l'activité
     const activity = await getOfferingById(id)
 
-    if (!activity || activity.item_type !== 'ACTIVITY') {
+    if (!activity || activity.itemType !== 'ACTIVITY') {
       return NextResponse.json({ error: 'Activité non trouvée' }, { status: 404 })
     }
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      activity.manager_id === user.id ||
-      activity.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      activity.managerId === user.id ||
+      activity.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {

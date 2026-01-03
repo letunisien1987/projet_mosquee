@@ -1,11 +1,11 @@
 'use client'
 
-import { LucideIcon, Calendar, Clock, MapPin, Users, GraduationCap, CreditCard } from 'lucide-react'
+import { LucideIcon, Calendar, Clock, MapPin, Users, GraduationCap, CreditCard, Info } from 'lucide-react'
 import { ReactNode } from 'react'
 
 // Types pour les infos
 export interface InfoItem {
-  icon: 'calendar' | 'clock' | 'location' | 'users' | 'instructor' | 'price'
+  icon: 'calendar' | 'clock' | 'location' | 'users' | 'instructor' | 'price' | 'info'
   label: string
   value: string | ReactNode
   highlight?: boolean  // Pour mettre en avant (ex: places restantes faibles)
@@ -18,6 +18,7 @@ const iconComponents: Record<string, LucideIcon> = {
   users: Users,
   instructor: GraduationCap,
   price: CreditCard,
+  info: Info,
 }
 
 interface RegistrationInfoCardProps {

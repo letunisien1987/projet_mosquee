@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getEventById, updateEvent, deleteEvent, isEventManager } from '@/lib/directus'
+import { getEventById, updateEvent, deleteEvent } from '@/lib/content'
 import { hasPermission } from '@/lib/permissions'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
@@ -134,7 +134,7 @@ export async function GET(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager de l'événement
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && rawEvent.manager_id !== session.user.id) {
+    if (!isFullAccess && rawEvent.managerId !== session.user.id) {
       return NextResponse.json({ error: 'Non autorisé - Vous n\'êtes pas le responsable de cet événement' }, { status: 403 })
     }
 
@@ -156,7 +156,7 @@ export async function GET(
         registrations: registrationStats,
         total: totalRegistrations,
       },
-      isManager: rawEvent.manager_id === session.user.id,
+      isManager: rawEvent.managerId === session.user.id,
     })
   } catch (error) {
     console.error('Erreur GET /api/admin/evenements-gestion/[id]:', error)
@@ -202,7 +202,7 @@ export async function PATCH(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && event.manager_id !== session.user.id) {
+    if (!isFullAccess && event.managerId !== session.user.id) {
       return NextResponse.json({ error: 'Non autorisé - Vous n\'êtes pas le responsable de cet événement' }, { status: 403 })
     }
 
@@ -210,23 +210,49 @@ export async function PATCH(
     const validatedData = updateEventSchema.parse(body)
 
     // Si un manager_id est fourni mais pas l'email, récupérer l'email
-    let updateData: Record<string, any> = { ...validatedData }
-    if (validatedData.manager_id && !validatedData.manager_email) {
+    let managerEmail = validatedData.manager_email
+    if (validatedData.manager_id && !managerEmail) {
       const manager = await prisma.user.findUnique({
         where: { id: validatedData.manager_id },
         select: { email: true },
       })
-      updateData.manager_email = manager?.email || null
+      managerEmail = manager?.email || null
     }
 
-    // Filtrer les valeurs null/undefined pour ne pas écraser les valeurs existantes
-    // sauf pour les champs qui doivent explicitement être mis à null
+    // Convertir snake_case vers camelCase pour Prisma
+    const prismaData: Record<string, any> = {
+      title: validatedData.title,
+      slug: validatedData.slug,
+      description: validatedData.description,
+      content: validatedData.content,
+      category: validatedData.category,
+      date: validatedData.date ? new Date(validatedData.date) : undefined,
+      startTime: validatedData.start_time,
+      endTime: validatedData.end_time,
+      location: validatedData.location,
+      imageUrl: validatedData.image,
+      registrationRequired: validatedData.registration_required,
+      maxCapacity: validatedData.max_capacity,
+      requiresApproval: validatedData.requires_approval,
+      registrationDeadline: validatedData.registration_deadline ? new Date(validatedData.registration_deadline) : validatedData.registration_deadline === null ? null : undefined,
+      featured: validatedData.featured,
+      published: validatedData.published,
+      price: validatedData.price,
+      paymentType: validatedData.payment_type,
+      subscriptionInterval: validatedData.subscription_interval,
+      allowRefund: validatedData.allow_refund,
+      cancellationDeadlineDays: validatedData.cancellation_deadline_days,
+      pricing: validatedData.pricing,
+      managerId: validatedData.manager_id,
+      managerEmail: managerEmail,
+      restrictions: validatedData.restrictions,
+    }
+
+    // Filtrer les valeurs undefined pour ne pas écraser les valeurs existantes
     const cleanUpdateData = Object.fromEntries(
-      Object.entries(updateData).filter(([key, value]) => {
-        // Garder les valeurs définies (y compris false, 0, etc.)
-        if (value !== undefined && value !== null) return true
-        // Permettre null pour les champs qui peuvent être effacés
-        if (value === null && ['registration_deadline', 'start_time', 'end_time', 'pricing'].includes(key)) return true
+      Object.entries(prismaData).filter(([key, value]) => {
+        // Garder les valeurs définies (y compris false, 0, null pour les champs effaçables)
+        if (value !== undefined) return true
         return false
       })
     )

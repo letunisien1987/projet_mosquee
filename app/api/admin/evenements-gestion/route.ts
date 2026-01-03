@@ -1,12 +1,12 @@
 /**
- * API Admin: Gestion des événements (CRUD vers Directus)
+ * API Admin: Gestion des événements (CRUD)
  * GET /api/admin/evenements-gestion - Liste tous les événements
  * POST /api/admin/evenements-gestion - Créer un nouvel événement
  */
 
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAllEvents, createEvent, getEventsByManager } from '@/lib/directus'
+import { getEvents, createEvent, getEventsByManager } from '@/lib/content'
 import {
   apiHandler,
   requirePermission,
@@ -24,7 +24,7 @@ export const GET = apiHandler(async () => {
   const isFullAccess = FULL_ADMIN_ROLES.includes(role)
 
   const events = isFullAccess
-    ? await getAllEvents()
+    ? await getEvents()
     : await getEventsByManager(userId)
 
   // Compter les inscriptions et nettoyer les données
@@ -37,7 +37,7 @@ export const GET = apiHandler(async () => {
       return {
         ...sanitizeContentItem(event),
         registrationCount,
-        isManager: event.manager_id === userId,
+        isManager: event.managerId === userId,
       }
     })
   )
@@ -73,7 +73,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     finalManagerEmail = adminUser?.email || undefined
   }
 
-  // Créer l'événement dans Directus
+  // Créer l'événement dans la base de données
   const event = await createEvent({
     ...validatedData,
     manager_id: finalManagerId,

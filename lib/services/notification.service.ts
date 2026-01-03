@@ -1,7 +1,7 @@
 /**
  * Service centralisé pour la gestion des notifications
  *
- * Utilise Prisma uniquement (pas de Directus).
+ * Utilise Prisma pour la persistance des notifications.
  * Fournit des méthodes pour créer, lire et gérer les notifications utilisateur.
  */
 

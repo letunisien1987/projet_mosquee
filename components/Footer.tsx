@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { Facebook, Instagram, Youtube, Mail, Phone, MapPin, Building2 } from 'lucide-react'
+import { Facebook, Instagram, Youtube, Mail, Phone, MapPin } from 'lucide-react'
 import { getSettings } from '@/lib/settings'
+import { Logo } from '@/components/Logo'
 
 export async function Footer() {
   const settings = await getSettings()
@@ -26,8 +27,7 @@ export async function Footer() {
           {/* À propos */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Building2 className="h-6 w-6" />
-              <h3 className="font-bold text-lg">{settings.name}</h3>
+              <Logo location="footer" />
             </div>
             <p className="text-white/80 text-sm">
               {settings.description || `${settings.name} n'est pas seulement une mosquée pour les prières mais plutôt un centre communautaire.`}

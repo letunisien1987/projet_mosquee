@@ -1,8 +1,8 @@
 /**
  * API Route: Gestion des paramètres de la mosquée
  *
- * GET - Récupérer tous les paramètres depuis Directus
- * PUT - Mettre à jour les paramètres dans Directus + enregistrer l'historique
+ * GET - Récupérer tous les paramètres
+ * PUT - Mettre à jour les paramètres + enregistrer l'historique
  *
  * Accès: ADMIN uniquement
  */
@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getMosqueSettings, updateMosqueSettings, DirectusMosqueSettings } from '@/lib/directus'
+import { getSettings, updateMosqueSettings, MosqueSettings } from '@/lib/settings'
 import { invalidateSettingsCache } from '@/lib/settings'
 
 // Rôles autorisés pour gérer les paramètres
@@ -25,12 +25,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    // Récupérer les paramètres depuis Directus
-    const settings = await getMosqueSettings()
+    // Récupérer les paramètres
+    const settings = await getSettings()
 
     if (!settings) {
       return NextResponse.json(
-        { error: 'Paramètres non trouvés dans Directus' },
+        { error: 'Paramètres non trouvés' },
         { status: 404 }
       )
     }
@@ -64,7 +64,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Récupérer les anciens paramètres pour l'historique
-    const oldSettings = await getMosqueSettings()
+    const oldSettings = await getSettings()
 
     if (!oldSettings) {
       return NextResponse.json(
@@ -97,12 +97,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Mettre à jour dans Directus
+    // Mettre à jour les paramètres
     const updatedSettings = await updateMosqueSettings(id, updates)
 
     if (!updatedSettings) {
       return NextResponse.json(
-        { error: 'Erreur lors de la mise à jour dans Directus' },
+        { error: 'Erreur lors de la mise à jour des paramètres' },
         { status: 500 }
       )
     }

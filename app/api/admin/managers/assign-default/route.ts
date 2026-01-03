@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assignDefaultManagerToActivities, assignDefaultManagerToEvents } from '@/lib/directus'
+import { assignDefaultManagerToActivities, assignDefaultManagerToEvents } from '@/lib/content'
 
 // POST - Assigner le responsable par défaut (admin) à tous les éléments sans responsable
 export async function POST(request: NextRequest) {

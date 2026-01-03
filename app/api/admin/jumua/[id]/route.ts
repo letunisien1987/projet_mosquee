@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getJumuaMessageById, updateJumuaMessage, deleteJumuaMessage } from '@/lib/directus'
+import { getJumuaMessageById, updateJumuaMessage, deleteJumuaMessage } from '@/lib/content'
 import { z } from 'zod'
 
 // Vérifie si une valeur est un objet vide {}

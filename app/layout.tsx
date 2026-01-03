@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -24,6 +25,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title: `${settings.name} - Prière, Communauté, Spiritualité`,
     description: `${settings.name} ${settings.address_city} : horaires des prières, activités communautaires, cours d'arabe et de Coran, événements et services pour la communauté musulmane.`,
     keywords: ["mosquée", "islam", "prière", "coran", "communauté musulmane", "horaires salat", settings.address_city?.toLowerCase() || "biel"].filter(Boolean),
+    icons: {
+      icon: '/api/favicon',
+    },
   }
 }
 
@@ -49,7 +53,9 @@ export default async function RootLayout({
           <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
             <Navbar mosqueName={settings.name} />
             <main className="flex-1">
-              {children}
+              <Suspense fallback={null}>
+                {children}
+              </Suspense>
             </main>
             <Footer />
           </ThemeProvider>

@@ -1,12 +1,13 @@
 /**
- * API Admin: Gestion des activités (CRUD vers Directus)
+ * API Admin: Gestion des activités (CRUD)
  * GET /api/admin/activites - Liste toutes les activités
  * POST /api/admin/activites - Créer une nouvelle activité
  */
 
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAllActivities, createActivity, getActivitiesByManager } from '@/lib/directus'
+import { Prisma } from '@prisma/client'
+import { getActivities, createActivity, getActivitiesByManager } from '@/lib/content'
 import {
   apiHandler,
   requirePermission,
@@ -24,7 +25,7 @@ export const GET = apiHandler(async () => {
   const isFullAccess = FULL_ADMIN_ROLES.includes(role)
 
   const activities = isFullAccess
-    ? await getAllActivities()
+    ? await getActivities()
     : await getActivitiesByManager(userId)
 
   // Compter les inscriptions et nettoyer les données
@@ -37,7 +38,7 @@ export const GET = apiHandler(async () => {
       return {
         ...sanitizeContentItem(activity),
         enrollmentCount,
-        isManager: activity.manager_id === userId,
+        isManager: activity.managerId === userId,
       }
     })
   )
@@ -59,12 +60,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = await req.json()
   const validatedData = activitySchema.parse(body)
 
-  // Créer l'activité dans Directus avec l'admin comme manager par défaut
+  // Créer l'activité avec l'admin comme manager par défaut
   const activity = await createActivity({
     ...validatedData,
-    manager_id: userId,
-    manager_email: adminUser?.email || undefined,
-  })
+    managerId: userId,
+    managerEmail: adminUser?.email || undefined,
+  } as Prisma.ActivityUncheckedCreateInput)
 
   if (!activity) {
     throw new Error('Erreur lors de la création de l\'activité')

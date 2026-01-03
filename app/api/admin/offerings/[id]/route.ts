@@ -6,10 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById, updateOffering, deleteOffering } from '@/lib/directus'
+import { getOfferingById, updateOffering, deleteOffering } from '@/lib/content'
 import { hasPermission } from '@/lib/permissions'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
@@ -40,7 +43,7 @@ const sanitizeOffering = (offering: any) => {
 
 const updateOfferingSchema = z.object({
   // Type (ne devrait pas changer mais on le valide)
-  item_type: z.enum(['EVENT', 'ACTIVITY']).optional(),
+  itemType: z.enum(['EVENT', 'ACTIVITY']).optional(),
 
   // Champs communs
   title: z.string().min(1).optional(),
@@ -48,62 +51,62 @@ const updateOfferingSchema = z.object({
   description: z.string().optional(),
   content: z.string().optional(),
   category: z.enum(['religieux', 'communaute', 'education', 'charite']).optional(),
-  registration_required: z.boolean().optional(),
-  max_capacity: z.number().optional(),
-  requires_approval: z.boolean().optional(),
+  registrationRequired: z.boolean().optional(),
+  maxCapacity: z.number().optional(),
+  requiresApproval: z.boolean().optional(),
   published: z.boolean().optional(),
   featured: z.boolean().optional(),
 
   // Champs événements
-  date: z.string().optional().transform(emptyStringToNull),
-  start_time: z.string().optional().transform(emptyStringToNull),
-  end_time: z.string().optional().transform(emptyStringToNull),
+  date: z.string().nullable().optional().transform(emptyStringToNull),
+  startTime: z.string().nullable().optional().transform(emptyStringToNull),
+  endTime: z.string().nullable().optional().transform(emptyStringToNull),
   location: z.string().optional(),
   image: z.string().optional(),
-  registration_deadline: z.string().optional().transform(emptyStringToNull),
+  registrationDeadline: z.string().nullable().optional().transform(emptyStringToNull),
 
   // Champs activités
-  activity_category: z
+  activityCategory: z
     .enum(['coran', 'arabe', 'ecole', 'tajweed', 'hifz', 'halaqat', 'autre'])
     .optional(),
   level: z.string().optional(),
-  age_group: z.string().optional(),
+  ageGroup: z.string().optional(),
   schedule: z.string().optional(),
   instructor: z.string().optional(),
-  enrollment_open: z.boolean().optional(),
+  enrollmentOpen: z.boolean().optional(),
 
   // Paiement
   price: z.number().optional(),
-  payment_type: z.enum(['FREE', 'ONE_TIME', 'SUBSCRIPTION']).optional(),
-  subscription_interval: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
+  paymentType: z.enum(['FREE', 'ONE_TIME', 'SUBSCRIPTION']).optional(),
+  subscriptionInterval: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
 
   // Remboursement
-  allow_refund: z.boolean().optional(),
-  cancellation_deadline_days: z.number().min(0).max(365).optional(),
+  allowRefund: z.boolean().optional(),
+  cancellationDeadlineDays: z.number().min(0).max(365).optional(),
 
   // Tarification avancée
   pricing: z
     .object({
-      adult_price: z.number(),
-      child_price: z.number(),
-      child_free_until_age: z.number(),
-      group_discount: z.object({
+      adultPrice: z.number(),
+      childPrice: z.number(),
+      childFreeUntilAge: z.number(),
+      groupDiscount: z.object({
         enabled: z.boolean(),
-        from_persons: z.number(),
-        discount_percent: z.number(),
+        fromPersons: z.number(),
+        discountPercent: z.number(),
       }),
-      family_max_price: z.number().nullable(),
-      early_bird: z.object({
+      familyMaxPrice: z.number().nullable(),
+      earlyBird: z.object({
         enabled: z.boolean(),
-        until_date: z.string().nullable(),
-        discount_percent: z.number(),
+        untilDate: z.string().nullable(),
+        discountPercent: z.number(),
       }),
     })
     .nullable()
     .optional(),
 
   // Responsable
-  manager_id: z
+  managerId: z
     .string()
     .optional()
     .nullable()
@@ -111,17 +114,23 @@ const updateOfferingSchema = z.object({
       if (!val || val === '') return undefined
       return val
     }),
-  manager_email: z.string().email().optional().nullable(),
+  managerEmail: z.string().email().optional().nullable(),
+
+  // Contact organisateur
+  showOrganizerName: z.boolean().optional(),
+  showOrganizerEmail: z.boolean().optional(),
+  showOrganizerPhone: z.boolean().optional(),
 
   // Restrictions
   restrictions: z
     .object({
       enabled: z.boolean().optional(),
-      participation_type: z.enum(['INDIVIDUAL', 'FAMILY', 'MIXED']).optional(),
-      allowed_gender: z.enum(['MALE', 'FEMALE', 'CHILD', 'ALL']).optional(),
-      min_age: z.number().nullable().optional(),
-      max_age: z.number().nullable().optional(),
+      participationType: z.enum(['INDIVIDUAL', 'FAMILY', 'MIXED']).optional(),
+      allowedGender: z.enum(['MALE', 'FEMALE', 'CHILD', 'ALL']).optional(),
+      minAge: z.number().nullable().optional(),
+      maxAge: z.number().nullable().optional(),
     })
+    .nullable()
     .optional(),
 })
 
@@ -163,10 +172,10 @@ export async function GET(
     }
 
     // Vérifier la permission selon le type
-    if (rawOffering.item_type === 'EVENT' && !canViewEvents) {
+    if (rawOffering.itemType === 'EVENT' && !canViewEvents) {
       return NextResponse.json({ error: 'Non autorisé pour les événements' }, { status: 403 })
     }
-    if (rawOffering.item_type === 'ACTIVITY' && !canViewActivities) {
+    if (rawOffering.itemType === 'ACTIVITY' && !canViewActivities) {
       return NextResponse.json({ error: 'Non autorisé pour les activités' }, { status: 403 })
     }
 
@@ -175,7 +184,7 @@ export async function GET(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && rawOffering.manager_id !== session.user.id) {
+    if (!isFullAccess && rawOffering.managerId !== session.user.id) {
       return NextResponse.json(
         { error: "Non autorisé - Vous n'êtes pas le responsable de cette offre" },
         { status: 403 }
@@ -196,7 +205,7 @@ export async function GET(
     // Pour les activités, compter aussi les enrollments
     let enrollmentStats = null
     let totalEnrollments = 0
-    if (rawOffering.item_type === 'ACTIVITY') {
+    if (rawOffering.itemType === 'ACTIVITY') {
       enrollmentStats = await prisma.enrollment.groupBy({
         by: ['status'],
         where: { activityId: id },
@@ -216,7 +225,7 @@ export async function GET(
         totalEnrollments,
         total: totalRegistrations + totalEnrollments,
       },
-      isManager: rawOffering.manager_id === session.user.id,
+      isManager: rawOffering.managerId === session.user.id,
     })
   } catch (error) {
     console.error('Erreur GET /api/admin/offerings/[id]:', error)
@@ -254,7 +263,7 @@ export async function PATCH(
     }
 
     // Vérifier la permission selon le type
-    if (offering.item_type === 'EVENT') {
+    if (offering.itemType === 'EVENT') {
       const canManageEvents = await hasPermission(role, 'MANAGE_EVENTS')
       if (!canManageEvents) {
         return NextResponse.json(
@@ -262,7 +271,7 @@ export async function PATCH(
           { status: 403 }
         )
       }
-    } else if (offering.item_type === 'ACTIVITY') {
+    } else if (offering.itemType === 'ACTIVITY') {
       const canManageActivities = await hasPermission(role, 'MANAGE_ACTIVITIES')
       if (!canManageActivities) {
         return NextResponse.json(
@@ -274,7 +283,7 @@ export async function PATCH(
 
     // Pour les rôles sans accès complet, vérifier qu'ils sont le manager
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
-    if (!isFullAccess && offering.manager_id !== session.user.id) {
+    if (!isFullAccess && offering.managerId !== session.user.id) {
       return NextResponse.json(
         { error: "Non autorisé - Vous n'êtes pas le responsable de cette offre" },
         { status: 403 }
@@ -284,14 +293,14 @@ export async function PATCH(
     const body = await request.json()
     const validatedData = updateOfferingSchema.parse(body)
 
-    // Si un manager_id est fourni mais pas l'email, récupérer l'email
-    let updateData: Record<string, any> = { ...validatedData }
-    if (validatedData.manager_id && !validatedData.manager_email) {
+    // Si un managerId est fourni mais pas l'email, récupérer l'email
+    let updateData: Record<string, unknown> = { ...validatedData }
+    if (validatedData.managerId && !validatedData.managerEmail) {
       const manager = await prisma.user.findUnique({
-        where: { id: validatedData.manager_id },
+        where: { id: validatedData.managerId },
         select: { email: true },
       })
-      updateData.manager_email = manager?.email || null
+      updateData.managerEmail = manager?.email || null
     }
 
     // Filtrer les valeurs undefined
@@ -300,7 +309,7 @@ export async function PATCH(
         if (value !== undefined && value !== null) return true
         if (
           value === null &&
-          ['registration_deadline', 'start_time', 'end_time', 'pricing'].includes(key)
+          ['registrationDeadline', 'startTime', 'endTime', 'pricing'].includes(key)
         )
           return true
         return false
@@ -313,7 +322,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Erreur lors de la mise à jour' }, { status: 500 })
     }
 
-    const typeLabel = offering.item_type === 'EVENT' ? 'Événement' : 'Activité'
+    const typeLabel = offering.itemType === 'EVENT' ? 'Événement' : 'Activité'
 
     return NextResponse.json({
       success: true,
@@ -395,7 +404,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
     }
 
-    const typeLabel = offering.item_type === 'EVENT' ? 'Événement' : 'Activité'
+    const typeLabel = offering.itemType === 'EVENT' ? 'Événement' : 'Activité'
 
     return NextResponse.json({
       success: true,

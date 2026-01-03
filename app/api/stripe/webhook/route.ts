@@ -93,12 +93,22 @@ export async function POST(req: NextRequest) {
 
 /**
  * Traiter le paiement d'une inscription à un événement
+ * Supporte les paiements groupés (plusieurs inscriptions en une seule transaction)
  */
 async function handleEventRegistrationPayment(
   session: Stripe.Checkout.Session,
   metadata: Record<string, string>
 ) {
-  console.log('🎟️  Traitement inscription événement:', metadata.eventId)
+  // Vérifier si c'est un paiement groupé (plusieurs inscriptions)
+  const registrationIds = metadata.registrationIds
+    ? metadata.registrationIds.split(',').filter(id => id.trim())
+    : metadata.registrationId
+      ? [metadata.registrationId]
+      : []
+
+  const isBatchPayment = registrationIds.length > 1
+
+  console.log('🎟️  Traitement inscription événement:', metadata.eventId, isBatchPayment ? `(${registrationIds.length} inscriptions)` : '')
 
   // 1. Rechercher l'utilisateur par email
   const email = metadata.contactEmail || session.customer_email || ''
@@ -119,11 +129,11 @@ async function handleEventRegistrationPayment(
     }
   }
 
-  // 2. Créer le Payment
+  // 2. Créer le Payment (un seul pour toutes les inscriptions)
   const isSubscription = session.mode === 'subscription'
   const payment = await prisma.payment.create({
     data: {
-      ...(userId ? { user: { connect: { id: userId } } } : {}),
+      userId: userId || null,
       eventId: metadata.eventId,
       amount: (session.amount_total || 0) / 100,
       currency: 'CHF',
@@ -138,44 +148,59 @@ async function handleEventRegistrationPayment(
         participationType: metadata.participationType,
         paymentType: metadata.paymentType || 'ONE_TIME',
         isSubscription,
+        isBatchPayment,
+        registrationCount: registrationIds.length,
+        participantsList: metadata.participantsList || '',
       }
     }
   })
 
-  console.log('💰 Payment créé:', payment.id, '-', payment.amount, 'CHF', isSubscription ? '(ABONNEMENT)' : '(UNIQUE)')
+  console.log('💰 Payment créé:', payment.id, '-', payment.amount, 'CHF', isSubscription ? '(ABONNEMENT)' : '(UNIQUE)', isBatchPayment ? `(${registrationIds.length} inscriptions)` : '')
 
-  // 3. Vérifier si une inscription existante doit être mise à jour
-  let registration
+  // 3. Mettre à jour toutes les inscriptions existantes
+  let updatedRegistrations: any[] = []
 
-  if (metadata.registrationId) {
-    // Mettre à jour l'inscription existante
-    const existingRegistration = await prisma.eventRegistration.findUnique({
-      where: { id: metadata.registrationId }
+  if (registrationIds.length > 0) {
+    // Récupérer toutes les inscriptions à mettre à jour
+    const existingRegistrations = await prisma.eventRegistration.findMany({
+      where: { id: { in: registrationIds } },
+      include: {
+        child: {
+          select: { firstName: true, lastName: true }
+        }
+      }
     })
 
-    if (existingRegistration) {
-      registration = await prisma.eventRegistration.update({
-        where: { id: metadata.registrationId },
+    // Mettre à jour chaque inscription
+    for (const reg of existingRegistrations) {
+      const updated = await prisma.eventRegistration.update({
+        where: { id: reg.id },
         data: {
           status: 'CONFIRMED',
           paymentId: payment.id,
-          ...(userId && !existingRegistration.userId ? { userId } : {}),
+          ...(userId && !reg.userId ? { userId } : {}),
+        },
+        include: {
+          child: {
+            select: { firstName: true, lastName: true }
+          }
         }
       })
-      console.log('📝 Inscription mise à jour:', registration.id, '- Statut: CONFIRMED')
+      updatedRegistrations.push(updated)
+      console.log('📝 Inscription mise à jour:', updated.id, updated.child ? `(${updated.child.firstName} ${updated.child.lastName})` : '', '- Statut: CONFIRMED')
     }
   }
 
-  // Si pas d'inscription existante, en créer une nouvelle (rétrocompatibilité)
-  if (!registration) {
+  // Si aucune inscription existante, en créer une nouvelle (rétrocompatibilité)
+  if (updatedRegistrations.length === 0) {
     const [firstName = '', ...lastNameParts] = (metadata.contactName || '').split(' ')
     const lastName = lastNameParts.join(' ') || firstName
     const participants = metadata.participants ? JSON.parse(metadata.participants) : null
 
-    registration = await prisma.eventRegistration.create({
+    const registration = await prisma.eventRegistration.create({
       data: {
-        ...(userId ? { user: { connect: { id: userId } } } : {}),
-        ...(metadata.childId ? { child: { connect: { id: metadata.childId } } } : {}),
+        userId: userId || null,
+        childId: metadata.childId || null,
         eventId: metadata.eventId,
         eventTitle: metadata.eventTitle,
         participationType: metadata.participationType,
@@ -190,20 +215,28 @@ async function handleEventRegistrationPayment(
         status: 'CONFIRMED',
         requiresPayment: true,
         paymentAmount: payment.amount,
-        payment: { connect: { id: payment.id } }
+        paymentId: payment.id
       }
     })
+    updatedRegistrations.push(registration)
     console.log('📝 Nouvelle inscription créée:', registration.id, '- Statut: CONFIRMED')
   }
 
+  // Utiliser la première inscription comme référence
+  const primaryRegistration = updatedRegistrations[0]
+
   // 4. Créer une notification pour le membre
   if (userId) {
+    const notificationMessage = isBatchPayment
+      ? `Votre ${isSubscription ? 'abonnement' : 'paiement'} de ${payment.amount} CHF pour ${updatedRegistrations.length} inscription(s) à "${metadata.eventTitle}" a été confirmé.`
+      : `Votre ${isSubscription ? 'abonnement' : 'paiement'} pour "${metadata.eventTitle}" a été confirmé. Votre inscription est validée.`
+
     await prisma.notification.create({
       data: {
         userId,
         type: 'EVENT_CONFIRMATION',
         title: isSubscription ? 'Abonnement confirmé' : 'Paiement confirmé',
-        message: `Votre ${isSubscription ? 'abonnement' : 'paiement'} pour "${metadata.eventTitle}" a été confirmé. Votre inscription est validée.`,
+        message: notificationMessage,
         link: '/membre/evenements',
         read: false,
         emailSent: true
@@ -212,60 +245,91 @@ async function handleEventRegistrationPayment(
     console.log('📬 Notification de paiement créée pour:', email)
   }
 
-  // 5. Envoyer email de confirmation au participant
+  // 5. Envoyer UN SEUL email de confirmation groupé au participant
   try {
-    const { sendEventRegistrationConfirmation } = await import('@/lib/email')
+    const { sendEventRegistrationConfirmation, sendBatchEventRegistrationConfirmation } = await import('@/lib/email')
 
-    await sendEventRegistrationConfirmation({
-      email: registration.email,
-      firstName: registration.firstName,
-      lastName: registration.lastName,
-      eventTitle: metadata.eventTitle,
-      eventDate: metadata.eventDate,
-      participationType: metadata.participationType,
-      numberOfAdults: registration.numberOfAdults,
-      numberOfChildren: registration.numberOfChildren,
-      amount: payment.amount,
-      registrationId: registration.id,
-      hasAccount: !!userId,
-    })
+    if (isBatchPayment && updatedRegistrations.length > 1) {
+      // Email groupé pour inscriptions multiples
+      const participants = updatedRegistrations.map(reg => ({
+        firstName: reg.child?.firstName || reg.firstName,
+        lastName: reg.child?.lastName || reg.lastName,
+        isChild: !!reg.childId,
+      }))
 
-    console.log('📧 Email de confirmation envoyé à:', email)
+      await sendBatchEventRegistrationConfirmation({
+        email: primaryRegistration.email,
+        contactFirstName: primaryRegistration.firstName,
+        contactLastName: primaryRegistration.lastName,
+        eventTitle: metadata.eventTitle,
+        eventDate: metadata.eventDate,
+        participants,
+        totalAmount: payment.amount,
+        hasAccount: !!userId,
+      })
+
+      console.log('📧 Email de confirmation GROUPÉ envoyé à:', email, `(${participants.length} participants)`)
+    } else {
+      // Email simple pour inscription unique
+      await sendEventRegistrationConfirmation({
+        email: primaryRegistration.email,
+        firstName: primaryRegistration.firstName,
+        lastName: primaryRegistration.lastName,
+        eventTitle: metadata.eventTitle,
+        eventDate: metadata.eventDate,
+        participationType: metadata.participationType,
+        numberOfAdults: primaryRegistration.numberOfAdults,
+        numberOfChildren: primaryRegistration.numberOfChildren,
+        amount: payment.amount,
+        registrationId: primaryRegistration.id,
+        hasAccount: !!userId,
+      })
+
+      console.log('📧 Email de confirmation envoyé à:', email)
+    }
   } catch (emailError) {
     console.error('⚠️  Erreur envoi email (non bloquant):', emailError)
   }
 
   // 6. Notifier le responsable de l'événement que le paiement a été reçu
   try {
-    const { getEventById } = await import('@/lib/directus')
+    const { getEventById } = await import('@/lib/content')
     const event = await getEventById(metadata.eventId)
 
-    if (event?.manager_email) {
+    if (event?.managerEmail) {
       const { sendPaymentReceivedToManager } = await import('@/lib/email')
 
+      const participantName = isBatchPayment
+        ? metadata.participantsList || `${updatedRegistrations.length} participants`
+        : `${primaryRegistration.firstName} ${primaryRegistration.lastName}`
+
       await sendPaymentReceivedToManager({
-        managerEmail: event.manager_email,
+        managerEmail: event.managerEmail,
         eventTitle: metadata.eventTitle,
         eventId: metadata.eventId,
-        participantName: `${registration.firstName} ${registration.lastName}`,
-        participantEmail: registration.email,
+        participantName,
+        participantEmail: primaryRegistration.email,
         amount: payment.amount,
-        registrationId: registration.id,
+        registrationId: primaryRegistration.id,
       })
 
       // Créer une notification pour le responsable s'il a un compte
       const managerUser = await prisma.user.findFirst({
-        where: { email: event.manager_email },
+        where: { email: event.managerEmail },
         select: { id: true }
       })
 
       if (managerUser) {
+        const managerMessage = isBatchPayment
+          ? `${primaryRegistration.firstName} ${primaryRegistration.lastName} a payé ${payment.amount} CHF pour ${updatedRegistrations.length} inscription(s) à "${metadata.eventTitle}".`
+          : `${primaryRegistration.firstName} ${primaryRegistration.lastName} a payé ${payment.amount} CHF pour "${metadata.eventTitle}".`
+
         await prisma.notification.create({
           data: {
             userId: managerUser.id,
             type: 'EVENT_PAYMENT_RECEIVED',
             title: 'Paiement reçu',
-            message: `${registration.firstName} ${registration.lastName} a payé ${payment.amount} CHF pour "${metadata.eventTitle}".`,
+            message: managerMessage,
             link: `/admin/evenements-gestion/${metadata.eventId}`,
             read: false,
             emailSent: true,
@@ -273,7 +337,7 @@ async function handleEventRegistrationPayment(
         })
       }
 
-      console.log('📧 Notification de paiement envoyée au responsable:', event.manager_email)
+      console.log('📧 Notification de paiement envoyée au responsable:', event.managerEmail)
     }
   } catch (managerError) {
     console.error('⚠️  Erreur notification responsable (non bloquant):', managerError)
@@ -433,8 +497,7 @@ async function handleDonationPayment(
   // 💾 Enregistrer le don dans la base de données
   const donation = await prisma.donation.create({
     data: {
-      // Lier au compte utilisateur si trouvé
-      ...(userId ? { user: { connect: { id: userId } } } : {}),
+      userId: userId || null,
       firstName,
       lastName: lastName || firstName,
       email,

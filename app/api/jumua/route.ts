@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getActiveJumuaMessages } from '@/lib/directus'
+import { getActiveJumuaMessages } from '@/lib/content'
 
 // Vérifie si une valeur est un objet vide {}
 const isEmptyObject = (val: any): boolean => {

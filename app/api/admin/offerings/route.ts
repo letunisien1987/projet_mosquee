@@ -8,6 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -16,8 +19,8 @@ import {
   getOfferingsByManager,
   createOffering,
   ItemType,
-  DirectusOffering,
-} from '@/lib/directus'
+  Offering,
+} from '@/lib/content'
 import { hasPermission } from '@/lib/permissions'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
@@ -157,7 +160,7 @@ export async function GET(request: NextRequest) {
     // Déterminer si l'utilisateur voit toutes les offres ou seulement les siennes
     const isFullAccess = ['ADMIN', 'IMAM', 'STAFF'].includes(role)
 
-    let offerings: DirectusOffering[]
+    let offerings: Offering[]
     if (isFullAccess) {
       offerings = await getAllOfferings(typeParam || undefined)
     } else {
@@ -168,31 +171,89 @@ export async function GET(request: NextRequest) {
     // Filtrer par permission si pas d'accès complet
     if (!isFullAccess) {
       offerings = offerings.filter((o) => {
-        if (o.item_type === 'EVENT') return canViewEvents
-        if (o.item_type === 'ACTIVITY') return canViewActivities
+        if (o.itemType === 'EVENT') return canViewEvents
+        if (o.itemType === 'ACTIVITY') return canViewActivities
         return false
       })
+    }
+
+    // Récupérer les IDs des offres pour les stats
+    const offeringIds = offerings.map((o) => o.id.toString())
+
+    // Stats globales des inscriptions événements
+    const eventRegStats = await prisma.eventRegistration.groupBy({
+      by: ['status'],
+      where: { eventId: { in: offeringIds } },
+      _count: { id: true },
+    })
+
+    // Stats globales des inscriptions activités
+    const enrollmentStats = await prisma.enrollment.groupBy({
+      by: ['status'],
+      where: { activityId: { in: offeringIds } },
+      _count: { id: true },
+    })
+
+    // Calculer les stats globales
+    type StatEntry = { status: string; _count: { id: number } }
+    const getCount = (stats: StatEntry[], statuses: string[]) =>
+      stats.filter((s) => statuses.includes(s.status)).reduce((acc, s) => acc + s._count.id, 0)
+
+    const globalStats = {
+      pendingCount:
+        getCount(eventRegStats as StatEntry[], ['PENDING']) +
+        getCount(enrollmentStats as StatEntry[], ['PENDING']),
+      pendingPaymentCount:
+        getCount(eventRegStats as StatEntry[], ['PENDING_PAYMENT']) +
+        getCount(enrollmentStats as StatEntry[], ['APPROVED']),
+      confirmedCount:
+        getCount(eventRegStats as StatEntry[], ['CONFIRMED']) +
+        getCount(enrollmentStats as StatEntry[], ['ACTIVE']),
+      cancelledCount:
+        getCount(eventRegStats as StatEntry[], ['CANCELLED']) +
+        getCount(enrollmentStats as StatEntry[], ['CANCELLED', 'REJECTED']),
     }
 
     // Compter les inscriptions pour chaque offre et nettoyer les données
     const offeringsWithStats = await Promise.all(
       offerings.map(async (offering) => {
-        // Compter les inscriptions (EventRegistration pour les deux types maintenant)
-        const registrationCount = await prisma.eventRegistration.count({
-          where: { eventId: offering.id.toString() },
+        const offId = offering.id.toString()
+
+        // Stats par offre pour les événements
+        const eventStats = await prisma.eventRegistration.groupBy({
+          by: ['status'],
+          where: { eventId: offId },
+          _count: { id: true },
         })
 
-        // Compter aussi les enrollments (pour les activités existantes)
-        const enrollmentCount = await prisma.enrollment.count({
-          where: { activityId: offering.id.toString() },
+        // Stats par offre pour les activités (enrollments)
+        const activityStats = await prisma.enrollment.groupBy({
+          by: ['status'],
+          where: { activityId: offId },
+          _count: { id: true },
         })
+
+        const eventStatsTyped = eventStats as StatEntry[]
+        const activityStatsTyped = activityStats as StatEntry[]
+
+        const totalReg = eventStatsTyped.reduce((acc, s) => acc + s._count.id, 0)
+        const totalEnr = activityStatsTyped.reduce((acc, s) => acc + s._count.id, 0)
 
         const sanitized = sanitizeOffering(offering)
 
         return {
           ...sanitized,
-          registrationCount: registrationCount + enrollmentCount,
-          isManager: offering.manager_id === session.user.id,
+          registrationCount: totalReg + totalEnr,
+          stats: {
+            pending: getCount(eventStatsTyped, ['PENDING']) + getCount(activityStatsTyped, ['PENDING']),
+            pendingPayment:
+              getCount(eventStatsTyped, ['PENDING_PAYMENT']) + getCount(activityStatsTyped, ['APPROVED']),
+            confirmed: getCount(eventStatsTyped, ['CONFIRMED']) + getCount(activityStatsTyped, ['ACTIVE']),
+            cancelled:
+              getCount(eventStatsTyped, ['CANCELLED']) +
+              getCount(activityStatsTyped, ['CANCELLED', 'REJECTED']),
+          },
+          isManager: offering.managerId === session.user.id,
         }
       })
     )
@@ -202,9 +263,10 @@ export async function GET(request: NextRequest) {
       isFullAccess,
       counts: {
         total: offeringsWithStats.length,
-        events: offeringsWithStats.filter((o) => o.item_type === 'EVENT').length,
-        activities: offeringsWithStats.filter((o) => o.item_type === 'ACTIVITY').length,
+        events: offeringsWithStats.filter((o) => o.itemType === 'EVENT').length,
+        activities: offeringsWithStats.filter((o) => o.itemType === 'ACTIVITY').length,
       },
+      globalStats,
     })
   } catch (error) {
     console.error('Erreur GET /api/admin/offerings:', error)
@@ -233,7 +295,7 @@ export async function POST(request: NextRequest) {
 
     // Vérifier les permissions selon le type
     const body = await request.json()
-    const itemType = body.item_type as ItemType
+    const itemType = body.itemType as ItemType
 
     if (itemType === 'EVENT') {
       const canManageEvents = await hasPermission(role, 'MANAGE_EVENTS')
@@ -270,11 +332,11 @@ export async function POST(request: NextRequest) {
       finalManagerEmail = adminUser.email || undefined
     }
 
-    // Créer l'offre dans Directus
+    // Créer l'offre dans la base de données (createOffering accepte les deux formats)
     const offering = await createOffering({
       ...validatedData,
-      manager_id: finalManagerId,
-      manager_email: finalManagerEmail,
+      managerId: finalManagerId,
+      managerEmail: finalManagerEmail,
     } as any)
 
     if (!offering) {

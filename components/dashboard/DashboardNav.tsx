@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { Logo } from '@/components/Logo'
 import { signOut } from 'next-auth/react'
 import {
   Home,
@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  Image,
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { AdminPermission } from '@prisma/client'
@@ -72,11 +73,6 @@ const activitiesNavigation: NavItem[] = [
   { name: 'Mes Documents', href: '/dashboard/documents', icon: FileText },
 ]
 
-// Espace organisateur (MANAGER+)
-const organizerNavigation: NavItem[] = [
-  { name: 'Espace Organisateur', href: '/dashboard/organiser', icon: LayoutGrid },
-]
-
 // Navigation admin (groupes avec permissions) - 4 groupes simplifiés
 const adminNavigationGroups: NavGroup[] = [
   {
@@ -117,6 +113,7 @@ const adminNavigationGroups: NavGroup[] = [
     permissions: ['VIEW_DONATIONS', 'MANAGE_DONATIONS', 'VIEW_SETTINGS', 'MANAGE_SETTINGS', 'MANAGE_ROLES'],
     items: [
       { name: 'Dons', href: '/dashboard/admin/dons', icon: HandHeart, permissions: ['VIEW_DONATIONS'] },
+      { name: 'Logos', href: '/dashboard/admin/logos', icon: Image, permissions: ['MANAGE_SETTINGS'] },
       { name: 'Paramètres', href: '/dashboard/admin/parametres', icon: Settings, permissions: ['MANAGE_SETTINGS'] },
       { name: 'Rôles', href: '/dashboard/admin/roles', icon: Shield, permissions: ['MANAGE_ROLES'] },
     ],
@@ -126,9 +123,6 @@ const adminNavigationGroups: NavGroup[] = [
 // Rôles qui ont accès à l'espace admin
 const ADMIN_ROLES = ['ADMIN', 'IMAM', 'TEACHER', 'STAFF', 'MANAGER', 'TRESORIER']
 
-// Rôles qui voient l'espace organisateur
-const ORGANIZER_ROLES = ['ADMIN', 'IMAM', 'STAFF', 'MANAGER']
-
 export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -136,7 +130,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const { hasAnyPermission, isAdmin, loading: permissionsLoading } = usePermissions()
 
   const isAdminRole = user.role && ADMIN_ROLES.includes(user.role)
-  const isOrganizerRole = user.role && ORGANIZER_ROLES.includes(user.role)
 
   // Filtrer les groupes admin selon les permissions
   const filteredAdminGroups = adminNavigationGroups
@@ -276,18 +269,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         </div>
       </div>
 
-      {/* Section Organisateur (MANAGER+) */}
-      {isOrganizerRole && (
-        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-            Organisateur
-          </p>
-          <div className="space-y-1">
-            {organizerNavigation.map((item) => renderNavItem(item, mobile))}
-          </div>
-        </div>
-      )}
-
       {/* Section Administration (selon permissions) */}
       {isAdminRole && filteredAdminGroups.length > 0 && (
         <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -362,14 +343,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
               <Link href="/" className="flex items-center">
-                <Image
-                  src="/mosque-madretsch-logo.png"
-                  alt="Mosquée Madretsch"
-                  width={160}
-                  height={37}
-                  className="h-8 w-auto"
-                  priority
-                />
+                <Logo location="dashboard-mobile" />
               </Link>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -421,14 +395,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
             <Link href="/" className="flex items-center">
-              <Image
-                src="/mosque-madretsch-logo.png"
-                alt="Mosquée Madretsch"
-                width={160}
-                height={37}
-                className="h-8 w-auto"
-                priority
-              />
+              <Logo location="dashboard" />
             </Link>
             <Link href="/dashboard/notifications" className="relative p-2 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
               <Bell className="h-5 w-5" />

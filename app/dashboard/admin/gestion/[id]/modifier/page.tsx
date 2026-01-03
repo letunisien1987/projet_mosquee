@@ -20,6 +20,7 @@ import {
   Percent,
   Gift,
   RefreshCcw,
+  Mail,
 } from 'lucide-react'
 
 type ItemType = 'EVENT' | 'ACTIVITY'
@@ -39,54 +40,58 @@ interface User {
 }
 
 interface FormData {
-  item_type: ItemType
+  itemType: ItemType
   title: string
   slug: string
   description: string
   content: string
   category: EventCategory
-  registration_required: boolean
-  max_capacity: number | ''
-  requires_approval: boolean
+  registrationRequired: boolean
+  maxCapacity: number | ''
+  requiresApproval: boolean
   published: boolean
   featured: boolean
   date: string
-  start_time: string
-  end_time: string
+  startTime: string
+  endTime: string
   location: string
   image: string
-  registration_deadline: string
-  activity_category: ActivityCategory
+  registrationDeadline: string
+  activityCategory: ActivityCategory
   level: string
-  age_group: string
+  ageGroup: string
   schedule: string
   instructor: string
-  enrollment_open: boolean
+  enrollmentOpen: boolean
   price: string
-  payment_type: PaymentType
-  subscription_interval: SubscriptionInterval
+  paymentType: PaymentType
+  subscriptionInterval: SubscriptionInterval
   // Tarification avancée
-  pricing_enabled: boolean
+  pricingEnabled: boolean
   pricing: {
-    adult_price: string
-    child_price: string
-    child_free_until_age: string
-    group_discount_enabled: boolean
-    group_discount_from_persons: string
-    group_discount_percent: string
-    family_max_price: string
-    early_bird_enabled: boolean
-    early_bird_until_date: string
-    early_bird_discount_percent: string
+    adultPrice: string
+    childPrice: string
+    childFreeUntilAge: string
+    groupDiscountEnabled: boolean
+    groupDiscountFromPersons: string
+    groupDiscountPercent: string
+    familyMaxPrice: string
+    earlyBirdEnabled: boolean
+    earlyBirdUntilDate: string
+    earlyBirdDiscountPercent: string
   }
-  allow_refund: boolean
-  cancellation_deadline_days: string
-  manager_id: string
-  restrictions_enabled: boolean
-  participation_type: ParticipationType
-  allowed_gender: AllowedGender
-  min_age: string
-  max_age: string
+  allowRefund: boolean
+  cancellationDeadlineDays: string
+  managerId: string
+  // Contact organisateur
+  showOrganizerName: boolean
+  showOrganizerEmail: boolean
+  showOrganizerPhone: boolean
+  restrictionsEnabled: boolean
+  participationType: ParticipationType
+  allowedGender: AllowedGender
+  minAge: string
+  maxAge: string
 }
 
 const eventCategories: { value: EventCategory; label: string }[] = [
@@ -154,54 +159,59 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
       const pricing = offering.pricing || {}
 
       const formValues: FormData = {
-        item_type: offering.item_type || 'EVENT',
+        // L'API retourne en camelCase
+        itemType: offering.itemType || 'EVENT',
         title: offering.title || '',
         slug: offering.slug || '',
         description: offering.description || '',
         content: offering.content || '',
         category: offering.category || 'communaute',
-        registration_required: offering.registration_required ?? true,
-        max_capacity: offering.max_capacity || '',
-        requires_approval: offering.requires_approval ?? false,
+        registrationRequired: offering.registrationRequired ?? true,
+        maxCapacity: offering.maxCapacity || '',
+        requiresApproval: offering.requiresApproval ?? false,
         published: offering.published ?? false,
         featured: offering.featured ?? false,
         date: offering.date ? offering.date.split('T')[0] : '',
-        start_time: offering.start_time || '',
-        end_time: offering.end_time || '',
+        startTime: offering.startTime || '',
+        endTime: offering.endTime || '',
         location: offering.location || '',
         image: offering.image || '',
-        registration_deadline: offering.registration_deadline ? offering.registration_deadline.split('T')[0] : '',
-        activity_category: offering.activity_category || 'coran',
+        registrationDeadline: offering.registrationDeadline ? offering.registrationDeadline.split('T')[0] : '',
+        activityCategory: offering.activityCategory || 'coran',
         level: offering.level || '',
-        age_group: offering.age_group || '',
+        ageGroup: offering.ageGroup || '',
         schedule: offering.schedule || '',
         instructor: offering.instructor || '',
-        enrollment_open: offering.enrollment_open ?? true,
+        enrollmentOpen: offering.enrollmentOpen ?? true,
         price: offering.price?.toString() || '',
-        payment_type: offering.payment_type || 'FREE',
-        subscription_interval: offering.subscription_interval || 'MONTHLY',
-        // Tarification avancée
-        pricing_enabled: !!pricing.adult_price,
+        paymentType: offering.paymentType || 'FREE',
+        subscriptionInterval: offering.subscriptionInterval || 'MONTHLY',
+        // Tarification avancée (pricing JSON peut être en snake_case ou camelCase)
+        pricingEnabled: !!(pricing.adultPrice || pricing.adult_price),
         pricing: {
-          adult_price: pricing.adult_price?.toString() || '',
-          child_price: pricing.child_price?.toString() || '',
-          child_free_until_age: pricing.child_free_until_age?.toString() || '',
-          group_discount_enabled: pricing.group_discount?.enabled ?? false,
-          group_discount_from_persons: pricing.group_discount?.from_persons?.toString() || '4',
-          group_discount_percent: pricing.group_discount?.discount_percent?.toString() || '10',
-          family_max_price: pricing.family_max_price?.toString() || '',
-          early_bird_enabled: pricing.early_bird?.enabled ?? false,
-          early_bird_until_date: pricing.early_bird?.until_date ? pricing.early_bird.until_date.split('T')[0] : '',
-          early_bird_discount_percent: pricing.early_bird?.discount_percent?.toString() || '15',
+          adultPrice: (pricing.adultPrice ?? pricing.adult_price)?.toString() || '',
+          childPrice: (pricing.childPrice ?? pricing.child_price)?.toString() || '',
+          childFreeUntilAge: (pricing.childFreeUntilAge ?? pricing.child_free_until_age)?.toString() || '',
+          groupDiscountEnabled: pricing.groupDiscount?.enabled ?? pricing.group_discount?.enabled ?? false,
+          groupDiscountFromPersons: (pricing.groupDiscount?.fromPersons ?? pricing.group_discount?.from_persons)?.toString() || '4',
+          groupDiscountPercent: (pricing.groupDiscount?.discountPercent ?? pricing.group_discount?.discount_percent)?.toString() || '10',
+          familyMaxPrice: (pricing.familyMaxPrice ?? pricing.family_max_price)?.toString() || '',
+          earlyBirdEnabled: pricing.earlyBird?.enabled ?? pricing.early_bird?.enabled ?? false,
+          earlyBirdUntilDate: (pricing.earlyBird?.untilDate ?? pricing.early_bird?.until_date) ? (pricing.earlyBird?.untilDate ?? pricing.early_bird?.until_date).split('T')[0] : '',
+          earlyBirdDiscountPercent: (pricing.earlyBird?.discountPercent ?? pricing.early_bird?.discount_percent)?.toString() || '15',
         },
-        allow_refund: offering.allow_refund ?? true,
-        cancellation_deadline_days: offering.cancellation_deadline_days?.toString() || '7',
-        manager_id: offering.manager_id || '',
-        restrictions_enabled: offering.restrictions?.enabled ?? false,
-        participation_type: offering.restrictions?.participation_type || 'INDIVIDUAL',
-        allowed_gender: offering.restrictions?.allowed_gender || 'ALL',
-        min_age: offering.restrictions?.min_age?.toString() || '',
-        max_age: offering.restrictions?.max_age?.toString() || '',
+        allowRefund: offering.allowRefund ?? true,
+        cancellationDeadlineDays: offering.cancellationDeadlineDays?.toString() || '7',
+        managerId: offering.managerId || '',
+        // Contact organisateur
+        showOrganizerName: offering.showOrganizerName ?? false,
+        showOrganizerEmail: offering.showOrganizerEmail ?? false,
+        showOrganizerPhone: offering.showOrganizerPhone ?? false,
+        restrictionsEnabled: offering.restrictions?.enabled ?? false,
+        participationType: offering.restrictions?.participationType || offering.restrictions?.participation_type || 'INDIVIDUAL',
+        allowedGender: offering.restrictions?.allowedGender || offering.restrictions?.allowed_gender || 'ALL',
+        minAge: (offering.restrictions?.minAge ?? offering.restrictions?.min_age)?.toString() || '',
+        maxAge: (offering.restrictions?.maxAge ?? offering.restrictions?.max_age)?.toString() || '',
       }
 
       setFormData(formValues)
@@ -220,73 +230,77 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
     setError(null)
 
     try {
-      // Construire l'objet pricing si activé
-      const pricingPayload = formData.pricing_enabled && formData.payment_type !== 'FREE' ? {
-        adult_price: formData.pricing.adult_price ? parseFloat(formData.pricing.adult_price) : 0,
-        child_price: formData.pricing.child_price ? parseFloat(formData.pricing.child_price) : 0,
-        child_free_until_age: formData.pricing.child_free_until_age ? parseInt(formData.pricing.child_free_until_age) : 0,
-        group_discount: {
-          enabled: formData.pricing.group_discount_enabled,
-          from_persons: parseInt(formData.pricing.group_discount_from_persons) || 4,
-          discount_percent: parseInt(formData.pricing.group_discount_percent) || 10,
+      // Construire l'objet pricing si activé (envoyé en camelCase à l'API)
+      const pricingPayload = formData.pricingEnabled && formData.paymentType !== 'FREE' ? {
+        adultPrice: formData.pricing.adultPrice ? parseFloat(formData.pricing.adultPrice) : 0,
+        childPrice: formData.pricing.childPrice ? parseFloat(formData.pricing.childPrice) : 0,
+        childFreeUntilAge: formData.pricing.childFreeUntilAge ? parseInt(formData.pricing.childFreeUntilAge) : 0,
+        groupDiscount: {
+          enabled: formData.pricing.groupDiscountEnabled,
+          fromPersons: parseInt(formData.pricing.groupDiscountFromPersons) || 4,
+          discountPercent: parseInt(formData.pricing.groupDiscountPercent) || 10,
         },
-        family_max_price: formData.pricing.family_max_price ? parseFloat(formData.pricing.family_max_price) : null,
-        early_bird: {
-          enabled: formData.pricing.early_bird_enabled,
-          until_date: formData.pricing.early_bird_until_date || null,
-          discount_percent: parseInt(formData.pricing.early_bird_discount_percent) || 15,
+        familyMaxPrice: formData.pricing.familyMaxPrice ? parseFloat(formData.pricing.familyMaxPrice) : null,
+        earlyBird: {
+          enabled: formData.pricing.earlyBirdEnabled,
+          untilDate: formData.pricing.earlyBirdUntilDate || null,
+          discountPercent: parseInt(formData.pricing.earlyBirdDiscountPercent) || 15,
         },
       } : null
 
-      const payload: Record<string, any> = {
-        item_type: formData.item_type,
+      const payload: Record<string, unknown> = {
+        itemType: formData.itemType,
         title: formData.title,
         slug: formData.slug,
         description: formData.description,
         content: formData.content,
         category: formData.category,
-        registration_required: formData.registration_required,
-        max_capacity: formData.max_capacity || undefined,
-        requires_approval: formData.requires_approval,
+        registrationRequired: formData.registrationRequired,
+        maxCapacity: formData.maxCapacity || undefined,
+        requiresApproval: formData.requiresApproval,
         published: formData.published,
         featured: formData.featured,
         price: formData.price ? parseFloat(formData.price) : 0,
-        payment_type: formData.payment_type,
+        paymentType: formData.paymentType,
         pricing: pricingPayload,
-        allow_refund: formData.payment_type !== 'FREE' ? formData.allow_refund : undefined,
-        cancellation_deadline_days: formData.payment_type !== 'FREE' && formData.allow_refund
-          ? parseInt(formData.cancellation_deadline_days) || 7
+        allowRefund: formData.paymentType !== 'FREE' ? formData.allowRefund : undefined,
+        cancellationDeadlineDays: formData.paymentType !== 'FREE' && formData.allowRefund
+          ? parseInt(formData.cancellationDeadlineDays) || 7
           : undefined,
-        manager_id: formData.manager_id || undefined,
+        managerId: formData.managerId || undefined,
+        // Contact organisateur
+        showOrganizerName: formData.showOrganizerName,
+        showOrganizerEmail: formData.showOrganizerEmail,
+        showOrganizerPhone: formData.showOrganizerPhone,
       }
 
-      if (formData.item_type === 'EVENT') {
+      if (formData.itemType === 'EVENT') {
         payload.date = formData.date || null
-        payload.start_time = formData.start_time || null
-        payload.end_time = formData.end_time || null
+        payload.startTime = formData.startTime || null
+        payload.endTime = formData.endTime || null
         payload.location = formData.location || undefined
         payload.image = formData.image || undefined
-        payload.registration_deadline = formData.registration_deadline || null
+        payload.registrationDeadline = formData.registrationDeadline || null
       } else {
-        payload.activity_category = formData.activity_category
+        payload.activityCategory = formData.activityCategory
         payload.level = formData.level || undefined
-        payload.age_group = formData.age_group || undefined
+        payload.ageGroup = formData.ageGroup || undefined
         payload.schedule = formData.schedule || undefined
         payload.instructor = formData.instructor || undefined
-        payload.enrollment_open = formData.enrollment_open
+        payload.enrollmentOpen = formData.enrollmentOpen
       }
 
-      if (formData.payment_type === 'SUBSCRIPTION') {
-        payload.subscription_interval = formData.subscription_interval
+      if (formData.paymentType === 'SUBSCRIPTION') {
+        payload.subscriptionInterval = formData.subscriptionInterval
       }
 
-      if (formData.restrictions_enabled) {
+      if (formData.restrictionsEnabled) {
         payload.restrictions = {
           enabled: true,
-          participation_type: formData.participation_type,
-          allowed_gender: formData.allowed_gender,
-          min_age: formData.min_age ? parseInt(formData.min_age) : null,
-          max_age: formData.max_age ? parseInt(formData.max_age) : null,
+          participationType: formData.participationType,
+          allowedGender: formData.allowedGender,
+          minAge: formData.minAge ? parseInt(formData.minAge) : null,
+          maxAge: formData.maxAge ? parseInt(formData.maxAge) : null,
         }
       } else {
         payload.restrictions = null
@@ -338,7 +352,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
 
   if (!formData) return null
 
-  const isEvent = formData.item_type === 'EVENT'
+  const isEvent = formData.itemType === 'EVENT'
   const typeLabel = isEvent ? 'événement' : 'activité'
 
   return (
@@ -468,8 +482,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       Type d&apos;activité
                     </label>
                     <select
-                      value={formData.activity_category}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, activity_category: e.target.value as ActivityCategory } : null)}
+                      value={formData.activityCategory}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, activityCategory: e.target.value as ActivityCategory } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                     >
                       {activityCategories.map(cat => (
@@ -568,8 +582,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       </label>
                       <input
                         type="time"
-                        value={formData.start_time}
-                        onChange={(e) => setFormData(prev => prev ? { ...prev, start_time: e.target.value } : null)}
+                        value={formData.startTime}
+                        onChange={(e) => setFormData(prev => prev ? { ...prev, startTime: e.target.value } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                       />
                     </div>
@@ -579,8 +593,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       </label>
                       <input
                         type="time"
-                        value={formData.end_time}
-                        onChange={(e) => setFormData(prev => prev ? { ...prev, end_time: e.target.value } : null)}
+                        value={formData.endTime}
+                        onChange={(e) => setFormData(prev => prev ? { ...prev, endTime: e.target.value } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                       />
                     </div>
@@ -605,8 +619,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     </label>
                     <input
                       type="date"
-                      value={formData.registration_deadline}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, registration_deadline: e.target.value } : null)}
+                      value={formData.registrationDeadline}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, registrationDeadline: e.target.value } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                     />
                   </div>
@@ -657,8 +671,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       </label>
                       <input
                         type="text"
-                        value={formData.age_group}
-                        onChange={(e) => setFormData(prev => prev ? { ...prev, age_group: e.target.value } : null)}
+                        value={formData.ageGroup}
+                        onChange={(e) => setFormData(prev => prev ? { ...prev, ageGroup: e.target.value } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                       />
                     </div>
@@ -667,8 +681,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={formData.enrollment_open}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, enrollment_open: e.target.checked } : null)}
+                      checked={formData.enrollmentOpen}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, enrollmentOpen: e.target.checked } : null)}
                       className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">Inscriptions ouvertes</span>
@@ -698,8 +712,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 </label>
                 <input
                   type="number"
-                  value={formData.max_capacity}
-                  onChange={(e) => setFormData(prev => prev ? { ...prev, max_capacity: e.target.value ? parseInt(e.target.value) : '' } : null)}
+                  value={formData.maxCapacity}
+                  onChange={(e) => setFormData(prev => prev ? { ...prev, maxCapacity: e.target.value ? parseInt(e.target.value) : '' } : null)}
                   className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Laisser vide pour illimité"
                   min="1"
@@ -710,8 +724,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.registration_required}
-                    onChange={(e) => setFormData(prev => prev ? { ...prev, registration_required: e.target.checked } : null)}
+                    checked={formData.registrationRequired}
+                    onChange={(e) => setFormData(prev => prev ? { ...prev, registrationRequired: e.target.checked } : null)}
                     className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Inscription requise</span>
@@ -720,8 +734,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.requires_approval}
-                    onChange={(e) => setFormData(prev => prev ? { ...prev, requires_approval: e.target.checked } : null)}
+                    checked={formData.requiresApproval}
+                    onChange={(e) => setFormData(prev => prev ? { ...prev, requiresApproval: e.target.checked } : null)}
                     className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Approbation requise</span>
@@ -757,9 +771,9 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setFormData(prev => prev ? { ...prev, payment_type: option.value as PaymentType } : null)}
+                      onClick={() => setFormData(prev => prev ? { ...prev, paymentType: option.value as PaymentType } : null)}
                       className={`p-4 rounded-lg border-2 text-center transition-all ${
-                        formData.payment_type === option.value
+                        formData.paymentType === option.value
                           ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
                           : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                       }`}
@@ -770,7 +784,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
 
-              {formData.payment_type !== 'FREE' && (
+              {formData.paymentType !== 'FREE' && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -787,14 +801,14 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       />
                     </div>
 
-                    {formData.payment_type === 'SUBSCRIPTION' && (
+                    {formData.paymentType === 'SUBSCRIPTION' && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Fréquence
                         </label>
                         <select
-                          value={formData.subscription_interval}
-                          onChange={(e) => setFormData(prev => prev ? { ...prev, subscription_interval: e.target.value as SubscriptionInterval } : null)}
+                          value={formData.subscriptionInterval}
+                          onChange={(e) => setFormData(prev => prev ? { ...prev, subscriptionInterval: e.target.value as SubscriptionInterval } : null)}
                           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                         >
                           <option value="WEEKLY">Hebdomadaire</option>
@@ -810,7 +824,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
           </section>
 
           {/* Section: Tarification avancée (uniquement si payant) */}
-          {formData.payment_type !== 'FREE' && (
+          {formData.paymentType !== 'FREE' && (
             <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
@@ -826,8 +840,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={formData.pricing_enabled}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, pricing_enabled: e.target.checked } : null)}
+                      checked={formData.pricingEnabled}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, pricingEnabled: e.target.checked } : null)}
                       className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                     />
                     <span className="text-sm font-medium">Activer</span>
@@ -835,7 +849,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
 
-              {formData.pricing_enabled ? (
+              {formData.pricingEnabled ? (
                 <div className="p-6 space-y-6">
                   {/* Prix par personne */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -847,10 +861,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.pricing.adult_price}
+                        value={formData.pricing.adultPrice}
                         onChange={(e) => setFormData(prev => prev ? {
                           ...prev,
-                          pricing: { ...prev.pricing, adult_price: e.target.value }
+                          pricing: { ...prev.pricing, adultPrice: e.target.value }
                         } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                         placeholder="50"
@@ -865,10 +879,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.pricing.child_price}
+                        value={formData.pricing.childPrice}
                         onChange={(e) => setFormData(prev => prev ? {
                           ...prev,
-                          pricing: { ...prev.pricing, child_price: e.target.value }
+                          pricing: { ...prev.pricing, childPrice: e.target.value }
                         } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                         placeholder="25"
@@ -883,10 +897,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                         type="number"
                         min="0"
                         max="18"
-                        value={formData.pricing.child_free_until_age}
+                        value={formData.pricing.childFreeUntilAge}
                         onChange={(e) => setFormData(prev => prev ? {
                           ...prev,
-                          pricing: { ...prev.pricing, child_free_until_age: e.target.value }
+                          pricing: { ...prev.pricing, childFreeUntilAge: e.target.value }
                         } : null)}
                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                         placeholder="5"
@@ -899,10 +913,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     <label className="flex items-center gap-3 cursor-pointer mb-4">
                       <input
                         type="checkbox"
-                        checked={formData.pricing.group_discount_enabled}
+                        checked={formData.pricing.groupDiscountEnabled}
                         onChange={(e) => setFormData(prev => prev ? {
                           ...prev,
-                          pricing: { ...prev.pricing, group_discount_enabled: e.target.checked }
+                          pricing: { ...prev.pricing, groupDiscountEnabled: e.target.checked }
                         } : null)}
                         className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
                       />
@@ -912,7 +926,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       </span>
                     </label>
 
-                    {formData.pricing.group_discount_enabled && (
+                    {formData.pricing.groupDiscountEnabled && (
                       <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -921,10 +935,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                           <input
                             type="number"
                             min="2"
-                            value={formData.pricing.group_discount_from_persons}
+                            value={formData.pricing.groupDiscountFromPersons}
                             onChange={(e) => setFormData(prev => prev ? {
                               ...prev,
-                              pricing: { ...prev.pricing, group_discount_from_persons: e.target.value }
+                              pricing: { ...prev.pricing, groupDiscountFromPersons: e.target.value }
                             } : null)}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
                           />
@@ -938,10 +952,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                             type="number"
                             min="1"
                             max="100"
-                            value={formData.pricing.group_discount_percent}
+                            value={formData.pricing.groupDiscountPercent}
                             onChange={(e) => setFormData(prev => prev ? {
                               ...prev,
-                              pricing: { ...prev.pricing, group_discount_percent: e.target.value }
+                              pricing: { ...prev.pricing, groupDiscountPercent: e.target.value }
                             } : null)}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
                           />
@@ -962,10 +976,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.pricing.family_max_price}
+                      value={formData.pricing.familyMaxPrice}
                       onChange={(e) => setFormData(prev => prev ? {
                         ...prev,
-                        pricing: { ...prev.pricing, family_max_price: e.target.value }
+                        pricing: { ...prev.pricing, familyMaxPrice: e.target.value }
                       } : null)}
                       className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                       placeholder="150"
@@ -980,10 +994,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     <label className="flex items-center gap-3 cursor-pointer mb-4">
                       <input
                         type="checkbox"
-                        checked={formData.pricing.early_bird_enabled}
+                        checked={formData.pricing.earlyBirdEnabled}
                         onChange={(e) => setFormData(prev => prev ? {
                           ...prev,
-                          pricing: { ...prev.pricing, early_bird_enabled: e.target.checked }
+                          pricing: { ...prev.pricing, earlyBirdEnabled: e.target.checked }
                         } : null)}
                         className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                       />
@@ -993,7 +1007,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       </span>
                     </label>
 
-                    {formData.pricing.early_bird_enabled && (
+                    {formData.pricing.earlyBirdEnabled && (
                       <div className="ml-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1001,10 +1015,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                           </label>
                           <input
                             type="date"
-                            value={formData.pricing.early_bird_until_date}
+                            value={formData.pricing.earlyBirdUntilDate}
                             onChange={(e) => setFormData(prev => prev ? {
                               ...prev,
-                              pricing: { ...prev.pricing, early_bird_until_date: e.target.value }
+                              pricing: { ...prev.pricing, earlyBirdUntilDate: e.target.value }
                             } : null)}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           />
@@ -1018,10 +1032,10 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                             type="number"
                             min="1"
                             max="100"
-                            value={formData.pricing.early_bird_discount_percent}
+                            value={formData.pricing.earlyBirdDiscountPercent}
                             onChange={(e) => setFormData(prev => prev ? {
                               ...prev,
-                              pricing: { ...prev.pricing, early_bird_discount_percent: e.target.value }
+                              pricing: { ...prev.pricing, earlyBirdDiscountPercent: e.target.value }
                             } : null)}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           />
@@ -1034,19 +1048,19 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-4">
                     <h3 className="text-sm font-medium mb-2 text-gray-900 dark:text-white">Aperçu des tarifs</h3>
                     <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                      <p>• Adulte: <strong>{formData.pricing.adult_price || '0'} CHF</strong></p>
-                      <p>• Enfant: <strong>{formData.pricing.child_price || '0'} CHF</strong></p>
-                      {formData.pricing.child_free_until_age && parseInt(formData.pricing.child_free_until_age) > 0 && (
-                        <p>• Enfants ≤{formData.pricing.child_free_until_age} ans: <strong className="text-green-600">Gratuit</strong></p>
+                      <p>• Adulte: <strong>{formData.pricing.adultPrice || '0'} CHF</strong></p>
+                      <p>• Enfant: <strong>{formData.pricing.childPrice || '0'} CHF</strong></p>
+                      {formData.pricing.childFreeUntilAge && parseInt(formData.pricing.childFreeUntilAge) > 0 && (
+                        <p>• Enfants ≤{formData.pricing.childFreeUntilAge} ans: <strong className="text-green-600">Gratuit</strong></p>
                       )}
-                      {formData.pricing.group_discount_enabled && (
-                        <p>• À partir de {formData.pricing.group_discount_from_persons} pers.: <strong className="text-green-600">-{formData.pricing.group_discount_percent}%</strong></p>
+                      {formData.pricing.groupDiscountEnabled && (
+                        <p>• À partir de {formData.pricing.groupDiscountFromPersons} pers.: <strong className="text-green-600">-{formData.pricing.groupDiscountPercent}%</strong></p>
                       )}
-                      {formData.pricing.family_max_price && (
-                        <p>• Plafond famille: <strong className="text-purple-600">{formData.pricing.family_max_price} CHF max</strong></p>
+                      {formData.pricing.familyMaxPrice && (
+                        <p>• Plafond famille: <strong className="text-purple-600">{formData.pricing.familyMaxPrice} CHF max</strong></p>
                       )}
-                      {formData.pricing.early_bird_enabled && formData.pricing.early_bird_until_date && (
-                        <p>• Early bird jusqu&apos;au {new Date(formData.pricing.early_bird_until_date).toLocaleDateString('fr-FR')}: <strong className="text-orange-600">-{formData.pricing.early_bird_discount_percent}%</strong></p>
+                      {formData.pricing.earlyBirdEnabled && formData.pricing.earlyBirdUntilDate && (
+                        <p>• Early bird jusqu&apos;au {new Date(formData.pricing.earlyBirdUntilDate).toLocaleDateString('fr-FR')}: <strong className="text-orange-600">-{formData.pricing.earlyBirdDiscountPercent}%</strong></p>
                       )}
                     </div>
                   </div>
@@ -1062,7 +1076,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
           )}
 
           {/* Section: Politique de remboursement (uniquement si payant) */}
-          {formData.payment_type !== 'FREE' && (
+          {formData.paymentType !== 'FREE' && (
             <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center gap-3">
@@ -1079,14 +1093,14 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.allow_refund}
-                    onChange={(e) => setFormData(prev => prev ? { ...prev, allow_refund: e.target.checked } : null)}
+                    checked={formData.allowRefund}
+                    onChange={(e) => setFormData(prev => prev ? { ...prev, allowRefund: e.target.checked } : null)}
                     className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                   />
                   <span className="font-medium">Autoriser les remboursements</span>
                 </label>
 
-                {formData.allow_refund && (
+                {formData.allowRefund && (
                   <div className="ml-8 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Délai de remboursement automatique (jours)
@@ -1095,8 +1109,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       type="number"
                       min="0"
                       max="365"
-                      value={formData.cancellation_deadline_days}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, cancellation_deadline_days: e.target.value } : null)}
+                      value={formData.cancellationDeadlineDays}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, cancellationDeadlineDays: e.target.value } : null)}
                       className="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white"
                     />
                   </div>
@@ -1126,8 +1140,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 </div>
               ) : (
                 <select
-                  value={formData.manager_id}
-                  onChange={(e) => setFormData(prev => prev ? { ...prev, manager_id: e.target.value } : null)}
+                  value={formData.managerId}
+                  onChange={(e) => setFormData(prev => prev ? { ...prev, managerId: e.target.value } : null)}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-cyan-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">-- Moi-même (par défaut) --</option>
@@ -1140,6 +1154,60 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                   ))}
                 </select>
               )}
+            </div>
+          </section>
+
+          {/* Section: Contact Organisateur */}
+          <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                  <Mail className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Organisateur</h2>
+                  <p className="text-sm text-gray-500">Choisissez quelles informations afficher aux visiteurs</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Les visiteurs pourront voir ces informations sur la page de l&apos;offre et vous contacter directement.
+              </p>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.showOrganizerName}
+                  onChange={(e) => setFormData(prev => prev ? { ...prev, showOrganizerName: e.target.checked } : null)}
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Afficher mon nom</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.showOrganizerEmail}
+                  onChange={(e) => setFormData(prev => prev ? { ...prev, showOrganizerEmail: e.target.checked } : null)}
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <div>
+                  <span className="text-gray-700 dark:text-gray-300">Afficher mon email</span>
+                  <p className="text-xs text-gray-500">Permet aux visiteurs de vous contacter via un formulaire</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.showOrganizerPhone}
+                  onChange={(e) => setFormData(prev => prev ? { ...prev, showOrganizerPhone: e.target.checked } : null)}
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Afficher mon téléphone</span>
+              </label>
             </div>
           </section>
 
@@ -1158,8 +1226,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.restrictions_enabled}
-                    onChange={(e) => setFormData(prev => prev ? { ...prev, restrictions_enabled: e.target.checked } : null)}
+                    checked={formData.restrictionsEnabled}
+                    onChange={(e) => setFormData(prev => prev ? { ...prev, restrictionsEnabled: e.target.checked } : null)}
                     className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Activer</span>
@@ -1167,7 +1235,7 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
               </div>
             </div>
 
-            {formData.restrictions_enabled && (
+            {formData.restrictionsEnabled && (
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1175,8 +1243,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       Type de participation
                     </label>
                     <select
-                      value={formData.participation_type}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, participation_type: e.target.value as ParticipationType } : null)}
+                      value={formData.participationType}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, participationType: e.target.value as ParticipationType } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                     >
                       <option value="INDIVIDUAL">Individuel</option>
@@ -1190,8 +1258,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                       Genre autorisé
                     </label>
                     <select
-                      value={formData.allowed_gender}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, allowed_gender: e.target.value as AllowedGender } : null)}
+                      value={formData.allowedGender}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, allowedGender: e.target.value as AllowedGender } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                     >
                       <option value="ALL">Tous</option>
@@ -1209,8 +1277,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     </label>
                     <input
                       type="number"
-                      value={formData.min_age}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, min_age: e.target.value } : null)}
+                      value={formData.minAge}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, minAge: e.target.value } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                       placeholder="Pas de minimum"
                       min="0"
@@ -1223,8 +1291,8 @@ export default function ModifierOffrePage({ params }: { params: Promise<{ id: st
                     </label>
                     <input
                       type="number"
-                      value={formData.max_age}
-                      onChange={(e) => setFormData(prev => prev ? { ...prev, max_age: e.target.value } : null)}
+                      value={formData.maxAge}
+                      onChange={(e) => setFormData(prev => prev ? { ...prev, maxAge: e.target.value } : null)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white"
                       placeholder="Pas de maximum"
                       min="0"

@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getEvents, assignEventManager, removeEventManager } from '@/lib/directus'
+import { getEvents, assignEventManager, removeEventManager } from '@/lib/content'
 import { z } from 'zod'
 
 const assignSchema = z.object({
@@ -34,16 +34,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
-    // Récupérer tous les événements depuis Directus (publiés et non publiés)
-    const events = await getEvents(false)
+    // Récupérer tous les événements (publiés et non publiés)
+    const events = await getEvents({})
 
     // Pour chaque événement avec un manager_id, récupérer les infos du manager
     const eventsWithManagers = await Promise.all(
       events.map(async (event: any) => {
         let manager = null
-        if (event.manager_id) {
+        if (event.managerId) {
           manager = await prisma.user.findUnique({
-            where: { id: event.manager_id },
+            where: { id: event.managerId },
             select: {
               id: true,
               firstName: true,

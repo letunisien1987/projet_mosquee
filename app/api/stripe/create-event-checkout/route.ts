@@ -2,7 +2,7 @@
  * API Route: Créer une session Stripe Checkout pour un événement
  *
  * Workflow:
- * 1. Récupère l'événement depuis Directus
+ * 1. Récupère l'événement depuis la base de données
  * 2. Vérifie que l'événement nécessite un paiement
  * 3. Calcule le montant total (adultes + enfants)
  * 4. Crée la session Stripe
@@ -12,9 +12,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { stripe } from '@/lib/stripe'
-import { directusClient } from '@/lib/directus'
-import { readItem } from '@directus/sdk'
+import { getEventById } from '@/lib/content'
 import { calculatePrice, type PricingConfig } from '@/lib/pricing'
+import { prisma } from '@/lib/prisma'
 
 // Validation du body
 const schema = z.object({
@@ -28,6 +28,7 @@ const schema = z.object({
   participants: z.any().optional(), // JSON des participants
   userId: z.string().optional(), // Si utilisateur connecté
   childId: z.string().optional(), // Si inscription pour un enfant
+  childIds: z.array(z.string()).optional(), // Si inscription pour plusieurs enfants
 })
 
 export async function POST(req: NextRequest) {
@@ -35,12 +36,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = schema.parse(body)
 
-    // 1. Récupérer l'événement depuis Directus
-    const event = await directusClient.request(
-      readItem('events', data.eventId, {
-        fields: ['id', 'title', 'date', 'price', 'payment_type', 'pricing']
-      })
-    )
+    // 1. Récupérer l'événement depuis la base de données
+    const event = await getEventById(data.eventId)
 
     if (!event) {
       return NextResponse.json(
@@ -50,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Vérifier que l'événement nécessite un paiement
-    if (event.payment_type === 'FREE') {
+    if (event.paymentType === 'FREE') {
       return NextResponse.json(
         { error: 'Cet événement ne nécessite pas de paiement' },
         { status: 400 }
@@ -59,9 +56,9 @@ export async function POST(req: NextRequest) {
 
     // Récupérer les prix depuis l'objet pricing ou le champ price simple
     const pricing = event.pricing as PricingConfig | null
-    const basePrice = event.price as number | undefined
+    const basePrice = event.price ? Number(event.price) : undefined
 
-    if ((!pricing || !pricing.adult_price) && (!basePrice || basePrice <= 0)) {
+    if ((!pricing || !pricing.adultPrice) && (!basePrice || basePrice <= 0)) {
       return NextResponse.json(
         { error: 'Prix de l\'événement non configuré' },
         { status: 400 }
@@ -72,11 +69,35 @@ export async function POST(req: NextRequest) {
     const numberOfAdults = data.participationType === 'CHILD' ? 0 : (data.numberOfAdults || 1)
     const numberOfChildren = data.participationType === 'CHILD' ? 1 : (data.numberOfChildren || 0)
 
+    // Fonction helper pour calculer l'âge
+    const calculateAge = (birthDate: Date): number => {
+      const today = new Date()
+      let age = today.getFullYear() - birthDate.getFullYear()
+      const monthDiff = today.getMonth() - birthDate.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--
+      }
+      return age
+    }
+
+    // Récupérer les âges des enfants si childIds fournis (pour childFreeUntilAge)
+    let childrenAges: number[] = []
+    const allChildIds = data.childIds || (data.childId ? [data.childId] : [])
+
+    if (allChildIds.length > 0) {
+      const children = await prisma.child.findMany({
+        where: { id: { in: allChildIds } },
+        select: { birthDate: true }
+      })
+      childrenAges = children.map(child => calculateAge(new Date(child.birthDate)))
+    }
+
     const pricingResult = calculatePrice(
       pricing,
       {
         numberOfAdults,
         numberOfChildren,
+        childrenAges: childrenAges.length > 0 ? childrenAges : undefined,
         registrationDate: new Date(),
       },
       basePrice
@@ -95,9 +116,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Créer la session Stripe Checkout
-    const eventId = String(event.id)
-    const eventTitle = String(event.title)
-    const eventDate = event.date ? String(event.date) : ''
+    const eventId = event.id
+    const eventTitle = event.title
+    const eventDate = event.date ? event.date.toISOString().split('T')[0] : ''
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',

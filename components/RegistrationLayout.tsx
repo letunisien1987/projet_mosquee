@@ -14,6 +14,7 @@ export interface GradientConfig {
 interface RegistrationLayoutProps {
   title: string
   description?: string
+  content?: string  // Contenu détaillé (HTML ou texte)
   backHref: string
   backLabel: string
   gradientConfig: GradientConfig
@@ -24,6 +25,7 @@ interface RegistrationLayoutProps {
 export function RegistrationLayout({
   title,
   description,
+  content,
   backHref,
   backLabel,
   gradientConfig,
@@ -55,6 +57,19 @@ export function RegistrationLayout({
           </div>
         </div>
       </div>
+
+      {/* Contenu détaillé (si présent) */}
+      {content && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-lg font-bold mb-4">Détails</h2>
+            <div
+              className="prose prose-sm max-w-none text-gray-700"
+              dangerouslySetInnerHTML={{ __html: content }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

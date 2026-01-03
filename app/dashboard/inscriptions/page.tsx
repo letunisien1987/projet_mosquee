@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getOfferingsByIds } from '@/lib/directus'
+import { getOfferingsByIds } from '@/lib/content'
 import type { EventRegistration, Enrollment } from '@prisma/client'
 import {
   Calendar,
@@ -36,7 +36,7 @@ interface UnifiedInscription {
   paymentAmount: number | null
   paymentId: string | null
   notes: string | null
-  // Infos enrichies depuis Directus
+  // Infos enrichies
   date?: string
   schedule?: string
   location?: string
@@ -92,7 +92,7 @@ export default async function InscriptionsPage() {
 
   // Collecter tous les IDs pour batch fetch (fix N+1)
   const allOfferingIds = [
-    ...eventRegistrations.map((r) => r.eventId),
+    ...eventRegistrations.map((r) => r.eventId).filter((id): id is string => id !== null),
     ...activityEnrollments.filter((e) => e.activityId).map((e) => e.activityId!),
   ]
   const offeringsMap = await getOfferingsByIds(allOfferingIds)
@@ -102,6 +102,7 @@ export default async function InscriptionsPage() {
 
   // Ajouter les événements
   for (const reg of eventRegistrations) {
+    if (!reg.eventId) continue // Skip si pas d'eventId
     const offering = offeringsMap.get(reg.eventId)
     inscriptions.push({
       id: reg.id,

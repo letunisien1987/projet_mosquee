@@ -1,16 +1,39 @@
 /**
  * Helper centralisé pour les paramètres de la mosquée
  *
- * Récupère les settings depuis Directus avec cache (60s)
- * et fournit des valeurs par défaut sécurisées.
+ * Utilise des valeurs par défaut configurables.
+ * Les paramètres peuvent être gérés via la base de données à l'avenir.
  */
 
-import { getMosqueSettings, DirectusMosqueSettings } from './directus'
+// Note: À terme, on peut ajouter un modèle Settings dans Prisma
+// import { prisma } from './prisma'
 
 /**
- * Interface étendue avec tous les champs configurables
+ * Interface des paramètres de la mosquée
  */
-export interface MosqueSettings extends DirectusMosqueSettings {
+export interface MosqueSettings {
+  id: string
+  name: string
+  description?: string
+
+  // Adresse
+  address_street?: string
+  address_city?: string
+  address_postal_code?: string
+  address_country?: string
+
+  // Contact
+  contact_email?: string
+  contact_phone?: string
+
+  // Banque
+  bank_iban?: string
+  bank_bic?: string
+  bank_account_holder?: string
+
+  // Horaires
+  opening_hours?: string
+  capacity?: number
   // ========== COUCHE 1: IDENTITÉ ==========
 
   // Horaires d'ouverture
@@ -59,10 +82,15 @@ export interface MosqueSettings extends DirectusMosqueSettings {
 
   // Nom de la banque
   bank_name?: string
+
+  // Réseaux sociaux
+  social_facebook?: string
+  social_instagram?: string
+  social_youtube?: string
 }
 
 /**
- * Valeurs par défaut si Directus n'est pas disponible
+ * Valeurs par défaut de la mosquée
  */
 export const DEFAULT_SETTINGS: MosqueSettings = {
   id: 'default',
@@ -142,6 +170,9 @@ const CACHE_DURATION = 60 * 1000 // 60 secondes
 /**
  * Récupère les paramètres de la mosquée avec cache
  *
+ * Note: Pour l'instant utilise les valeurs par défaut.
+ * À terme, les settings pourront être stockés dans une table Prisma.
+ *
  * @param forceRefresh - Forcer le rafraîchissement du cache
  * @returns Les paramètres de la mosquée
  */
@@ -153,28 +184,12 @@ export async function getSettings(forceRefresh = false): Promise<MosqueSettings>
     return cachedSettings
   }
 
-  try {
-    const directusSettings = await getMosqueSettings()
+  // TODO: À terme, charger les settings depuis une table Prisma
+  // Pour l'instant, utiliser les valeurs par défaut
+  cachedSettings = { ...DEFAULT_SETTINGS }
+  cacheTimestamp = now
 
-    if (directusSettings) {
-      // Fusionner avec les valeurs par défaut pour les champs manquants
-      cachedSettings = {
-        ...DEFAULT_SETTINGS,
-        ...directusSettings,
-        // S'assurer que les tarifs ont des valeurs numériques
-        membership_monthly_price: (directusSettings as any).membership_monthly_price ?? DEFAULT_SETTINGS.membership_monthly_price,
-        membership_annual_price: (directusSettings as any).membership_annual_price ?? DEFAULT_SETTINGS.membership_annual_price,
-        membership_full_price: (directusSettings as any).membership_full_price ?? DEFAULT_SETTINGS.membership_full_price,
-      }
-      cacheTimestamp = now
-      return cachedSettings
-    }
-  } catch (error) {
-    console.error('Erreur lors de la récupération des settings:', error)
-  }
-
-  // Retourner les valeurs par défaut si erreur
-  return DEFAULT_SETTINGS
+  return cachedSettings
 }
 
 /**
@@ -306,4 +321,26 @@ export function getSystemDelays(settings: MosqueSettings) {
     paymentLinkValidityDays: settings.payment_link_validity_days ?? DEFAULT_SETTINGS.payment_link_validity_days!,
     defaultCancellationDays: settings.default_cancellation_days ?? DEFAULT_SETTINGS.default_cancellation_days!,
   }
+}
+
+/**
+ * Met à jour les paramètres de la mosquée
+ * Note: Pour l'instant retourne les settings par défaut car pas de stockage Prisma
+ * TODO: Implémenter le stockage en base avec une table MosqueSetting
+ */
+export async function updateMosqueSettings(
+  id: string,
+  updates: Partial<MosqueSettings>
+): Promise<MosqueSettings | null> {
+  // TODO: Implémenter la mise à jour en base de données
+  // Pour l'instant, on invalide le cache et retourne les settings mis à jour en mémoire
+  console.log('⚠️ updateMosqueSettings: stockage en base non implémenté, mise à jour en mémoire uniquement')
+
+  // Mettre à jour le cache
+  const currentSettings = await getSettings()
+  const updatedSettings = { ...currentSettings, ...updates }
+  cachedSettings = updatedSettings
+  cacheTimestamp = Date.now()
+
+  return updatedSettings
 }

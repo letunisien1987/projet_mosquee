@@ -3,19 +3,19 @@
  */
 
 export interface PricingConfig {
-  adult_price: number          // Prix par adulte
-  child_price: number          // Prix par enfant (0 = gratuit)
-  child_free_until_age: number // Enfants gratuits jusqu'à cet âge
-  group_discount?: {
+  adultPrice: number          // Prix par adulte
+  childPrice: number          // Prix par enfant (0 = gratuit)
+  childFreeUntilAge: number // Enfants gratuits jusqu'à cet âge
+  groupDiscount?: {
     enabled: boolean
-    from_persons: number       // À partir de X personnes
-    discount_percent: number   // Réduction en %
+    fromPersons: number       // À partir de X personnes
+    discountPercent: number   // Réduction en %
   }
-  family_max_price?: number | null    // Prix maximum famille (plafond)
-  early_bird?: {
+  familyMaxPrice?: number | null    // Prix maximum famille (plafond)
+  earlyBird?: {
     enabled: boolean
-    until_date: string | null  // Date limite early bird
-    discount_percent: number   // Réduction early bird en %
+    untilDate: string | null  // Date limite early bird
+    discountPercent: number   // Réduction early bird en %
   }
 }
 
@@ -67,32 +67,32 @@ export function calculatePrice(
   const breakdown: string[] = []
 
   // Calcul adultes
-  const adultTotal = config.adult_price * input.numberOfAdults
+  const adultTotal = config.adultPrice * input.numberOfAdults
   if (input.numberOfAdults > 0) {
-    breakdown.push(`${input.numberOfAdults} adulte(s) × ${config.adult_price} CHF = ${adultTotal} CHF`)
+    breakdown.push(`${input.numberOfAdults} adulte(s) × ${config.adultPrice} CHF = ${adultTotal} CHF`)
   }
 
   // Calcul enfants (avec prise en compte des enfants gratuits)
   let freeChildren = 0
   let paidChildren = input.numberOfChildren
 
-  if (config.child_free_until_age > 0 && input.childrenAges && input.childrenAges.length > 0) {
+  if (config.childFreeUntilAge > 0 && input.childrenAges && input.childrenAges.length > 0) {
     // Compter les enfants gratuits selon leur âge
-    freeChildren = input.childrenAges.filter(age => age <= config.child_free_until_age).length
+    freeChildren = input.childrenAges.filter(age => age <= config.childFreeUntilAge).length
     paidChildren = input.numberOfChildren - freeChildren
-  } else if (config.child_price === 0) {
+  } else if (config.childPrice === 0) {
     // Tous les enfants sont gratuits
     freeChildren = input.numberOfChildren
     paidChildren = 0
   }
 
-  const childTotal = config.child_price * paidChildren
+  const childTotal = config.childPrice * paidChildren
   if (input.numberOfChildren > 0) {
     if (freeChildren > 0) {
-      breakdown.push(`${freeChildren} enfant(s) gratuit(s) (≤${config.child_free_until_age} ans)`)
+      breakdown.push(`${freeChildren} enfant(s) gratuit(s) (≤${config.childFreeUntilAge} ans)`)
     }
     if (paidChildren > 0) {
-      breakdown.push(`${paidChildren} enfant(s) × ${config.child_price} CHF = ${childTotal} CHF`)
+      breakdown.push(`${paidChildren} enfant(s) × ${config.childPrice} CHF = ${childTotal} CHF`)
     }
   }
 
@@ -103,26 +103,26 @@ export function calculatePrice(
   // Réduction groupe
   const totalPersons = input.numberOfAdults + paidChildren
   if (
-    config.group_discount?.enabled &&
-    totalPersons >= config.group_discount.from_persons
+    config.groupDiscount?.enabled &&
+    totalPersons >= config.groupDiscount.fromPersons
   ) {
-    const groupDiscount = Math.round(subtotal * config.group_discount.discount_percent / 100)
+    const groupDiscount = Math.round(subtotal * config.groupDiscount.discountPercent / 100)
     discountAmount += groupDiscount
-    discountReason = `Réduction groupe (${config.group_discount.discount_percent}% à partir de ${config.group_discount.from_persons} pers.)`
+    discountReason = `Réduction groupe (${config.groupDiscount.discountPercent}% à partir de ${config.groupDiscount.fromPersons} pers.)`
     breakdown.push(`-${groupDiscount} CHF (${discountReason})`)
   }
 
   // Early bird
   if (
-    config.early_bird?.enabled &&
-    config.early_bird.until_date &&
+    config.earlyBird?.enabled &&
+    config.earlyBird.untilDate &&
     input.registrationDate
   ) {
-    const earlyBirdDate = new Date(config.early_bird.until_date)
+    const earlyBirdDate = new Date(config.earlyBird.untilDate)
     if (input.registrationDate <= earlyBirdDate) {
-      const earlyBirdDiscount = Math.round((subtotal - discountAmount) * config.early_bird.discount_percent / 100)
+      const earlyBirdDiscount = Math.round((subtotal - discountAmount) * config.earlyBird.discountPercent / 100)
       discountAmount += earlyBirdDiscount
-      const earlyBirdReason = `Early bird (-${config.early_bird.discount_percent}%)`
+      const earlyBirdReason = `Early bird (-${config.earlyBird.discountPercent}%)`
       if (discountReason) {
         discountReason += ` + ${earlyBirdReason}`
       } else {
@@ -135,17 +135,17 @@ export function calculatePrice(
   let total = subtotal - discountAmount
 
   // Plafond famille
-  if (config.family_max_price && total > config.family_max_price) {
-    const capDiscount = total - config.family_max_price
+  if (config.familyMaxPrice && total > config.familyMaxPrice) {
+    const capDiscount = total - config.familyMaxPrice
     discountAmount += capDiscount
-    total = config.family_max_price
-    const capReason = `Plafond famille (max ${config.family_max_price} CHF)`
+    total = config.familyMaxPrice
+    const capReason = `Plafond famille (max ${config.familyMaxPrice} CHF)`
     if (discountReason) {
       discountReason += ` + ${capReason}`
     } else {
       discountReason = capReason
     }
-    breakdown.push(`Plafond famille appliqué: ${config.family_max_price} CHF`)
+    breakdown.push(`Plafond famille appliqué: ${config.familyMaxPrice} CHF`)
   }
 
   breakdown.push(`Total: ${total} CHF`)
@@ -174,7 +174,7 @@ export function formatPrice(amount: number, currency: string = 'CHF'): string {
  * Vérifie si un événement/activité est payant
  */
 export function isPaidItem(
-  paymentType?: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION' | null,
+  paymentType?: string | null,
   price?: number | string | null,
   pricing?: PricingConfig | null
 ): boolean {
@@ -182,7 +182,7 @@ export function isPaidItem(
 
   // Vérifier si pricing config existe avec des prix > 0
   if (pricing) {
-    return pricing.adult_price > 0 || pricing.child_price > 0
+    return pricing.adultPrice > 0 || pricing.childPrice > 0
   }
 
   // Sinon vérifier le prix simple
@@ -207,13 +207,13 @@ export function getMinimumPrice(
 
   // Si pricing config existe, c'est variable
   // Le minimum dépend de si l'enfant peut être seul
-  if (childCanBeAlone && pricing.child_price < pricing.adult_price) {
+  if (childCanBeAlone && pricing.childPrice < pricing.adultPrice) {
     // Enfant peut être seul et son prix est inférieur
-    return { price: pricing.child_price, isVariable: true }
+    return { price: pricing.childPrice, isVariable: true }
   }
 
   // Sinon le minimum c'est le prix adulte (1 adulte minimum)
-  return { price: pricing.adult_price, isVariable: true }
+  return { price: pricing.adultPrice, isVariable: true }
 }
 
 /**
@@ -237,18 +237,18 @@ export function getPricingSummary(
   if (pricing) {
     const parts: string[] = []
 
-    if (pricing.adult_price > 0) {
-      parts.push(`${pricing.adult_price} CHF${intervalSuffix}/adulte`)
+    if (pricing.adultPrice > 0) {
+      parts.push(`${pricing.adultPrice} CHF${intervalSuffix}/adulte`)
     }
 
-    if (pricing.child_price > 0) {
-      parts.push(`${pricing.child_price} CHF${intervalSuffix}/enfant`)
-    } else if (pricing.child_free_until_age > 0) {
-      parts.push(`Enfants ≤${pricing.child_free_until_age} ans: gratuit`)
+    if (pricing.childPrice > 0) {
+      parts.push(`${pricing.childPrice} CHF${intervalSuffix}/enfant`)
+    } else if (pricing.childFreeUntilAge > 0) {
+      parts.push(`Enfants ≤${pricing.childFreeUntilAge} ans: gratuit`)
     }
 
-    if (pricing.family_max_price) {
-      parts.push(`Max famille: ${pricing.family_max_price} CHF${intervalSuffix}`)
+    if (pricing.familyMaxPrice) {
+      parts.push(`Max famille: ${pricing.familyMaxPrice} CHF${intervalSuffix}`)
     }
 
     return parts.join(' • ') || 'Gratuit'

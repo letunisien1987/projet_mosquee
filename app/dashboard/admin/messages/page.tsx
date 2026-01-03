@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageSquare, Mail, Phone, CheckCircle, Clock, Search, Filter, Reply } from 'lucide-react'
+import { MessageSquare, Mail, Phone, CheckCircle, Clock, Search, Filter, Reply, Users, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -15,6 +15,11 @@ interface ContactMessage {
   message: string
   read: boolean
   createdAt: string
+  // Champs pour messages organisateur
+  organizerEmail: string | null
+  itemType: 'event' | 'activity' | null
+  itemId: string | null
+  itemTitle: string | null
   user: {
     id: string
     firstName: string
@@ -27,6 +32,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [readFilter, setReadFilter] = useState<'ALL' | 'READ' | 'UNREAD'>('ALL')
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTACT' | 'ORGANIZER'>('ALL')
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null)
   const [replyMessage, setReplyMessage] = useState<ContactMessage | null>(null)
   const [replySubject, setReplySubject] = useState('')
@@ -36,6 +42,7 @@ export default function MessagesPage() {
     total: 0,
     read: 0,
     unread: 0,
+    organizer: 0,
   })
 
   useEffect(() => {
@@ -52,6 +59,7 @@ export default function MessagesPage() {
         total: data.length,
         read: data.filter((m: ContactMessage) => m.read).length,
         unread: data.filter((m: ContactMessage) => !m.read).length,
+        organizer: data.filter((m: ContactMessage) => m.organizerEmail).length,
       })
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error)
@@ -133,14 +141,20 @@ export default function MessagesPage() {
       message.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       message.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       message.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      message.message.toLowerCase().includes(searchTerm.toLowerCase())
+      message.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (message.itemTitle && message.itemTitle.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const matchesRead =
       readFilter === 'ALL' ||
       (readFilter === 'READ' && message.read) ||
       (readFilter === 'UNREAD' && !message.read)
 
-    return matchesSearch && matchesRead
+    const matchesType =
+      typeFilter === 'ALL' ||
+      (typeFilter === 'ORGANIZER' && message.organizerEmail) ||
+      (typeFilter === 'CONTACT' && !message.organizerEmail)
+
+    return matchesSearch && matchesRead && matchesType
   })
 
   if (loading) {
@@ -159,7 +173,7 @@ export default function MessagesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -187,6 +201,16 @@ export default function MessagesPage() {
               <p className="text-3xl font-bold mt-2">{stats.read}</p>
             </div>
             <CheckCircle className="h-12 w-12 text-green-500" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Organisateurs</p>
+              <p className="text-3xl font-bold mt-2">{stats.organizer}</p>
+            </div>
+            <Users className="h-12 w-12 text-purple-500" />
           </div>
         </div>
       </div>
@@ -217,6 +241,15 @@ export default function MessagesPage() {
               <option value="ALL">Tous</option>
               <option value="UNREAD">Non lus</option>
               <option value="READ">Lus</option>
+            </select>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'CONTACT' | 'ORGANIZER')}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="ALL">Tous types</option>
+              <option value="CONTACT">Contact general</option>
+              <option value="ORGANIZER">Vers organisateurs</option>
             </select>
           </div>
         </div>
@@ -289,12 +322,26 @@ export default function MessagesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className={`text-sm ${!message.read ? 'font-semibold' : ''} text-gray-900 dark:text-white`}>
-                        {message.subject}
+                      <div className="flex items-center gap-2">
+                        <div className={`text-sm ${!message.read ? 'font-semibold' : ''} text-gray-900 dark:text-white`}>
+                          {message.subject}
+                        </div>
+                        {message.organizerEmail && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            <Users className="h-3 w-3 mr-1" />
+                            Organisateur
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs truncate">
                         {message.message}
                       </div>
+                      {message.itemTitle && (
+                        <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {message.itemType === 'event' ? 'Evénement' : 'Activité'}: {message.itemTitle}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(message.createdAt), 'dd MMM yyyy HH:mm', { locale: fr })}
@@ -369,8 +416,28 @@ export default function MessagesPage() {
 
               <div>
                 <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Sujet</label>
-                <p className="font-semibold text-gray-900 dark:text-white">{selectedMessage.subject}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedMessage.subject}</p>
+                  {selectedMessage.organizerEmail && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                      <Users className="h-3 w-3 mr-1" />
+                      Message pour organisateur
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {selectedMessage.organizerEmail && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                  <label className="text-sm font-medium text-purple-700 dark:text-purple-300">Concerne</label>
+                  <p className="text-gray-900 dark:text-white mt-1">
+                    {selectedMessage.itemType === 'event' ? 'Evénement' : 'Activité'}: <strong>{selectedMessage.itemTitle}</strong>
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Destiné à : {selectedMessage.organizerEmail}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Message</label>

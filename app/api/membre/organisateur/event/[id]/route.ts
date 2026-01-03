@@ -5,10 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById, updateOffering } from '@/lib/directus'
+import { getOfferingById, updateOffering } from '@/lib/content'
 
 export async function GET(
   request: NextRequest,
@@ -40,8 +43,8 @@ export async function GET(
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      event.manager_id === user.id ||
-      event.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      event.managerId === user.id ||
+      event.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {
@@ -77,15 +80,15 @@ export async function GET(
         content: event.content,
         category: event.category,
         date: event.date,
-        start_time: event.start_time,
-        end_time: event.end_time,
+        start_time: event.startTime,
+        end_time: event.endTime,
         location: event.location,
         price: event.price,
-        payment_type: event.payment_type,
-        max_capacity: event.max_capacity,
-        registration_required: event.registration_required,
-        requires_approval: event.requires_approval,
-        registration_deadline: event.registration_deadline,
+        payment_type: event.paymentType,
+        max_capacity: event.maxCapacity,
+        registration_required: event.registrationRequired,
+        requires_approval: event.requiresApproval,
+        registration_deadline: event.registrationDeadline,
         published: event.published,
       },
       registrations: registrations.map((r) => ({
@@ -130,8 +133,8 @@ export async function PATCH(
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      event.manager_id === user.id ||
-      event.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      event.managerId === user.id ||
+      event.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {
@@ -141,6 +144,7 @@ export async function PATCH(
     const body = await request.json()
 
     // Préparer les données de mise à jour
+    // Accepter camelCase OU snake_case pour compatibilité avec les formulaires
     const updateData: Record<string, unknown> = {}
 
     // Champs modifiables par l'organisateur
@@ -150,18 +154,43 @@ export async function PATCH(
     if (body.content !== undefined) updateData.content = body.content
     if (body.category !== undefined) updateData.category = body.category
     if (body.date !== undefined) updateData.date = body.date
-    if (body.start_time !== undefined) updateData.start_time = body.start_time
-    if (body.end_time !== undefined) updateData.end_time = body.end_time
-    if (body.location !== undefined) updateData.location = body.location
-    if (body.max_capacity !== undefined) updateData.max_capacity = body.max_capacity
-    if (body.registration_required !== undefined) updateData.registration_required = body.registration_required
-    if (body.requires_approval !== undefined) updateData.requires_approval = body.requires_approval
-    if (body.registration_deadline !== undefined) updateData.registration_deadline = body.registration_deadline
-    if (body.published !== undefined) updateData.published = body.published
-    if (body.price !== undefined) updateData.price = body.price
-    if (body.payment_type !== undefined) updateData.payment_type = body.payment_type
 
-    // Mettre à jour dans Directus
+    // Accepter les deux conventions de nommage
+    const startTime = body.startTime ?? body.start_time
+    const endTime = body.endTime ?? body.end_time
+    const maxCapacity = body.maxCapacity ?? body.max_capacity
+    const registrationRequired = body.registrationRequired ?? body.registration_required
+    const requiresApproval = body.requiresApproval ?? body.requires_approval
+    const registrationDeadline = body.registrationDeadline ?? body.registration_deadline
+    const paymentType = body.paymentType ?? body.payment_type
+    const subscriptionInterval = body.subscriptionInterval ?? body.subscription_interval
+    const allowRefund = body.allowRefund ?? body.allow_refund
+    const cancellationDeadlineDays = body.cancellationDeadlineDays ?? body.cancellation_deadline_days
+    const showOrganizerName = body.showOrganizerName ?? body.show_organizer_name
+    const showOrganizerEmail = body.showOrganizerEmail ?? body.show_organizer_email
+    const showOrganizerPhone = body.showOrganizerPhone ?? body.show_organizer_phone
+
+    if (startTime !== undefined) updateData.startTime = startTime
+    if (endTime !== undefined) updateData.endTime = endTime
+    if (body.location !== undefined) updateData.location = body.location
+    if (maxCapacity !== undefined) updateData.maxCapacity = maxCapacity
+    if (registrationRequired !== undefined) updateData.registrationRequired = registrationRequired
+    if (requiresApproval !== undefined) updateData.requiresApproval = requiresApproval
+    if (registrationDeadline !== undefined) updateData.registrationDeadline = registrationDeadline
+    if (body.published !== undefined) updateData.published = body.published
+    if (body.featured !== undefined) updateData.featured = body.featured
+    if (body.price !== undefined) updateData.price = body.price
+    if (paymentType !== undefined) updateData.paymentType = paymentType
+    if (subscriptionInterval !== undefined) updateData.subscriptionInterval = subscriptionInterval
+    if (allowRefund !== undefined) updateData.allowRefund = allowRefund
+    if (cancellationDeadlineDays !== undefined) updateData.cancellationDeadlineDays = cancellationDeadlineDays
+    if (showOrganizerName !== undefined) updateData.showOrganizerName = showOrganizerName
+    if (showOrganizerEmail !== undefined) updateData.showOrganizerEmail = showOrganizerEmail
+    if (showOrganizerPhone !== undefined) updateData.showOrganizerPhone = showOrganizerPhone
+    if (body.restrictions !== undefined) updateData.restrictions = body.restrictions
+    if (body.pricing !== undefined) updateData.pricing = body.pricing
+
+    // Mettre à jour via lib/content.ts
     const updatedEvent = await updateOffering(id, updateData)
 
     if (!updatedEvent) {

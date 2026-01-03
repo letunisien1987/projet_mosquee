@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOfferingById } from '@/lib/directus'
+import { getOfferingById } from '@/lib/content'
 import { sendEventPaymentRequest, sendEventRegistrationEmail } from '@/lib/email'
 
 export async function PATCH(
@@ -41,8 +41,8 @@ export async function PATCH(
 
     // Vérifier que l'utilisateur est bien le responsable
     const isManager =
-      event.manager_id === user.id ||
-      event.manager_email?.toLowerCase() === user.email?.toLowerCase() ||
+      event.managerId === user.id ||
+      event.managerEmail?.toLowerCase() === user.email?.toLowerCase() ||
       ['ADMIN', 'IMAM', 'STAFF'].includes(user.role)
 
     if (!isManager) {
@@ -79,7 +79,7 @@ export async function PATCH(
             email: registration.email,
             firstName: registration.firstName,
             eventTitle: event.title,
-            eventDate: event.date || '',
+            eventDate: event.date?.toISOString() ?? '',
             participationType: registration.participationType || 'INDIVIDUAL',
             numberOfAdults: registration.numberOfAdults || 1,
             numberOfChildren: registration.numberOfChildren || 0,
@@ -92,7 +92,7 @@ export async function PATCH(
             registration.email,
             registration.firstName,
             event.title,
-            event.date || ''
+            event.date?.toISOString() ?? ''
           )
         }
       } catch (emailError) {
@@ -118,7 +118,7 @@ export async function PATCH(
           registration.email,
           registration.firstName,
           event.title,
-          event.date || ''
+          event.date?.toISOString() ?? ''
         )
       } catch (emailError) {
         console.error('Erreur envoi email:', emailError)

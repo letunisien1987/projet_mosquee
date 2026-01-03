@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getEventById } from '@/lib/directus'
+import { getEventById } from '@/lib/content'
 import { sendEventRegistrationEmail, sendEventPaymentRequest } from '@/lib/email'
 import { validateRestrictions, type EventRegistrationFormData, type EventRestrictions } from '@/types/restrictions'
 import { calculatePrice, isPaidItem, type PricingConfig } from '@/lib/pricing'
@@ -100,7 +100,7 @@ export async function POST(
       numberOfChildren: validatedData.numberOfChildren,
     }
 
-    // Récupérer les infos de l'événement depuis Directus
+    // Récupérer les infos de l'événement depuis la base de données
     const event = await getEventById(eventId)
 
     if (!event) {
@@ -162,7 +162,7 @@ export async function POST(
       }
 
       // Vérifier les places disponibles
-      if (event.max_capacity) {
+      if (event.maxCapacity) {
         const registrations = await prisma.eventRegistration.findMany({
           where: {
             eventId,
@@ -178,7 +178,7 @@ export async function POST(
           (total, r) => total + r.numberOfAdults + r.numberOfChildren,
           0
         )
-        const availableSpots = event.max_capacity - currentAttendees
+        const availableSpots = event.maxCapacity - currentAttendees
 
         if (availableSpots < children.length) {
           return NextResponse.json(
@@ -190,28 +190,44 @@ export async function POST(
         }
       }
 
-      // Calculer le prix (par enfant)
-      const isPaidEvent = isPaidItem(event.payment_type, event.price, event.pricing as PricingConfig | null)
+      // Calculer le prix avec prise en compte de childFreeUntilAge
+      const isPaidEvent = isPaidItem(event.paymentType, event.price, event.pricing as PricingConfig | null)
       let pricePerChild: number | null = null
       let totalAmount: number | null = null
+
+      // Fonction helper pour calculer l'âge
+      const calculateAge = (birthDate: Date): number => {
+        const today = new Date()
+        let age = today.getFullYear() - birthDate.getFullYear()
+        const monthDiff = today.getMonth() - birthDate.getMonth()
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--
+        }
+        return age
+      }
+
+      // Calculer les âges des enfants pour childFreeUntilAge
+      const childrenAges = children.map(child => calculateAge(new Date(child.birthDate)))
 
       if (isPaidEvent) {
         const pricingResult = calculatePrice(
           event.pricing as PricingConfig | null,
           {
             numberOfAdults: 0,
-            numberOfChildren: 1,
+            numberOfChildren: children.length,
+            childrenAges,
             registrationDate: new Date(),
           },
-          event.price
+          event.price ?? undefined
         )
-        pricePerChild = pricingResult.total
-        totalAmount = pricePerChild * children.length
+        totalAmount = pricingResult.total
+        // Prix moyen par enfant (pour affichage)
+        pricePerChild = children.length > 0 ? Math.round(totalAmount / children.length) : 0
       }
 
       // Déterminer le statut initial
       let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT'
-      if (event.requires_approval) {
+      if (event.requiresApproval) {
         status = 'PENDING'
       } else if (isPaidEvent) {
         status = 'PENDING_PAYMENT'
@@ -272,7 +288,7 @@ export async function POST(
             email: formData.contactEmail,
             firstName: formData.contactFirstName,
             eventTitle: event.title,
-            eventDate: event.date,
+            eventDate: event.date?.toISOString() ?? '',
             participationType: 'CHILDREN',
             numberOfAdults: 0,
             numberOfChildren: children.length,
@@ -286,7 +302,7 @@ export async function POST(
             email: formData.contactEmail,
             firstName: formData.contactFirstName,
             eventTitle: event.title,
-            eventDate: event.date,
+            eventDate: event.date?.toISOString() ?? '',
           })
         }
       } catch (emailError) {
@@ -333,7 +349,7 @@ export async function POST(
         })),
         message,
         requiresPayment: status === 'PENDING_PAYMENT',
-        requiresApproval: event.requires_approval,
+        requiresApproval: event.requiresApproval,
         paymentAmount: totalAmount,
         checkoutUrl,
         totalChildren: children.length,
@@ -390,7 +406,7 @@ export async function POST(
       }
     }
 
-    if (!event.registration_required) {
+    if (!event.registrationRequired) {
       return NextResponse.json(
         { error: 'Cet événement ne nécessite pas d\'inscription' },
         { status: 400 }
@@ -398,8 +414,9 @@ export async function POST(
     }
 
     // VALIDATION DES RESTRICTIONS
-    if (event.restrictions?.enabled) {
-      const validationResult = validateRestrictions(event.restrictions as EventRestrictions, formData)
+    const restrictions = event.restrictions as EventRestrictions | null
+    if (restrictions?.enabled) {
+      const validationResult = validateRestrictions(restrictions, formData)
       if (!validationResult.valid) {
         return NextResponse.json(
           { error: validationResult.error, code: validationResult.errorCode },
@@ -420,8 +437,8 @@ export async function POST(
     }
 
     // Vérifier la deadline d'inscription
-    if (event.registration_deadline) {
-      const deadline = new Date(event.registration_deadline)
+    if (event.registrationDeadline) {
+      const deadline = new Date(event.registrationDeadline)
       if (new Date() > deadline) {
         return NextResponse.json(
           { error: 'La date limite d\'inscription est dépassée' },
@@ -452,7 +469,7 @@ export async function POST(
       : 1
 
     // Vérifier les places disponibles
-    if (event.max_capacity) {
+    if (event.maxCapacity) {
       const registrations = await prisma.eventRegistration.findMany({
         where: {
           eventId,
@@ -468,7 +485,7 @@ export async function POST(
         (total, r) => total + r.numberOfAdults + r.numberOfChildren,
         0
       )
-      const availableSpots = event.max_capacity - currentAttendees
+      const availableSpots = event.maxCapacity - currentAttendees
 
       if (availableSpots < totalAttendees) {
         return NextResponse.json(
@@ -481,9 +498,11 @@ export async function POST(
     }
 
     // Déterminer si l'événement est payant en utilisant le système de pricing avancé
-    const isPaidEvent = isPaidItem(event.payment_type, event.price, event.pricing as PricingConfig | null)
+    const isPaidEvent = isPaidItem(event.paymentType, event.price, event.pricing as PricingConfig | null)
 
     // Calculer le montant avec le système de tarification avancée
+    // Note: En mode INDIVIDUAL/FAMILY, on n'a pas les âges individuels des enfants
+    // donc childFreeUntilAge ne peut pas être appliqué (contrairement au mode CHILDREN)
     let paymentAmount: number | null = null
     let pricingBreakdown: string[] = []
 
@@ -493,9 +512,10 @@ export async function POST(
         {
           numberOfAdults: formData.numberOfAdults || 1,
           numberOfChildren: formData.numberOfChildren || 0,
+          // childrenAges non disponible en mode FAMILY (pas d'âges individuels)
           registrationDate: new Date(),
         },
-        event.price // Fallback au prix simple
+        event.price ?? undefined // Fallback au prix simple
       )
       paymentAmount = pricingResult.total
       pricingBreakdown = pricingResult.breakdown
@@ -507,7 +527,7 @@ export async function POST(
     // 2. Si pas d'approbation mais payant → PENDING_PAYMENT
     // 3. Si ni approbation ni paiement → CONFIRMED
     let status: 'PENDING' | 'CONFIRMED' | 'PENDING_PAYMENT'
-    if (event.requires_approval) {
+    if (event.requiresApproval) {
       status = 'PENDING' // Toujours PENDING si approbation requise, même si payant
     } else if (isPaidEvent) {
       status = 'PENDING_PAYMENT' // Seulement si payant SANS approbation
@@ -598,7 +618,7 @@ export async function POST(
           email: formData.contactEmail,
           firstName: formData.contactFirstName,
           eventTitle: event.title,
-          eventDate: event.date,
+          eventDate: event.date?.toISOString() ?? '',
           participationType: formData.participationType,
           numberOfAdults: formData.numberOfAdults || 1,
           numberOfChildren: formData.numberOfChildren || 0,
@@ -614,7 +634,7 @@ export async function POST(
           email: formData.contactEmail,
           firstName: formData.contactFirstName,
           eventTitle: event.title,
-          eventDate: event.date,
+          eventDate: event.date?.toISOString() ?? '',
         })
         console.log('📧 Email d\'attente d\'approbation envoyé à:', formData.contactEmail)
       }
@@ -649,12 +669,12 @@ export async function POST(
     }
 
     // Notifier le responsable de l'événement
-    if (event.manager_email) {
+    if (event.managerEmail) {
       let notificationId: string | null = null
       try {
         // Chercher le responsable par email dans notre base utilisateurs
         const managerUser = await prisma.user.findFirst({
-          where: { email: event.manager_email },
+          where: { email: event.managerEmail },
           select: { id: true }
         })
 
@@ -678,7 +698,7 @@ export async function POST(
         // Envoyer un email au responsable
         const { sendNewRegistrationToManager } = await import('@/lib/email')
         const emailResult = await sendNewRegistrationToManager({
-          managerEmail: event.manager_email,
+          managerEmail: event.managerEmail,
           eventTitle: event.title,
           eventId,
           participantName: `${formData.contactFirstName} ${formData.contactLastName}`,
@@ -699,7 +719,7 @@ export async function POST(
           })
         }
 
-        console.log('📧 Email envoyé au responsable:', event.manager_email, emailResult.success ? '✅' : '❌')
+        console.log('📧 Email envoyé au responsable:', event.managerEmail, emailResult.success ? '✅' : '❌')
       } catch (notifError) {
         console.error('⚠️ Erreur notification responsable (non bloquant):', notifError)
       }
@@ -731,11 +751,11 @@ export async function POST(
         // IMPORTANT: requiresPayment est FALSE si l'événement nécessite une approbation
         // Le paiement sera demandé après l'approbation
         requiresPayment: status === 'PENDING_PAYMENT', // Seulement si paiement immédiat
-        requiresApproval: event.requires_approval,
+        requiresApproval: event.requiresApproval,
         paymentAmount: isPaidEvent ? paymentAmount : null,
         pricingBreakdown: isPaidEvent ? pricingBreakdown : null, // Détail du calcul
         checkoutUrl, // Sera null si status === 'PENDING'
-        paymentType: event.payment_type,
+        paymentType: event.paymentType,
       },
     })
   } catch (error) {

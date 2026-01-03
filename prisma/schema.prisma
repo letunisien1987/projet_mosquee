@@ -171,6 +171,263 @@ enum AdminPermission {
   ADMIN_ACCESS            // Accès complet à l'administration
 }
 
+// ============================================================================
+// MODÈLES DE CONTENU (anciennement dans Directus)
+// ============================================================================
+
+// ============ ÉVÉNEMENTS ============
+model Event {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  slug                  String   @unique
+  description           String?
+  content               String?  // HTML
+  category              String   // 'religieux', 'communaute', 'education', 'charite'
+
+  // Date/Lieu
+  date                  DateTime
+  startTime             String?
+  endTime               String?
+  location              String?
+
+  // Image (Cloudinary URL)
+  imageUrl              String?
+
+  // Inscription
+  registrationRequired  Boolean  @default(true)
+  maxCapacity           Int?
+  requiresApproval      Boolean  @default(false)
+  registrationDeadline  DateTime?
+
+  // Publication
+  published             Boolean  @default(false)
+  featured              Boolean  @default(false)
+
+  // Paiement
+  price                 Float?
+  paymentType           String?  // 'FREE', 'ONE_TIME', 'SUBSCRIPTION'
+  subscriptionInterval  String?  // 'WEEKLY', 'MONTHLY', 'YEARLY'
+  pricing               Json?    // Tarification avancée
+
+  // Remboursement
+  allowRefund           Boolean  @default(false)
+  cancellationDeadlineDays Int?
+
+  // Responsable
+  managerId             String?  @db.Uuid
+  managerEmail          String?
+  manager               User?    @relation("EventManager", fields: [managerId], references: [id])
+
+  // Restrictions
+  restrictions          Json?
+
+  // Contact organisateur
+  showOrganizerName     Boolean  @default(true)
+  showOrganizerEmail    Boolean  @default(true)
+  showOrganizerPhone    Boolean  @default(false)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  registrations         EventRegistration[]
+  waitingLists          WaitingList[] @relation("EventWaitingList")
+  payments              Payment[] @relation("EventPayment")
+
+  @@map("events")
+  @@index([slug])
+  @@index([date])
+  @@index([published])
+  @@index([managerId])
+}
+
+// ============ ACTIVITÉS ============
+model Activity {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  slug                  String   @unique
+  description           String?
+  content               String?
+  category              String   // 'coran', 'arabe', 'ecole', 'tajweed', 'hifz', 'halaqat'
+
+  // Détails
+  level                 String?
+  ageGroup              String?
+  schedule              String?
+  instructorName        String?
+
+  // Image
+  imageUrl              String?
+
+  // Inscription
+  maxParticipants       Int?
+  requiresApproval      Boolean  @default(false)
+  enrollmentOpen        Boolean  @default(true)
+  active                Boolean  @default(true)
+
+  // Paiement
+  price                 Float?
+  paymentType           String?
+  subscriptionInterval  String?
+  pricing               Json?
+
+  // Remboursement
+  allowRefund           Boolean  @default(false)
+  cancellationDeadlineDays Int?
+
+  // Responsable
+  managerId             String?  @db.Uuid
+  managerEmail          String?
+  manager               User?    @relation("ActivityManager", fields: [managerId], references: [id])
+
+  // Restrictions & Contact
+  restrictions          Json?
+  showOrganizerName     Boolean  @default(true)
+  showOrganizerEmail    Boolean  @default(true)
+  showOrganizerPhone    Boolean  @default(false)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  enrollments           Enrollment[]
+  waitingLists          WaitingList[] @relation("ActivityWaitingList")
+
+  @@map("activities")
+  @@index([slug])
+  @@index([category])
+  @@index([active])
+  @@index([managerId])
+}
+
+// ============ PROJETS DONS ============
+model Project {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  slug                  String   @unique
+  description           String?
+  content               String?
+  goalAmount            Float
+  currentAmount         Float    @default(0)
+  imageUrl              String?
+  raiseNowCode          String?
+  startDate             DateTime?
+  endDate               DateTime?
+  priority              Int      @default(0)
+  active                Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  donations             Donation[]
+
+  @@map("projects")
+  @@index([active])
+}
+
+// ============ ÉQUIPE ============
+model TeamMember {
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String
+  role                  String   // 'imam', 'president', 'treasurer', 'teacher', etc.
+  bio                   String?
+  photoUrl              String?
+  email                 String?
+  phone                 String?
+  displayOrder          Int      @default(0)
+  active                Boolean  @default(true)
+
+  // Lien optionnel vers User
+  userId                String?  @unique @db.Uuid
+  user                  User?    @relation(fields: [userId], references: [id])
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("team_members")
+  @@index([active])
+  @@index([displayOrder])
+}
+
+// ============ MESSAGES JUMUA ============
+model JumuaMessage {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  message               String
+  imageUrl              String?
+  times                 String[] @default([])
+  isActive              Boolean  @default(false)
+  displayOrder          Int      @default(0)
+  validFrom             DateTime?
+  validUntil            DateTime?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("jumua_messages")
+  @@index([isActive])
+  @@index([displayOrder])
+}
+
+// ============ ARTICLES ============
+model Article {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  slug                  String   @unique
+  excerpt               String?
+  content               String
+  category              String?
+  imageUrl              String?
+  authorId              String?  @db.Uuid
+  author                User?    @relation(fields: [authorId], references: [id])
+  publishedAt           DateTime
+  featured              Boolean  @default(false)
+  published             Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("articles")
+  @@index([slug])
+  @@index([published])
+}
+
+// ============ GALERIES ============
+model Gallery {
+  id                    String   @id @default(uuid()) @db.Uuid
+  title                 String
+  description           String?
+  category              String?
+  date                  DateTime?
+  published             Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  images                GalleryImage[]
+
+  @@map("galleries")
+  @@index([published])
+}
+
+model GalleryImage {
+  id                    String   @id @default(uuid()) @db.Uuid
+  galleryId             String   @db.Uuid
+  gallery               Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  imageUrl              String
+  caption               String?
+  displayOrder          Int      @default(0)
+
+  createdAt             DateTime @default(now())
+
+  @@map("gallery_images")
+  @@index([galleryId])
+}
+
+// ============================================================================
+// FIN DES MODÈLES DE CONTENU
+// ============================================================================
+
 model User {
   id            String    @id @default(uuid()) @db.Uuid
   email         String    @unique
@@ -197,6 +454,12 @@ model User {
   waitingLists       WaitingList[]
   refundRequests     RefundRequest[]
   processedRefunds   RefundRequest[]  @relation("RefundProcessor")
+
+  // Nouvelles relations pour contenu (migration Directus)
+  managedEvents      Event[]          @relation("EventManager")
+  managedActivities  Activity[]       @relation("ActivityManager")
+  articles           Article[]
+  teamMember         TeamMember?
 
   @@map("users")
 }
@@ -300,16 +563,18 @@ model MembershipRequest {
   @@index([paymentToken])
 }
 
-// NOTE: Activity and ActivityLevel are managed by Directus, not Prisma
-// Enrollments reference Directus activities via activityId string field
-
+// Inscriptions aux activités
 model Enrollment {
   id            String           @id @default(uuid()) @db.Uuid
   userId        String?          @db.Uuid
   childId       String?          @db.Uuid
-  activityId    String?          // Directus activity reference (String ID)
-  levelId       String?          // Directus level reference (String ID)
-  activityTitle String
+
+  // Référence à Activity (nouveau système Prisma)
+  activityId    String?          @db.Uuid
+  activity      Activity?        @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  levelId       String?          // Niveau optionnel
+  activityTitle String           // Titre gardé pour compatibilité
   status        EnrollmentStatus @default(PENDING)
   notes         String?          // Notes publiques (du parent)
 
@@ -342,8 +607,12 @@ model Donation {
   phone             String?
   amount            Float
   type              DonationType
-  projectId         String?      // Référence à Directus si PROJECT
-  projectName       String?
+
+  // Référence à Project (nouveau système Prisma)
+  projectId         String?      @db.Uuid
+  project           Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectName       String?      // Nom gardé pour compatibilité
+
   message           String?
   anonymous         Boolean      @default(false)
   stripeSessionId   String?      @unique // ID de la session Stripe Checkout
@@ -357,14 +626,18 @@ model Donation {
   @@map("donations")
   @@index([email])
   @@index([createdAt])
+  @@index([projectId])
 }
 
 model EventRegistration {
   id                String             @id @default(uuid()) @db.Uuid
   userId            String?            @db.Uuid
   childId           String?            @db.Uuid // Pour inscriptions d'enfants
-  eventId           String             // Référence à Directus
-  eventTitle        String
+
+  // Référence à Event (nouveau système Prisma)
+  eventId           String?            @db.Uuid
+  event             Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventTitle        String             // Titre gardé pour compatibilité
 
   // Type d'inscription
   participationType String             @default("INDIVIDUAL") // INDIVIDUAL, FAMILY, CHILD
@@ -419,9 +692,17 @@ model ContactMessage {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  // Champs pour messages à l'organisateur
+  organizerEmail  String?   // Email de l'organisateur destinataire
+  itemType        String?   // 'event' ou 'activity'
+  itemId          String?   // ID de l'événement/activité dans Directus
+  itemTitle       String?   // Titre pour référence
+
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("contact_messages")
+  @@index([organizerEmail])
+  @@index([itemType])
 }
 
 model ServiceRequest {
@@ -549,7 +830,11 @@ model Notification {
 model Payment {
   id                   String        @id @default(uuid()) @db.Uuid
   userId               String?       @db.Uuid
-  eventId              String?       // Référence à Directus event
+
+  // Référence à Event (nouveau système Prisma)
+  eventId              String?       @db.Uuid
+  event                Event?        @relation("EventPayment", fields: [eventId], references: [id], onDelete: SetNull)
+
   enrollmentId         String?       @db.Uuid
   amount               Float
   currency             String        @default("CHF")
@@ -574,6 +859,7 @@ model Payment {
   @@map("payments")
   @@index([userId])
   @@index([stripePaymentId])
+  @@index([eventId])
 }
 
 // Liste d'attente pour événements/activités
@@ -581,10 +867,17 @@ model WaitingList {
   id              String   @id @default(uuid()) @db.Uuid
   userId          String?  @db.Uuid
   childId         String?  @db.Uuid
-  eventId         String?  // Référence à Directus event
-  activityId      String?  // Référence à Directus activity
-  eventTitle      String?
-  activityTitle   String?
+
+  // Référence à Event (nouveau système Prisma)
+  eventId         String?  @db.Uuid
+  event           Event?   @relation("EventWaitingList", fields: [eventId], references: [id], onDelete: SetNull)
+  eventTitle      String?  // Titre gardé pour compatibilité
+
+  // Référence à Activity (nouveau système Prisma)
+  activityId      String?  @db.Uuid
+  activity        Activity? @relation("ActivityWaitingList", fields: [activityId], references: [id], onDelete: SetNull)
+  activityTitle   String?  // Titre gardé pour compatibilité
+
   contactEmail    String
   contactPhone    String?
   contactName     String
@@ -657,4 +950,71 @@ model RefundRequest {
   @@index([userId])
   @@index([registrationId])
   @@index([status])
+}
+
+// Types de logos
+enum LogoType {
+  PRIMARY       // Logo principal
+  HORIZONTAL    // Logo horizontal
+  ICON          // Icône seule
+  FAVICON       // Favicon
+  EMAIL         // Logo pour emails
+}
+
+// Variantes de couleur
+enum LogoColorVariant {
+  COLOR   // Couleur originale
+  WHITE   // Blanc (pour fonds sombres)
+  DARK    // Sombre (pour fonds clairs)
+}
+
+// Emplacements où un logo peut être utilisé
+enum LogoLocation {
+  HEADER          // Navigation principale
+  FOOTER          // Pied de page
+  DASHBOARD       // Dashboard admin/membre
+  DASHBOARD_MOBILE // Dashboard mobile
+  EMAIL_HEADER    // En-tête des emails
+  EMAIL_FOOTER    // Pied des emails
+  OG_IMAGE        // Image OpenGraph
+  FAVICON         // Favicon du navigateur
+}
+
+// Fichiers de logos uploadés
+model Logo {
+  id            String            @id @default(uuid()) @db.Uuid
+  name          String            // Nom du logo (ex: "Logo principal couleur")
+  type          LogoType          // Type de logo
+  colorVariant  LogoColorVariant  // Variante de couleur
+  filePath      String            // Chemin du fichier (ex: /logos/uploads/xxx.png)
+  fileName      String            // Nom original du fichier
+  fileSize      Int               // Taille en bytes
+  mimeType      String            // Type MIME (image/png, image/svg+xml, etc.)
+  width         Int?              // Largeur en pixels
+  height        Int?              // Hauteur en pixels
+  isDefault     Boolean           @default(false) // Logo par défaut pour ce type/variante
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  locationConfigs LogoLocationConfig[]
+
+  @@map("logos")
+  @@index([type, colorVariant])
+}
+
+// Configuration des logos par emplacement
+model LogoLocationConfig {
+  id            String        @id @default(uuid()) @db.Uuid
+  location      LogoLocation  @unique // Un seul logo par emplacement
+  logoId        String        @db.Uuid
+  className     String?       // Classes CSS optionnelles
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  logo          Logo          @relation(fields: [logoId], references: [id], onDelete: Cascade)
+
+  @@map("logo_location_configs")
 }

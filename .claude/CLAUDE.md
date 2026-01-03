@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A mosque and Islamic association management platform built with Next.js 16 (React 19), TypeScript, Prisma 6, and Directus CMS. Serves public visitors, mosque members, and administrators.
+A mosque and Islamic association management platform built with Next.js 16 (React 19), TypeScript, and Prisma 6. Serves public visitors, mosque members, and administrators.
 
 **Location**: Mosquée Madretsch, Biel/Bienne, Switzerland
 **Currency**: CHF (Swiss Francs)
-**CMS**: Directus (http://localhost:8055) - All content is managed here.
+
+**Data Storage**: All data is stored in PostgreSQL via Prisma. Content operations use `lib/content.ts`.
+
+Events and activities are created/edited via the **frontend dashboard** at `/dashboard/organiser`. The forms (`components/forms/EventForm.tsx` and `components/forms/ActivityForm.tsx`) submit to `/api/membre/organisateur/offerings`.
 
 ## Development Commands
 
@@ -31,35 +34,39 @@ npm run lint             # Run ESLint
 
 # Scripts (run with npx tsx scripts/<name>.ts)
 # - create-admin.ts: Create admin user
-# - seed-directus-demo.ts: Seed demo data to Directus
 # - test-email.ts: Test email sending
+# - init-permissions.ts: Initialize role permissions
 ```
 
 ## Architecture
 
-### Dual Data Storage
+### Data Storage (PostgreSQL via Prisma)
 
-1. **Directus CMS** (`lib/directus.ts`) - Content managed by admins:
-   - Events, Activities, Articles, Projects
-   - Team members, Gallery, Settings
-   - Prayer settings and overrides
+All data now lives in PostgreSQL via Prisma (`lib/prisma.ts`):
 
-2. **PostgreSQL via Prisma** (`lib/prisma.ts`) - Transactional data:
-   - Users, Authentication (NextAuth v4)
-   - Memberships, Donations, Payments
-   - Event registrations, Enrollments
-   - Children profiles, Notifications
-   - Waiting lists, Refund requests
+**Content Models** (migrated from Directus):
+- Event, Activity, Article, Project
+- TeamMember, Gallery, GalleryImage
+- JumuaMessage (Friday prayer announcements)
 
-**Key Pattern**: Content (events/activities) lives in Directus; user interactions (registrations/enrollments) are stored in PostgreSQL with string ID references to Directus.
+**Transactional Models**:
+- User, Child, UserProfile
+- Membership, MembershipRequest
+- Donation, Payment, RefundRequest
+- EventRegistration, Enrollment, WaitingList
+- Notification, ContactMessage, ServiceRequest
+- RolePermission, MosqueSettings, Logo, LogoLocationConfig
+
+**Key Pattern**: Use `lib/content.ts` for content CRUD operations. It provides a unified "Offering" abstraction over Events and Activities.
 
 ### Authentication
 
 - **NextAuth v4** with JWT strategy and credentials provider
 - Protected routes via `middleware.ts`
-- Roles: ADMIN, IMAM, TEACHER, STAFF, MANAGER, MEMBER
-- Admin access: ADMIN, IMAM, STAFF, MANAGER roles
-- MANAGER can manage activities/events assigned via `manager_email` in Directus
+- Roles: `ADMIN`, `IMAM`, `TEACHER`, `STAFF`, `MANAGER`, `TRESORIER`, `MEMBER`
+- Admin access: ADMIN, IMAM, STAFF, MANAGER, TEACHER roles
+- MANAGER can manage activities/events assigned via `managerId`/`managerEmail`
+- TRESORIER handles financial operations (donations, refunds)
 
 ```typescript
 // Role check in API routes
@@ -78,12 +85,24 @@ if (!session || !['ADMIN', 'IMAM', 'STAFF', 'MANAGER'].includes(session.user.rol
 |------|---------|
 | `lib/auth.ts` | NextAuth config with Prisma adapter |
 | `lib/prisma.ts` | Singleton Prisma client |
-| `lib/directus.ts` | Directus SDK client and helpers |
+| `lib/content.ts` | Content CRUD (events, activities, projects, articles, team, galleries) |
 | `lib/stripe.ts` | Stripe client and payment utilities |
 | `lib/email.ts` | Resend email (confirmations, notifications) |
 | `lib/mawaqit.ts` | Prayer times from Mawaqit API |
 | `lib/pricing.ts` | Price calculations for events/activities |
 | `lib/permissions.ts` | Role-based permission checks |
+| `lib/cloudinary.ts` | Image upload/storage via Cloudinary |
+| `lib/logos.ts` | Logo management utilities |
+| `lib/settings.ts` | Mosque settings retrieval |
+
+### Custom Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `hooks/useFetch.ts` | Generic data fetching with caching |
+| `hooks/useMutation.ts` | API mutations with loading states |
+| `hooks/usePermissions.ts` | Check user permissions in components |
+| `hooks/useChildren.ts` | CRUD for user's children profiles |
 
 ### Type Definitions
 
@@ -128,13 +147,10 @@ rm -rf .next && npm run dev                # Clear cache, restart
 ## Running the Full Stack
 
 ```bash
-# Terminal 1: Directus CMS
-cd ~/directus-mosquee && npx directus start  # Port 8055
-
-# Terminal 2: Next.js
+# Terminal 1: Next.js
 npm run dev  # Port 3000
 
-# Terminal 3 (optional): Stripe webhooks
+# Terminal 2 (optional): Stripe webhooks for local testing
 stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
@@ -145,14 +161,23 @@ Required in `.env`:
 DATABASE_URL=postgresql://...
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=...
-DIRECTUS_URL=http://localhost:8055
-DIRECTUS_ADMIN_TOKEN=...
+
+# Prayer times
 MAWAQIT_API_URL=https://mawaqit.elghoudi.net/api/v1
 masjid_id=mosque-madretsch-biel-bienne
+
+# Payments
 STRIPE_SECRET_KEY=sk_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
+
+# Email
 RESEND_API_KEY=re_...
+
+# Images
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
 ```
 
 ## Troubleshooting
@@ -210,6 +235,7 @@ Role-based access control via `lib/permissions.ts`:
 | STAFF | Registrations, messages, members (read) |
 | MANAGER | Own events/activities only |
 | TEACHER | Activities enrollments (read) |
+| TRESORIER | Donations, memberships, refunds |
 | MEMBER | No admin access |
 
 Permissions are stored in `RolePermission` table and can be customized per role.
@@ -222,7 +248,50 @@ npx tsx scripts/<script-name>.ts
 
 # Common scripts
 npx tsx scripts/create-admin.ts          # Create admin user
-npx tsx scripts/seed-directus-demo.ts    # Seed demo data
 npx tsx scripts/test-email.ts            # Test email sending
 npx tsx scripts/init-permissions.ts      # Initialize role permissions
+```
+
+## Prisma Schema Notes
+
+**Event vs Activity field differences** (important for unified "Offering" handling):
+- Event uses `maxCapacity`, Activity uses `maxParticipants`
+- Event uses `published`, Activity uses `active`
+- Event uses `imageUrl`, Activity uses `imageUrl`
+- Both have `managerId`/`managerEmail` for assignment
+- Both have `restrictions` and `pricing` as JSON fields
+
+## Reusable UI Components
+
+| Component | Purpose |
+|-----------|---------|
+| `components/RegistrationLayout.tsx` | Shared layout for event/activity registration pages |
+| `components/RegistrationInfoCard.tsx` | Sidebar info card with icons (calendar, clock, price, etc.) |
+| `components/forms/EventForm.tsx` | Complete event creation/edit form (30+ fields) |
+| `components/forms/ActivityForm.tsx` | Activity creation/edit form |
+| `components/dashboard/DashboardNav.tsx` | Dashboard navigation sidebar |
+| `components/Logo.tsx` | Dynamic logo component with location-based configuration |
+| `components/OrganizerContact.tsx` | Organizer contact display for events/activities |
+
+## Content Management Pattern
+
+When working with events/activities, use the unified "Offering" pattern from `lib/content.ts`:
+
+```typescript
+import {
+  getAllOfferings,      // Get all events + activities
+  getOfferingById,      // Get by ID (checks both tables)
+  createOffering,       // Create (routes to correct table based on item_type)
+  updateOffering,       // Update (finds correct table automatically)
+  deleteOffering,       // Delete (finds correct table automatically)
+  getOfferingsByManager // Get by manager ID/email
+} from '@/lib/content'
+
+// The Offering interface provides a unified view:
+interface Offering {
+  id: string
+  item_type: 'EVENT' | 'ACTIVITY'
+  title: string
+  // ... common fields
+}
 ```

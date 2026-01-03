@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useState } from 'react'
+import { Logo } from './Logo'
 import { useSession } from 'next-auth/react'
 import { Menu, X, User, LogIn } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
@@ -32,14 +32,7 @@ export function Navbar({ mosqueName = 'Mosquée Madretsch' }: NavbarProps) {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <Image
-              src="/mosque-madretsch-logo.png"
-              alt={mosqueName}
-              width={180}
-              height={42}
-              className="h-10 w-auto"
-              priority
-            />
+            <Logo location="header" alt={mosqueName} />
           </Link>
 
           {/* Desktop Navigation */}

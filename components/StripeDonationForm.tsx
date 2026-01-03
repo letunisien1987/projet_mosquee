@@ -8,7 +8,7 @@
  * - La clé secrète n'est JAMAIS exposée au client
  * - Redirection directe vers Stripe (pas de clé publique nécessaire)
  *
- * Les montants prédéfinis (presetAmounts) sont configurables dans les settings Directus.
+ * Les montants prédéfinis (presetAmounts) sont configurables dans les settings.
  * Ils sont passés depuis la page parent qui les charge côté serveur.
  */
 

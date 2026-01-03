@@ -4,7 +4,7 @@
  * Workflow:
  * 1. Récupère l'inscription (Enrollment) via ID ou token
  * 2. Vérifie que l'inscription nécessite un paiement
- * 3. Récupère les infos de l'activité depuis Directus
+ * 3. Récupère les infos de l'activité depuis la base de données
  * 4. Crée la session Stripe
  * 5. Retourne l'URL de paiement
  */
@@ -13,8 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { stripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { directusClient } from '@/lib/directus'
-import { readItem } from '@directus/sdk'
+import { getActivityById } from '@/lib/content'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
@@ -109,23 +108,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 3. Récupérer les infos de l'activité depuis Directus
+    // 3. Récupérer les infos de l'activité depuis la base de données
     let activityTitle = enrollment.activityTitle
     let activityDescription = ''
 
     if (enrollment.activityId) {
       try {
-        const activity = await directusClient.request(
-          readItem('activities', enrollment.activityId as any, {
-            fields: ['id', 'title', 'description']
-          })
-        ) as any
+        const activity = await getActivityById(enrollment.activityId)
         if (activity) {
           activityTitle = activity.title || activityTitle
           activityDescription = activity.description || ''
         }
       } catch (e) {
-        console.log('⚠️  Impossible de récupérer l\'activité Directus:', e)
+        console.log('⚠️  Impossible de récupérer l\'activité:', e)
       }
     }
 

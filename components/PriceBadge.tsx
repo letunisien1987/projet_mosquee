@@ -58,7 +58,7 @@ export function PriceBadge({
 
   if (isPaid) {
     // Déterminer l'icône selon le type de tarification
-    const hasFamilyPricing = pricing && (pricing.child_price !== undefined || pricing.family_max_price)
+    const hasFamilyPricing = pricing && (pricing.childPrice !== undefined || pricing.familyMaxPrice)
 
     return (
       <div

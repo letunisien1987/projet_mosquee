@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { getActivityById } from '@/lib/directus'
+import { getActivityById } from '@/lib/content'
 import { sendEnrollmentConfirmationEmail } from '@/lib/email'
 import { stripe } from '@/lib/stripe'
 import { getServerSession } from 'next-auth'
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Vérifier la session utilisateur
     const session = await getServerSession(authOptions)
 
-    // Récupérer l'activité depuis Directus
+    // Récupérer l'activité depuis la base de données
     const activity = await getActivityById(validatedData.activityId)
 
     if (!activity) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('✅ Activité trouvée:', activity.title, 'Prix:', activity.price, 'Approbation:', activity.requires_approval)
+    console.log('✅ Activité trouvée:', activity.title, 'Prix:', activity.price, 'Approbation:', activity.requiresApproval)
 
     // Récupérer ou créer l'utilisateur
     let user = await prisma.user.findUnique({
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Déterminer le statut initial et si paiement requis
     const requiresPayment = activity.price && activity.price > 0
-    const requiresApproval = activity.requires_approval
+    const requiresApproval = activity.requiresApproval
 
     let initialStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' = 'PENDING'
     if (!requiresApproval) {

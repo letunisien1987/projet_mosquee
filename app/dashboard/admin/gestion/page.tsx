@@ -19,33 +19,51 @@ import {
   Filter,
   LayoutGrid,
   List,
+  AlertCircle,
+  CreditCard,
+  UserCheck,
 } from 'lucide-react'
+
+interface OfferingStats {
+  pending: number
+  pendingPayment: number
+  confirmed: number
+  cancelled: number
+}
+
+interface GlobalStats {
+  pendingCount: number
+  pendingPaymentCount: number
+  confirmedCount: number
+  cancelledCount: number
+}
 
 interface Offering {
   id: string
-  item_type: 'EVENT' | 'ACTIVITY'
+  itemType: 'EVENT' | 'ACTIVITY'
   title: string
   slug: string
   description?: string
   category: string
-  activity_category?: string
+  activityCategory?: string
   date?: string
-  start_time?: string
-  end_time?: string
+  startTime?: string
+  endTime?: string
   location?: string
   schedule?: string
   instructor?: string
   level?: string
-  age_group?: string
-  max_capacity?: number
+  ageGroup?: string
+  maxCapacity?: number
   price?: number
-  payment_type?: string
+  paymentType?: string
   published: boolean
   featured?: boolean
-  enrollment_open?: boolean
-  requires_approval: boolean
-  manager_email?: string
+  enrollmentOpen?: boolean
+  requiresApproval: boolean
+  managerEmail?: string
   registrationCount: number
+  stats: OfferingStats
   isManager: boolean
 }
 
@@ -74,6 +92,12 @@ export default function AdminGestionPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [counts, setCounts] = useState({ total: 0, events: 0, activities: 0 })
+  const [globalStats, setGlobalStats] = useState<GlobalStats>({
+    pendingCount: 0,
+    pendingPaymentCount: 0,
+    confirmedCount: 0,
+    cancelledCount: 0,
+  })
   const [isFullAccess, setIsFullAccess] = useState(false)
 
   useEffect(() => {
@@ -90,6 +114,14 @@ export default function AdminGestionPage() {
         const data = await response.json()
         setOfferings(data.offerings || [])
         setCounts(data.counts || { total: 0, events: 0, activities: 0 })
+        setGlobalStats(
+          data.globalStats || {
+            pendingCount: 0,
+            pendingPaymentCount: 0,
+            confirmedCount: 0,
+            cancelledCount: 0,
+          }
+        )
         setIsFullAccess(data.isFullAccess || false)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Une erreur est survenue')
@@ -137,10 +169,10 @@ export default function AdminGestionPage() {
   }
 
   const OfferingCard = ({ offering }: { offering: Offering }) => {
-    const isEvent = offering.item_type === 'EVENT'
+    const isEvent = offering.itemType === 'EVENT'
     const categoryLabel = isEvent
       ? EVENT_CATEGORIES[offering.category] || offering.category
-      : ACTIVITY_CATEGORIES[offering.activity_category || 'autre'] || offering.category
+      : ACTIVITY_CATEGORIES[offering.activityCategory || 'autre'] || offering.category
 
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow">
@@ -181,7 +213,7 @@ export default function AdminGestionPage() {
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <Calendar className="h-4 w-4" />
               <span>{formatDate(offering.date)}</span>
-              {offering.start_time && <span>- {offering.start_time}</span>}
+              {offering.startTime && <span>- {offering.startTime}</span>}
             </div>
           )}
           {!isEvent && offering.schedule && (
@@ -209,7 +241,7 @@ export default function AdminGestionPage() {
               <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
                 <Users className="h-4 w-4" />
                 {offering.registrationCount}
-                {offering.max_capacity && ` / ${offering.max_capacity}`}
+                {offering.maxCapacity && ` / ${offering.maxCapacity}`}
               </span>
               {offering.price && offering.price > 0 && (
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
@@ -219,6 +251,27 @@ export default function AdminGestionPage() {
               )}
             </div>
           </div>
+
+          {/* Badges de statut des inscriptions */}
+          {offering.registrationCount > 0 && (
+            <div className="flex flex-wrap gap-1 pt-2">
+              {offering.stats?.pending > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full">
+                  {offering.stats.pending} en attente
+                </span>
+              )}
+              {offering.stats?.pendingPayment > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 rounded-full">
+                  {offering.stats.pendingPayment} a payer
+                </span>
+              )}
+              {offering.stats?.confirmed > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">
+                  {offering.stats.confirmed} confirmes
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
@@ -251,10 +304,10 @@ export default function AdminGestionPage() {
   }
 
   const OfferingListItem = ({ offering }: { offering: Offering }) => {
-    const isEvent = offering.item_type === 'EVENT'
+    const isEvent = offering.itemType === 'EVENT'
     const categoryLabel = isEvent
       ? EVENT_CATEGORIES[offering.category] || offering.category
-      : ACTIVITY_CATEGORIES[offering.activity_category || 'autre'] || offering.category
+      : ACTIVITY_CATEGORIES[offering.activityCategory || 'autre'] || offering.category
 
     return (
       <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -280,7 +333,7 @@ export default function AdminGestionPage() {
         </td>
         <td className="px-4 py-3 text-sm text-center">
           {offering.registrationCount}
-          {offering.max_capacity && ` / ${offering.max_capacity}`}
+          {offering.maxCapacity && ` / ${offering.maxCapacity}`}
         </td>
         <td className="px-4 py-3 text-sm text-center">
           {offering.price ? `${offering.price} CHF` : 'Gratuit'}
@@ -369,7 +422,7 @@ export default function AdminGestionPage() {
         </Link>
       </div>
 
-      {/* Stats cards */}
+      {/* Stats cards - Offres */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
@@ -377,7 +430,7 @@ export default function AdminGestionPage() {
               <LayoutGrid className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total offres</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{counts.total}</p>
             </div>
           </div>
@@ -401,6 +454,62 @@ export default function AdminGestionPage() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Activites</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{counts.activities}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats cards - Inscriptions globales */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-amber-200 dark:border-amber-900/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">En attente</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {globalStats.pendingCount}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-orange-200 dark:border-orange-900/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+              <CreditCard className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Paiement requis</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {globalStats.pendingPaymentCount}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-green-200 dark:border-green-900/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <UserCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Confirmes</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {globalStats.confirmedCount}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+              <XCircle className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Annules/Refuses</p>
+              <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                {globalStats.cancelledCount}
+              </p>
             </div>
           </div>
         </div>
@@ -483,7 +592,7 @@ export default function AdminGestionPage() {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredOfferings.map((offering) => (
-            <OfferingCard key={`${offering.item_type}-${offering.id}`} offering={offering} />
+            <OfferingCard key={`${offering.itemType}-${offering.id}`} offering={offering} />
           ))}
         </div>
       ) : (
@@ -502,7 +611,7 @@ export default function AdminGestionPage() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredOfferings.map((offering) => (
-                <OfferingListItem key={`${offering.item_type}-${offering.id}`} offering={offering} />
+                <OfferingListItem key={`${offering.itemType}-${offering.id}`} offering={offering} />
               ))}
             </tbody>
           </table>

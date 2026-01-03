@@ -1,6 +1,45 @@
 // Types pour l'API Mawaqit
 // Documentation: https://mawaqit.elghoudi.net/api/v1/
 
+// ============================================
+// Types pour les endpoints spécialisés (optimisés)
+// ============================================
+
+// Réponse de l'endpoint /prayer-times (horaires du jour)
+export interface TodayPrayerTimesRaw {
+  fajr: string      // "06:31"
+  sunrise: string   // "08:02"
+  dohr: string      // "12:23"
+  asr: string       // "14:24"
+  maghreb: string   // "16:42"
+  icha: string      // "18:12"
+}
+
+// Réponse de l'endpoint /calendar-iqama/{month} (tableau de 31 jours)
+export interface IqamaDayRaw {
+  fajr: string      // "07:00" (fixe)
+  dohr: string      // "+7" (relatif: +N minutes après adhan)
+  asr: string       // "+7"
+  maghreb: string   // "+5"
+  icha: string      // "19:00" (fixe)
+}
+
+// Helper pour convertir les noms de prières (API → standard)
+export function mapPrayerNamesToStandard(raw: TodayPrayerTimesRaw): PrayerTimes {
+  return {
+    Fajr: raw.fajr,
+    Sunrise: raw.sunrise,
+    Dhuhr: raw.dohr,      // dohr → Dhuhr
+    Asr: raw.asr,
+    Maghrib: raw.maghreb, // maghreb → Maghrib
+    Isha: raw.icha,       // icha → Isha
+  }
+}
+
+// ============================================
+// Types pour l'endpoint principal (legacy)
+// ============================================
+
 // Format de réponse brut de l'API Mawaqit (endpoint /{masjid_id}/)
 export interface MawaqitPrayerTime {
   fajr: string

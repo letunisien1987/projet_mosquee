@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEventById } from '@/lib/directus'
+import { getEventById } from '@/lib/content'
+
+// Désactiver le cache Next.js pour toujours avoir des données fraîches
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: NextRequest,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getEventById } from '@/lib/directus'
+import { getEventById } from '@/lib/content'
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { id: eventId } = await params
 
-    // Récupérer les infos de l'événement depuis Directus
+    // Récupérer les infos de l'événement depuis Prisma
     const event = await getEventById(eventId)
 
     if (!event) {
@@ -35,7 +35,7 @@ export async function GET(
       (total, r) => total + r.numberOfAdults + r.numberOfChildren,
       0
     )
-    const maxCapacity = event.max_capacity || null
+    const maxCapacity = event.maxCapacity || null
     const availableSpots = maxCapacity ? maxCapacity - registeredCount : null
     const isFull = maxCapacity ? registeredCount >= maxCapacity : false
 
@@ -45,20 +45,20 @@ export async function GET(
 
     // Vérifier la deadline
     let isDeadlinePassed = false
-    if (event.registration_deadline) {
-      const deadline = new Date(event.registration_deadline)
+    if (event.registrationDeadline) {
+      const deadline = new Date(event.registrationDeadline)
       isDeadlinePassed = new Date() > deadline
     }
 
     const canRegister =
-      event.registration_required &&
+      event.registrationRequired &&
       !isPast &&
       !isFull &&
       !isDeadlinePassed
 
     return NextResponse.json({
-      registrationRequired: event.registration_required,
-      requiresApproval: event.requires_approval,
+      registrationRequired: event.registrationRequired,
+      requiresApproval: event.requiresApproval,
       maxCapacity,
       registeredCount,
       availableSpots,
@@ -66,7 +66,7 @@ export async function GET(
       isPast,
       isDeadlinePassed,
       canRegister,
-      registrationDeadline: event.registration_deadline,
+      registrationDeadline: event.registrationDeadline,
     })
   } catch (error) {
     console.error('Erreur lors de la vérification de disponibilité:', error)
